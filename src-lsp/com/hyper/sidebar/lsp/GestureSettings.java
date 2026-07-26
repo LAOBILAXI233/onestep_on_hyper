@@ -209,7 +209,8 @@ public final class GestureSettings {
         }
 
         public boolean isBlacklisted(String packageName) {
-            return packageName != null && blacklistedPackages.contains(packageName);
+            return TextBoomContract.MODULE_PACKAGE.equals(packageName)
+                    || (packageName != null && blacklistedPackages.contains(packageName));
         }
     }
 }

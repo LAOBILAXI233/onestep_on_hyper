@@ -147,13 +147,14 @@ public final class LargeAreaSwipeGestureHooker implements XposedInterface.Hooker
                 if (!sTracking) return;
                 GestureIntentClassifier.Outcome outcome = sGestureClassifier.getOutcome();
                 float horizontalDelta = sGestureClassifier.getHorizontalDelta();
-                boolean largeContactArmed = sLargeContact;
+                boolean stationaryLargePress = sLargeContact
+                        && sGestureClassifier.canConfirmLongPressFallback();
                 String foregroundPackage = sForegroundPackage;
                 int touchX = Math.round(sDownX);
                 int touchY = Math.round(sDownY);
                 String summary = sGestureClassifier.summary(event.getEventTime());
                 GestureActionArbitrator.Action resolvedAction = GestureActionArbitrator.decide(
-                        outcome, largeContactArmed);
+                        outcome, stationaryLargePress);
                 resetGesture();
                 LSPLogger.i("LargeAreaSwipeGestureHooker: finished " + summary
                         + " action=" + resolvedAction);
@@ -422,6 +423,7 @@ public final class LargeAreaSwipeGestureHooker implements XposedInterface.Hooker
         if (context == null || isKeyguardLocked(context)) {
             return;
         }
+        if (isCurrentForegroundBlocked(context, "OneStep")) return;
 
         int mode = horizontalDelta > 0f ? MODE_LEFT : MODE_RIGHT;
         Intent intent = new Intent(ACTION_ENTER_ONE_STEP);
@@ -460,11 +462,24 @@ public final class LargeAreaSwipeGestureHooker implements XposedInterface.Hooker
             LSPLogger.w("LargeAreaSwipeGestureHooker: BigBang foreground package unavailable");
             return;
         }
+        GestureSettings.Snapshot settings = GestureSettings.read(context);
+        if (settings.isBlacklisted(foregroundPackage)
+                || isCurrentForegroundBlocked(context, "BigBang")) {
+            return;
+        }
 
         if (BigBangExtractionCoordinator.submit(context, systemServerClassLoader,
                 foregroundPackage, touchX, touchY)) {
             sLastTriggerTime = now;
         }
+    }
+
+    private static boolean isCurrentForegroundBlocked(Context context, String action) {
+        String currentPackage = resolveForegroundPackage(context);
+        if (!GestureSettings.read(context).isBlacklisted(currentPackage)) return false;
+        LSPLogger.d("LargeAreaSwipeGestureHooker: suppressed " + action
+                + " in foreground package=" + currentPackage);
+        return true;
     }
 
     private static boolean isKeyguardLocked(Context context) {

@@ -22,6 +22,18 @@ public class GestureActionArbitratorTest {
     }
 
     @Test
+    public void movingLargeContactWithoutValidSwipeDoesNothing() {
+        GestureIntentClassifier classifier = new GestureIntentClassifier();
+        classifier.start(0f, 0f, 0L, 3.75f);
+        classifier.addSample(0f, 0f, 0L, true, "test-area");
+        classifier.addSample(-306f, -334f, 82L, false, null);
+
+        assertEquals(GestureActionArbitrator.Action.NONE,
+                GestureActionArbitrator.decide(classifier.getOutcome(),
+                        classifier.canConfirmLongPressFallback()));
+    }
+
+    @Test
     public void ordinaryTouchDoesNothing() {
         assertEquals(GestureActionArbitrator.Action.NONE,
                 GestureActionArbitrator.decide(GestureIntentClassifier.Outcome.NONE, false));

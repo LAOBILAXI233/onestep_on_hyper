@@ -11,11 +11,11 @@ final class GestureActionArbitrator {
     private GestureActionArbitrator() {}
 
     static Action decide(GestureIntentClassifier.Outcome swipeOutcome,
-            boolean largeContactArmed) {
+            boolean stationaryLargePress) {
         if (swipeOutcome == GestureIntentClassifier.Outcome.SWIPE_LEFT
                 || swipeOutcome == GestureIntentClassifier.Outcome.SWIPE_RIGHT) {
             return Action.ENTER_ONE_STEP;
         }
-        return largeContactArmed ? Action.OPEN_BIG_BANG : Action.NONE;
+        return stationaryLargePress ? Action.OPEN_BIG_BANG : Action.NONE;
     }
 }
