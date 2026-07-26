@@ -1,0 +1,6 @@
+id=onestep_touchd
+name=OneStep Touch Daemon
+version=v1.0
+versionCode=1
+author=onestep
+description=Publishes the Xiaomi touch HAL contact-density signal as sys.onestep.large_area so OneStep can trigger BigBang on a thumb press.

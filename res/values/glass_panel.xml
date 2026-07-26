@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Glass surfaces use a mostly opaque fallback so text stays readable when
+         RenderEffect/backdrop blur is unavailable or the host is very bright. -->
+    <color name="glass_panel_fill">#ECF8FAFC</color>
+    <color name="glass_panel_stroke">#33202A31</color>
+    <color name="glass_section_fill">#B8FFFFFF</color>
+    <color name="glass_section_stroke">#33202A31</color>
+    <color name="glass_control_fill">#241A2830</color>
+    <color name="glass_control_pressed_fill">#3D1A2830</color>
+    <color name="glass_control_disabled_fill">#0D1A2830</color>
+    <color name="glass_control_stroke">#261A2830</color>
+    <color name="glass_text_primary">#E61B242B</color>
+    <color name="glass_text_secondary">#A61B242B</color>
+    <color name="glass_text_tertiary">#801B242B</color>
+    <color name="glass_icon_tint">#E61B242B</color>
+    <color name="glass_handle_tint">#661B242B</color>
+    <color name="topbar_icon_tint">#E6FFFFFF</color>
+
+    <dimen name="glass_panel_corner_radius">24dp</dimen>
+    <dimen name="glass_panel_elevation">18dp</dimen>
+    <dimen name="glass_panel_padding_horizontal">16dp</dimen>
+    <dimen name="glass_panel_padding_top">10dp</dimen>
+    <dimen name="glass_panel_padding_bottom">14dp</dimen>
+    <dimen name="glass_panel_handle_width">36dp</dimen>
+    <dimen name="glass_panel_handle_height">4dp</dimen>
+    <dimen name="glass_panel_handle_to_content">16dp</dimen>
+    <dimen name="glass_section_gap">10dp</dimen>
+    <dimen name="glass_section_corner_radius">12dp</dimen>
+    <dimen name="glass_section_header_height">52dp</dimen>
+    <dimen name="glass_section_header_padding_start">16dp</dimen>
+    <dimen name="glass_section_header_padding_end">8dp</dimen>
+    <dimen name="glass_section_content_padding_bottom">6dp</dimen>
+    <dimen name="glass_control_size">44dp</dimen>
+    <dimen name="glass_icon_size">20dp</dimen>
+</resources>

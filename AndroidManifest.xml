@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!--
+        OneStep LSPosed 模块 - AndroidManifest
+        运行在 com.android.systemui 进程内，hook 注入侧边栏
+        模块本身不需要系统签名，权限由宿主进程提供
+    -->
+
+    <!-- 配置界面用到的少量权限 -->
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+
+    <!-- The sidebar runs inside SystemUI; declare launcher visibility explicitly. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.SEND" />
+            <category android:name="android.intent.category.DEFAULT" />
+            <data android:mimeType="*/*" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.SEND_MULTIPLE" />
+            <category android:name="android.intent.category.DEFAULT" />
+            <data android:mimeType="*/*" />
+        </intent>
+    </queries>
+
+    <application
+        android:allowBackup="false"
+        android:icon="@drawable/ic_launcher"
+        android:label="@string/app_name"
+        android:description="@string/module_description"
+        android:supportsRtl="true"
+        android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar"
+        android:hardwareAccelerated="true">
+
+        <!--
+            libxposed/api 102 模块元数据已迁移到 META-INF/xposed/module.prop
+            入口类在 META-INF/xposed/java_init.list 中声明
+            不再使用 AndroidManifest 的 xposedmodule / xposedminversion 等 meta-data
+        -->
+
+        <!-- 配置入口 Activity -->
+        <activity
+            android:name=".lsp.ModuleConfigActivity"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:theme="@style/MiuixSettingTheme"
+            android:launchMode="singleTask">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".lsp.GestureBlacklistActivity"
+            android:exported="false"
+            android:label="手势黑名单"
+            android:theme="@style/MiuixSettingTheme" />
+
+        <activity
+            android:name=".lsp.TextBoomActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:theme="@style/TextBoomTheme" />
+
+        <provider
+            android:name=".lsp.BigBangImageProvider"
+            android:authorities="com.hyper.sidebar.bigbang.images"
+            android:exported="true"
+            android:grantUriPermissions="true" />
+
+        <!--
+            原 SmartisanOS 组件已禁用，待 LSP 化重写后逐个启用
+            原组件包括：SelectContactActivity / SelectMailContactActivity /
+            SettingActivity / AddContactActivity / AddApplicationActivity /
+            AddResolveInfoGroupActivtiy / SidebarService / PackagesMonitor /
+            DingDingReceiver / ShortcutReceiver
+        -->
+    </application>
+</manifest>

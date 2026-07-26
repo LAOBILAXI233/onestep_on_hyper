@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Miuix 风开关滑块：白色圆点，四周 3dp 内缩贴合 28dp 轨道 -->
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:insetLeft="3dp"
+    android:insetTop="3dp"
+    android:insetRight="3dp"
+    android:insetBottom="3dp">
+    <shape android:shape="oval">
+        <solid android:color="@color/miuix_switch_thumb" />
+        <size
+            android:width="22dp"
+            android:height="22dp" />
+    </shape>
+</inset>

@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SukiSU-Ultra (Miuix / HyperOS) 风格设置界面 token。
+     深色覆盖见 values-night/miuix.xml；主色走平台 Monet（system_accent1），跟随壁纸取色。 -->
+<resources>
+    <!-- 系统栏图标亮色开关（浅色主题下亮色状态栏图标） -->
+    <bool name="miuix_light_bars">true</bool>
+
+    <!-- 基础表面 -->
+    <color name="miuix_bg">#F7F7F9</color>
+    <color name="miuix_surface">#FFFFFF</color>
+    <color name="miuix_field_fill">#FFFFFF</color>
+    <color name="miuix_button_fill">#F3F4F7</color>
+    <color name="miuix_divider">#14000000</color>
+    <color name="miuix_ripple">#14000000</color>
+
+    <!-- 文本 -->
+    <color name="miuix_text_primary">#1B1F26</color>
+    <color name="miuix_text_secondary">#7A828E</color>
+    <color name="miuix_text_tertiary">#9AA1AC</color>
+
+    <!-- Monet 动态主色 -->
+    <color name="miuix_accent">@android:color/system_accent1_600</color>
+    <color name="miuix_accent_soft">@android:color/system_accent1_100</color>
+    <color name="miuix_on_accent">#FFFFFF</color>
+    <color name="miuix_on_accent_soft">#B3FFFFFF</color>
+
+    <!-- 状态大卡（SukiSU Miuix 绿卡，固定色不随 Monet） -->
+    <color name="miuix_status_ok_bg">#DFFAE4</color>
+    <color name="miuix_status_ok_fg">#36D167</color>
+    <color name="miuix_status_ok_text">#0F3D1F</color>
+    <color name="miuix_status_ok_text_soft">#B30F3D1F</color>
+
+    <!-- 浮动胶囊底栏（液态玻璃：近不透明 surface + 高光描边 + 投影） -->
+    <color name="miuix_bar_fill">#F5FFFFFF</color>
+    <color name="miuix_bar_stroke">#66FFFFFF</color>
+
+    <!-- 开关 -->
+    <color name="miuix_switch_track_off">#E3E5EA</color>
+    <color name="miuix_switch_thumb">#FFFFFF</color>
+
+    <!-- 尺寸 -->
+    <dimen name="miuix_screen_margin">12dp</dimen>
+    <dimen name="miuix_card_radius">16dp</dimen>
+    <dimen name="miuix_card_gap">12dp</dimen>
+    <dimen name="miuix_card_padding_h">16dp</dimen>
+    <dimen name="miuix_card_padding_v">14dp</dimen>
+    <dimen name="miuix_status_card_height">176dp</dimen>
+    <dimen name="miuix_status_check_size">150dp</dimen>
+    <dimen name="miuix_bottom_bar_height">64dp</dimen>
+    <dimen name="miuix_bottom_bar_margin_h">28dp</dimen>
+    <dimen name="miuix_bottom_bar_margin_bottom">16dp</dimen>
+    <dimen name="miuix_bottom_bar_elevation">12dp</dimen>
+    <dimen name="miuix_nav_icon_size">22dp</dimen>
+    <dimen name="miuix_action_button_height">48dp</dimen>
+</resources>

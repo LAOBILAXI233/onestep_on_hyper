@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:android="http://schemas.android.com/apk/res/android">
+    <style name="SettingTheme" parent="@android:style/Theme.DeviceDefault.Light.NoActionBar">
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowBackground">#F4F6FA</item>
+        <item name="android:windowIsTranslucent">false</item>
+        <item name="android:windowEnableSplitTouch">false</item>
+        <item name="android:splitMotionEvents">false</item>
+        <item name="android:fontFamily">sans</item>
+        <item name="android:colorAccent">#3673E1</item>
+        <item name="android:statusBarColor">#EEF1F7</item>
+        <item name="android:navigationBarColor">#F4F6FA</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+    </style>
+    <!-- SukiSU-Ultra (Miuix / HyperOS) 风格设置主题；配色 token 见 values/miuix.xml -->
+    <style name="MiuixSettingTheme" parent="@android:style/Theme.DeviceDefault.DayNight">
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:windowBackground">@color/miuix_bg</item>
+        <item name="android:colorAccent">@color/miuix_accent</item>
+        <item name="android:statusBarColor">@color/miuix_bg</item>
+        <item name="android:navigationBarColor">@color/miuix_bg</item>
+        <item name="android:windowLightStatusBar">@bool/miuix_light_bars</item>
+        <item name="android:windowLightNavigationBar">@bool/miuix_light_bars</item>
+        <item name="android:fontFamily">sans-serif</item>
+    </style>
+
+    <!-- Miuix 风大圆润开关 -->
+    <style name="MiuixSwitch" parent="@android:style/Widget.Material.CompoundButton.Switch">
+        <item name="android:track">@drawable/miuix_switch_track</item>
+        <item name="android:thumb">@drawable/miuix_switch_thumb</item>
+        <item name="android:switchMinWidth">50dp</item>
+        <item name="android:showText">false</item>
+        <item name="android:background">@null</item>
+    </style>
+
+    <!-- 浮动胶囊底栏 tab -->
+    <style name="MiuixNavItem">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">match_parent</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:orientation">vertical</item>
+        <item name="android:gravity">center</item>
+        <item name="android:background">@drawable/miuix_nav_item_bg</item>
+        <item name="android:clickable">true</item>
+        <item name="android:focusable">true</item>
+    </style>
+    <style name="MiuixNavIcon">
+        <item name="android:layout_width">@dimen/miuix_nav_icon_size</item>
+        <item name="android:layout_height">@dimen/miuix_nav_icon_size</item>
+        <item name="android:tint">@color/miuix_text_secondary</item>
+    </style>
+    <style name="MiuixNavLabel">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">2dp</item>
+        <item name="android:textSize">11sp</item>
+        <item name="android:textColor">@color/miuix_text_secondary</item>
+        <item name="android:includeFontPadding">false</item>
+    </style>
+
+    <!-- 卡片分组小节标题 -->
+    <style name="MiuixSectionLabel">
+        <item name="android:textSize">13sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textColor">@color/miuix_text_secondary</item>
+        <item name="android:layout_marginStart">8dp</item>
+        <item name="android:layout_marginBottom">8dp</item>
+        <item name="android:includeFontPadding">false</item>
+    </style>
+
+    <!-- 配置信息键值行 -->
+    <style name="MiuixDetailRow">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:orientation">horizontal</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:paddingBottom">12dp</item>
+    </style>
+    <style name="MiuixDetailKey">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:textColor">@color/miuix_text_secondary</item>
+        <item name="android:includeFontPadding">false</item>
+    </style>
+    <style name="MiuixDetailValue">
+        <item name="android:layout_width">210dp</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:gravity">end</item>
+        <item name="android:maxLines">2</item>
+        <item name="android:ellipsize">middle</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textColor">@color/miuix_text_primary</item>
+        <item name="android:includeFontPadding">false</item>
+    </style>
+
+    <style name="ListViewGeneralStyle">
+        <item name="android:divider">@null</item>
+        <item name="android:dividerHeight">0dp</item>
+        <item name="android:listSelector">@android:color/transparent</item>
+        <item name="android:overScrollMode">always</item>
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">match_parent</item>
+    </style>
+    <style name="ListViewGeneralStyleWithDivider">
+        <item name="android:listSelector">@android:color/transparent</item>
+        <item name="android:overScrollMode">always</item>
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">match_parent</item>
+    </style>
+    <style name="SettingItemTitleStyle">
+        <item name="android:shadowDy">2</item>
+        <item name="android:shadowRadius">0.1</item>
+        <item name="android:shadowColor">#2dffffff</item>
+        <item name="android:gravity">left|center_vertical</item>
+        <item name="android:maxWidth">307dp</item>
+        <item name="android:textColor">#80000000</item>
+        <item name="android:textSize">13.5sp</item>
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginLeft">30dp</item>
+        <item name="android:layout_marginTop">7dp</item>
+        <item name="android:layout_marginBottom">1dp</item>
+    </style>
+    <style name="SettingItemTipsStyle">
+        <item name="android:shadowDy">2</item>
+        <item name="android:shadowRadius">0.1</item>
+        <item name="android:shadowColor">#2dffffff</item>
+        <item name="android:layout_marginTop">2dp</item>
+        <item name="android:layout_marginBottom">13dp</item>
+        <item name="android:paddingLeft">30dp</item>
+        <item name="android:paddingRight">30dp</item>
+        <item name="android:textColor">#80000000</item>
+        <item name="android:textSize">13.5sp</item>
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        </style>
+</resources>

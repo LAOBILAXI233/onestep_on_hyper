@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Soft translucent fallback surface; MediaGlassPanel adds the runtime blur
+     and elevation when the host supports it. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <corners android:radius="@dimen/glass_panel_corner_radius" />
+    <solid android:color="@color/glass_panel_fill" />
+    <stroke
+        android:width="1dp"
+        android:color="@color/glass_panel_stroke" />
+</shape>

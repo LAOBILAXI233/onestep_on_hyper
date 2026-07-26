@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dark surfaces retain a little translucency while keeping a stable text
+         contrast over arbitrary SystemUI wallpaper/content. -->
+    <color name="glass_panel_fill">#D921252B</color>
+    <color name="glass_panel_stroke">#52FFFFFF</color>
+    <color name="glass_section_fill">#26000000</color>
+    <color name="glass_section_stroke">#3DFFFFFF</color>
+    <color name="glass_control_fill">#26FFFFFF</color>
+    <color name="glass_control_pressed_fill">#45FFFFFF</color>
+    <color name="glass_control_disabled_fill">#12FFFFFF</color>
+    <color name="glass_control_stroke">#38FFFFFF</color>
+    <color name="glass_text_primary">#F2FFFFFF</color>
+    <color name="glass_text_secondary">#B8FFFFFF</color>
+    <color name="glass_text_tertiary">#8FFFFFFF</color>
+    <color name="glass_icon_tint">#E6FFFFFF</color>
+    <color name="glass_handle_tint">#66FFFFFF</color>
+    <color name="topbar_icon_tint">#E6FFFFFF</color>
+</resources>

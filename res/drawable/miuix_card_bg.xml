@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Miuix 平面卡片：surface 填充 + 16dp 圆角，零阴影（SukiSU TonalCard 语法） -->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android"
+    android:color="@color/miuix_ripple">
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="@color/miuix_surface" />
+            <corners android:radius="@dimen/miuix_card_radius" />
+        </shape>
+    </item>
+</ripple>

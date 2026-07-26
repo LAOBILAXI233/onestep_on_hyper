@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 主色胶囊按钮（"完成"等主操作） -->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android"
+    android:color="#33FFFFFF">
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="@color/miuix_accent" />
+            <corners android:radius="100dp" />
+        </shape>
+    </item>
+</ripple>

@@ -1,0 +1,16 @@
+# libxposed/api 模块元数据
+# https://github.com/libxposed/api
+
+id=onestep_lsp
+name=One Step (LSP)
+version=1.0-lsp
+versionCode=1
+author=OneStepLSP
+description=SmartisanOS One Step ported to HyperOS / Android 16 via LSPosed
+# Must match the io.github.libxposed:api version this module compiles against (see build.gradle);
+# XposedModule's constructor contract differs between API levels.
+minApiVersion=100
+targetApiVersion=102
+# Left false so LSPosed can grant the system_server ("android") scope from the manager.
+staticScope=false
+exceptionMode=protective

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="sidebar_width">96dp</dimen>
+    <dimen name="multitask_top_height">213.3dp</dimen>
+    <dimen name="multitask_app_item_width">54dp</dimen>
+    <dimen name="multitask_app_icon_size">38dp</dimen>
+    <dimen name="recent_photo_size">80dp</dimen>
+    <dimen name="recent_photo_padding_vertical">5dp</dimen>
+    <dimen name="recent_photo_padding_bottom">10dp</dimen>
+    <dimen name="topbar_photo_icon_content_size">33dp</dimen>
+    <dimen name="topbar_photo_icon_content_paddingTop">14dp</dimen>
+    <dimen name="topbar_file_icon_content_paddingTop">10dp</dimen>
+    <dimen name="contact_avatar_size">32dp</dimen>
+
+    <dimen name="drag_scroll_view_top_area">96dp</dimen>
+    <dimen name="drag_scroll_view_bottom_area">192dp</dimen>
+    <!-- drag view values -->
+    <dimen name="dragViewScale">12dp</dimen>
+    <dimen name="clip_radius">6dp</dimen>
+    <dimen name="top_view_space_left">3dp</dimen>
+    <dimen name="top_view_space_right">3dp</dimen>
+    <dimen name="open_gallery_item_text_bottom">9dp</dimen>
+
+    <dimen name="float_text_padding_with_sidebar">12dp</dimen>
+    <dimen name="float_text_size">13dp</dimen>
+    <dimen name="share_item_icon_offset_x">3dp</dimen>
+    <dimen name="share_item_icon_offset_y">3dp</dimen>
+    <dimen name="item_block_gap">5dip</dimen>
+    <dimen name="setting_global_marginTop">9dp</dimen>
+    <dimen name="setting_global_marginBottom">9dp</dimen>
+
+    <dimen name="icon_settings_icon_margin_left">20dip</dimen>
+    <dimen name="icon_settings_author_margin_left">6dip</dimen>
+    <dimen name="icon_settings_author_margin_right">27dip</dimen>
+
+    <dimen name="sidebar_list_item_padding_top">3dp</dimen>
+    <dimen name="sidebar_list_anim_padding">8dp</dimen>
+</resources>

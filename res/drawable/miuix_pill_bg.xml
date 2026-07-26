@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 全圆角胶囊（版本号 / 状态值 pill） -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@color/miuix_accent_soft" />
+    <corners android:radius="100dp" />
+</shape>

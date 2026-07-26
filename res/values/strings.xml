@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<resources xmlns:android="http://schemas.android.com/apk/res/android" xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <string name="app_name">Van Step</string>
+    <string name="module_description">Van Step for HyperOS / Android 16 via LSPosed. Hooks SystemUI and the system launcher.</string>
+    <string name="topbar_photo">Images</string>
+    <string name="topbar_file">Files</string>
+    <string name="topbar_clipboard">Clipboard</string>
+    <string name="topbar_bookmark">Bookmark</string>
+    <string name="media_no_media">No media playing</string>
+    <string name="media_hint">Media controls appear here</string>
+    <string name="media_unknown_artist">Unknown artist</string>
+    <string name="media_album_art">Album art</string>
+    <string name="media_previous">Previous</string>
+    <string name="media_play">Play</string>
+    <string name="media_pause">Pause</string>
+    <string name="media_next">Next</string>
+    <string name="top_move_left">Move workspace left</string>
+    <string name="top_move_right">Move workspace right</string>
+    <string name="top_rotate">Force rotate main task</string>
+    <string name="top_settings">Settings</string>
+    <string name="top_exit">Exit Van Step</string>
+    <string name="glass_panel_accessibility_title">Workspace quick actions</string>
+    <string name="title_photo">Recent Images</string>
+    <string name="title_file">Recent Files</string>
+    <string name="title_clipboard">Recent Clipboard Text</string>
+    <string name="title_bookmark">Recent Bookmarks</string>
+    <string name="add_application_shortcut">Tap to Add App Shortcut</string>
+    <string name="add_contact_dingding">Dingding Contact</string>
+    <string name="add_contact_wechat">WeChat Contact</string>
+    <string name="add_contact_mail">Email Contact</string>
+    <string name="add_contact_mms">Messaging Contact</string>
+    <string name="open_gallery">Open Albums</string>
+    <string name="title_confirm_delete_history_photo">Clearing The History Will Not Delete Images</string>
+    <string name="title_confirm_delete_history_file">Clearing The History Will Not Delete Files</string>
+    <string name="title_confirm_delete_history_clipboard">Contents Of The Clipboard Can"'"t Be Recovered Once It Is Cleared</string>
+    <string name="title_confirm_delete_bookmark">Bookmarks Can"'"t Be Recovered Once Deleted.</string>
+    <string name="clear">Clear</string>
+    <string name="delete_clipboard_item">Delete clipboard item</string>
+    <string name="add_wechat_hint">Once in WeChat, look at the Details page of a friend and tap the "three dot" icon at the upper right to add a shortcut for that friend to the Launcher</string>
+
+    <string name="back_text">Back</string>
+
+    <!-- uninstall -->
+    <string name="uninstall_app_dialog_title">Notice</string>
+    <string name="uninstall_app_dialog_text">Remove "%1$s" from Side Panel?</string>
+    <string name="text_copied">Text Copied</string>
+    <string name="photo_empty_text">Image History Is Empty</string>
+    <string name="photo_empty_hint">Recent images will appear here</string>
+    <string name="file_empty_text">File History Is Empty</string>
+    <string name="file_empty_hint">Recent files will appear here</string>
+    <string name="clipboard_empty_text">Clipboard Is Empty</string>
+    <string name="clipboard_empty_hint">Recently cut and copied text will appear here</string>
+
+    <!-- pending event -->
+    <string name="pending_ongoing">Working...</string>
+    <string name="pending_fail">Action Failed</string>
+    <string name="pending_cancel">Canceled</string>
+
+    <string name="fail_to_load_image">Unable to Load the Image</string>
+    <string name="bookmark_empty_text">No Bookmarks</string>
+    <string name="bookmark_empty_hint">Add to Bookmarks, or copy the link and add the page"'"s text and images to Bookmarks</string>
+    <string name="share_component_name">Add to Bookmarks</string>
+    <string name="bookmark_source">From:</string>
+
+    <string name="date_label_today">Today</string>
+    <string name="date_label_yesterday">Yesterday</string>
+    <string name="date_label_last_week">Past 7 Days</string>
+    <string name="date_label_last_month">Within a Month</string>
+    <string name="date_label_earlier">Older</string>
+    <string name="load_more">Show More</string>
+
+    <string name="add_item_to_sidebar">Add Springboard Content</string>
+    <string name="add_contact_to_sidebar">Add Contact Shortcut</string>
+    <string name="add_app_to_sidebar">Add App Shortcut</string>
+    <string name="add_share_to_sidebar">Add Sharing Shortcut</string>
+    <string name="switch_previous_app">Switch to Last App</string>
+    <string name="drag_recall_tasks">Show app windows</string>
+    <string name="switch_previous_app_hint">Once launched, you can tap the "Switch" button on the Springboard to jump back to the last app.</string>
+    <string name="contact_added">Added</string>
+    <string name="add_at_most_contact_number">You can have up to %d contact shortcuts.</string>
+    <string name="add_at_most_app_number">You can have up to %d app shortcuts.</string>
+    <string name="add_at_most_share_number">You can have up to %d sharing shortcuts.</string>
+    <string name="hint_sort_by_long_press">You can rearrange Springboard icons by first pressing and holding one of them.</string>
+    <string name="introduction_text">Introduction</string>
+    <string name="glass_panel_clear">Clear</string>
+    <plurals name="glass_section_item_count">
+        <item quantity="one">%d item</item>
+        <item quantity="other">%d items</item>
+    </plurals>
+
+    <!-- Miuix 风格设置界面（ModuleConfigActivity / GestureBlacklistActivity）。
+         模块面向 HyperOS 中文用户，与原 Java 硬编码文案保持一致，默认即中文。 -->
+    <string name="miuix_subtitle_console">LSP 控制台</string>
+    <string name="miuix_nav_control">控制</string>
+    <string name="miuix_nav_gesture">手势</string>
+    <string name="miuix_nav_log">日志</string>
+    <string name="miuix_nav_about">关于</string>
+
+    <string name="miuix_status_active">已激活</string>
+    <string name="miuix_tag_api">API 102</string>
+    <string name="miuix_counter_blacklist">黑名单应用</string>
+    <string name="miuix_section_mode">模式控制</string>
+    <string name="miuix_action_enter">进入 Van Step</string>
+    <string name="miuix_action_exit">退出 Van Step</string>
+    <string name="miuix_action_toggle">切换 Van Step</string>
+    <string name="miuix_quick_toggle_hint">轻点立即切换</string>
+    <string name="miuix_control_footer">进入 Van Step 后，侧边栏状态会由 SystemUI 进程接管。</string>
+
+    <string name="miuix_title_control">Van Step</string>
+    <string name="miuix_title_gesture">手势与触发</string>
+    <string name="miuix_subtitle_gesture">大面积算法、长按兼容与应用黑名单</string>
+    <string name="miuix_title_log">运行日志</string>
+    <string name="miuix_subtitle_log">定位 SystemUI 与桌面状态</string>
+    <string name="miuix_title_about">关于 Van Step</string>
+    <string name="miuix_subtitle_about">HyperOS / Android 16</string>
+
+    <string name="miuix_gesture_ready_title">软件手势已就绪</string>
+    <string name="miuix_gesture_ready_summary_assist">稳按与斜向轨迹负责主判定，HyperOS 面积通道仅作为辅助证据。</string>
+    <string name="miuix_gesture_ready_summary_pure">使用稳按与斜向轨迹判定，不依赖压感屏或触摸面积硬件。</string>
+    <string name="miuix_blacklist_manage_fmt">管理黑名单 · %d 个应用</string>
+    <string name="miuix_about_version_fmt">版本 %s</string>
+    <string name="miuix_section_feedback">交互反馈</string>
+    <string name="miuix_haptics_title">拖拽触感</string>
+    <string name="miuix_haptics_summary">划过分享应用、命中小窗和召回小窗时提供轻触反馈</string>
+    <string name="miuix_section_fallback">兼容触发</string>
+    <string name="miuix_fallback_title">静止长按兜底</string>
+    <string name="miuix_fallback_summary">默认关闭；仅当系统算法没有识别时参与判定</string>
+    <string name="miuix_two_finger_title">双指长按</string>
+    <string name="miuix_two_finger_summary">默认开启；两指按住片刻即可唤出 BigBang，不依赖触摸面积</string>
+    <string name="miuix_duration_title">长按时间</string>
+    <string name="miuix_section_restrict">应用限制</string>
+    <string name="miuix_blacklist_title">手势黑名单</string>
+    <string name="miuix_blacklist_summary">黑名单应用内，大面积算法和长按兜底都不会触发。</string>
+    <string name="miuix_gesture_footer">静止长按不会参与默认判定；需要时再打开兼容开关。</string>
+
+    <string name="miuix_section_diagnostics">诊断记录</string>
+    <string name="miuix_logging_title">记录运行日志</string>
+    <string name="miuix_logging_summary">跨进程记录任务、显示器与窗口状态</string>
+    <string name="miuix_log_file">当前文件</string>
+    <string name="miuix_log_size">文件大小</string>
+    <string name="miuix_copy_path">复制路径</string>
+    <string name="miuix_clear_log">清空日志</string>
+    <string name="miuix_log_flow_title">复现流程</string>
+    <string name="miuix_log_flow_summary">打开开关后持续记录，复现问题后直接提供 onestep.log；关闭开关即停止写入。</string>
+
+    <string name="miuix_about_title">Van Step (LSP)</string>
+    <string name="miuix_about_platform">平台</string>
+    <string name="miuix_about_platform_value">Android 16 / HyperOS</string>
+    <string name="miuix_about_api">接口</string>
+    <string name="miuix_about_api_value">LSPosed API 102</string>
+    <string name="miuix_about_render">渲染</string>
+    <string name="miuix_about_render_value">原生 View + Miuix token</string>
+    <string name="miuix_about_design_title">设计来源</string>
+    <string name="miuix_about_design_summary">界面参考 SukiSU-Ultra 的 Miuix / HyperOS 设计语言：绿色状态大卡、平面圆角卡片、Monet 动态取色与浮动胶囊底栏。</string>
+
+    <string name="miuix_blacklist_page_title">手势黑名单</string>
+    <string name="miuix_blacklist_page_subtitle">选择不响应大面积手势的应用</string>
+    <string name="miuix_blacklist_done">完成</string>
+    <string name="miuix_blacklist_saving">保存中…</string>
+    <string name="miuix_blacklist_search_hint">搜索应用或 package name</string>
+    <string name="miuix_blacklist_clear">清空</string>
+    <string name="miuix_blacklist_loading">正在读取应用…</string>
+    <string name="miuix_blacklist_empty">没有找到可启动应用</string>
+    <string name="miuix_blacklist_no_match">没有匹配的应用</string>
+    <string name="miuix_blacklist_selected_fmt">已选择 %d 个应用</string>
+    <string name="miuix_blacklist_back">返回</string>
+</resources>

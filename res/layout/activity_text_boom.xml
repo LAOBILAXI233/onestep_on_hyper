@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Floating BigBang panel: a transparent full-screen root (taps outside dismiss) holding a
+     bottom-anchored card that slides up over the dimmed host app. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/text_boom_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@android:color/transparent"
+    android:clickable="true"
+    android:focusable="true">
+
+    <LinearLayout
+        android:id="@+id/text_boom_card"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_gravity="bottom"
+        android:layout_marginTop="@dimen/text_boom_top_peek"
+        android:background="@drawable/text_boom_card_background"
+        android:clickable="true"
+        android:orientation="vertical">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/text_boom_header_height"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="@dimen/text_boom_content_horizontal"
+            android:paddingEnd="@dimen/text_boom_toolbar_padding">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:fontFamily="sans"
+                android:text="@string/text_boom_title"
+                android:textColor="@color/text_boom_text_primary"
+                android:textSize="22sp"
+                android:textStyle="bold" />
+
+            <ImageButton
+                android:id="@+id/text_boom_close"
+                android:layout_width="@dimen/text_boom_icon_button"
+                android:layout_height="@dimen/text_boom_icon_button"
+                android:background="?android:attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/text_boom_close"
+                android:padding="@dimen/text_boom_icon_padding"
+                android:src="@drawable/ic_lucide_x"
+                android:tint="@color/text_boom_text_primary" />
+        </LinearLayout>
+
+        <ScrollView
+            android:id="@+id/text_boom_scroll"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:clipToPadding="false"
+            android:fillViewport="true"
+            android:overScrollMode="ifContentScrolls">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingStart="@dimen/text_boom_content_horizontal"
+                android:paddingTop="@dimen/text_boom_content_vertical"
+                android:paddingEnd="@dimen/text_boom_content_horizontal"
+                android:paddingBottom="@dimen/text_boom_content_bottom">
+
+                <ImageView
+                    android:id="@+id/text_boom_image"
+                    android:layout_width="match_parent"
+                    android:layout_height="@dimen/text_boom_image_height"
+                    android:layout_marginBottom="@dimen/text_boom_section_gap"
+                    android:background="@color/text_boom_image_background"
+                    android:contentDescription="@string/text_boom_image_label"
+                    android:longClickable="true"
+                    android:scaleType="fitCenter"
+                    android:visibility="gone" />
+
+                <com.hyper.sidebar.lsp.TextBoomChipLayout
+                    android:id="@+id/text_boom_chips"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:clipChildren="false"
+                    android:clipToPadding="false" />
+            </LinearLayout>
+        </ScrollView>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/text_boom_action_height"
+            android:background="@drawable/text_boom_action_background"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="@dimen/text_boom_content_horizontal"
+            android:paddingEnd="@dimen/text_boom_toolbar_padding">
+
+            <TextView
+                android:id="@+id/text_boom_selection_status"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:ellipsize="end"
+                android:fontFamily="sans"
+                android:maxLines="2"
+                android:textColor="@color/text_boom_text_secondary"
+                android:textSize="14sp" />
+
+            <ImageButton
+                android:id="@+id/text_boom_copy"
+                android:layout_width="@dimen/text_boom_icon_button"
+                android:layout_height="@dimen/text_boom_icon_button"
+                android:background="?android:attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/text_boom_copy"
+                android:padding="@dimen/text_boom_icon_padding"
+                android:src="@drawable/ic_lucide_copy"
+                android:tint="@color/text_boom_accent" />
+
+            <ImageButton
+                android:id="@+id/text_boom_share"
+                android:layout_width="@dimen/text_boom_icon_button"
+                android:layout_height="@dimen/text_boom_icon_button"
+                android:layout_marginStart="4dp"
+                android:background="?android:attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/text_boom_share"
+                android:padding="@dimen/text_boom_icon_padding"
+                android:src="@drawable/ic_lucide_share_2"
+                android:tint="@color/text_boom_accent" />
+        </LinearLayout>
+    </LinearLayout>
+</FrameLayout>

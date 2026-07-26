@@ -1,0 +1,282 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.hyper.sidebar.view.TopView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/background"
+    android:clipChildren="false"
+    android:fitsSystemWindows="false">
+
+    <FrameLayout
+        android:id="@+id/top_page_host"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:clipChildren="false">
+
+        <FrameLayout
+            android:id="@+id/current_top_page"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
+
+            <FrameLayout
+                android:id="@+id/top_media_container"
+                android:layout_width="match_parent"
+                android:layout_height="90dp"
+                android:layout_gravity="top"
+                android:layout_marginTop="28dp"
+                android:paddingLeft="10dp"
+                android:paddingTop="10dp"
+                android:paddingRight="10dp"
+                android:paddingBottom="10dp">
+
+                <LinearLayout
+                    android:id="@+id/top_media_card"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:background="@drawable/media_card_background"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingLeft="10dp"
+                    android:paddingRight="6dp">
+
+                    <ImageView
+                        android:id="@+id/media_art"
+                        android:layout_width="52dp"
+                        android:layout_height="52dp"
+                        android:background="@drawable/media_art_background"
+                        android:clipToOutline="true"
+                        android:contentDescription="@string/media_album_art"
+                        android:outlineProvider="background"
+                        android:scaleType="centerCrop"
+                        android:src="@drawable/ic_media_note" />
+
+                    <LinearLayout
+                        android:id="@+id/media_text_container"
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_marginLeft="10dp"
+                        android:layout_marginRight="4dp"
+                        android:layout_weight="1"
+                        android:gravity="center_vertical"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:id="@+id/media_title"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:ellipsize="end"
+                            android:maxLines="1"
+                            android:text="@string/media_no_media"
+                            android:textColor="#F2F4F5"
+                            android:textSize="14sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/media_artist"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:ellipsize="end"
+                            android:maxLines="1"
+                            android:text="@string/media_hint"
+                            android:textColor="#A9F2F4F5"
+                            android:textSize="11sp" />
+                    </LinearLayout>
+
+                    <ImageButton
+                        android:id="@+id/media_previous"
+                        android:layout_width="44dp"
+                        android:layout_height="44dp"
+                        android:layout_marginLeft="3dp"
+                        android:layout_marginRight="2dp"
+                        android:background="@drawable/media_button_background"
+                        android:contentDescription="@string/media_previous"
+                        android:padding="8dp"
+                        android:src="@drawable/ic_media_prev" />
+
+                    <ImageButton
+                        android:id="@+id/media_play_pause"
+                        android:layout_width="42dp"
+                        android:layout_height="48dp"
+                        android:layout_marginLeft="2dp"
+                        android:layout_marginRight="2dp"
+                        android:background="@drawable/media_button_background"
+                        android:contentDescription="@string/media_play"
+                        android:padding="9dp"
+                        android:src="@drawable/ic_media_play" />
+
+                    <ImageButton
+                        android:id="@+id/media_next"
+                        android:layout_width="44dp"
+                        android:layout_height="44dp"
+                        android:layout_marginLeft="2dp"
+                        android:layout_marginRight="3dp"
+                        android:background="@drawable/media_button_background"
+                        android:contentDescription="@string/media_next"
+                        android:padding="8dp"
+                        android:src="@drawable/ic_media_next" />
+                </LinearLayout>
+            </FrameLayout>
+        </FrameLayout>
+
+        <LinearLayout
+            android:id="@+id/legacy_top_page"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_marginBottom="112dp"
+            android:background="@drawable/background"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:visibility="invisible">
+
+            <com.hyper.sidebar.view.DimSpaceView
+                android:id="@+id/top_dim_view_left"
+                android:layout_width="@dimen/top_view_space_left"
+                android:layout_height="match_parent"
+                android:background="@color/topbar_dim_color" />
+
+            <include
+                android:id="@+id/photo"
+                layout="@layout/top_item_view" />
+
+            <include
+                android:id="@+id/file"
+                layout="@layout/top_item_view" />
+
+            <include
+                android:id="@+id/clipboard"
+                layout="@layout/top_item_view" />
+
+            <com.hyper.sidebar.view.DimSpaceView
+                android:id="@+id/top_dim_view_right"
+                android:layout_width="@dimen/top_view_space_right"
+                android:layout_height="match_parent"
+                android:background="@color/topbar_dim_color" />
+        </LinearLayout>
+    </FrameLayout>
+
+    <LinearLayout
+        android:id="@+id/top_controls"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:layout_gravity="bottom"
+        android:layout_marginBottom="56dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingLeft="6dp"
+        android:paddingRight="6dp">
+
+        <ImageButton
+            android:id="@+id/top_move_left"
+            android:layout_width="48dp"
+            android:layout_height="match_parent"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/top_move_left"
+            android:padding="12dp"
+            android:scaleType="centerInside"
+            android:src="@drawable/ic_lucide_panel_left"
+            android:tooltipText="@string/top_move_left" />
+
+        <ImageButton
+            android:id="@+id/top_move_right"
+            android:layout_width="48dp"
+            android:layout_height="match_parent"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/top_move_right"
+            android:padding="12dp"
+            android:scaleType="centerInside"
+            android:src="@drawable/ic_lucide_panel_right"
+            android:tooltipText="@string/top_move_right" />
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="@string/app_name"
+            android:textColor="#E6EBEE"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <ImageButton
+            android:id="@+id/top_rotate"
+            android:layout_width="48dp"
+            android:layout_height="match_parent"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/top_rotate"
+            android:padding="12dp"
+            android:scaleType="centerInside"
+            android:src="@drawable/ic_lucide_rotate_cw"
+            android:tooltipText="@string/top_rotate" />
+
+        <ImageButton
+            android:id="@+id/top_settings"
+            android:layout_width="48dp"
+            android:layout_height="match_parent"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/top_settings"
+            android:padding="12dp"
+            android:scaleType="centerInside"
+            android:src="@drawable/ic_lucide_settings_2"
+            android:tooltipText="@string/top_settings" />
+
+        <ImageButton
+            android:id="@+id/top_exit"
+            android:layout_width="48dp"
+            android:layout_height="match_parent"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/top_exit"
+            android:padding="12dp"
+            android:scaleType="centerInside"
+            android:src="@drawable/ic_lucide_log_out"
+            android:tooltipText="@string/top_exit" />
+    </LinearLayout>
+
+    <HorizontalScrollView
+        android:id="@+id/top_app_scroll"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:layout_gravity="bottom"
+        android:clipToPadding="false"
+        android:fillViewport="true"
+        android:overScrollMode="never"
+        android:paddingLeft="3dp"
+        android:paddingRight="3dp"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:id="@+id/top_app_strip"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:gravity="center_vertical"
+            android:orientation="horizontal" />
+    </HorizontalScrollView>
+
+    <View
+        android:id="@+id/top_view_shadow_line"
+        android:layout_width="match_parent"
+        android:layout_height="4dp"
+        android:layout_gravity="bottom"
+        android:background="@drawable/top_shadow" />
+
+    <View
+        android:id="@+id/right_shadow"
+        android:layout_width="4dp"
+        android:layout_height="match_parent"
+        android:layout_gravity="left"
+        android:alpha="0.35"
+        android:background="@drawable/right_shadow" />
+
+    <View
+        android:id="@+id/left_shadow"
+        android:layout_width="4dp"
+        android:layout_height="match_parent"
+        android:layout_gravity="right"
+        android:alpha="0.35"
+        android:background="@drawable/left_shadow" />
+
+    <View
+        android:id="@+id/topbar_disable_view"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/disable_dim_color"
+        android:visibility="gone" />
+</com.hyper.sidebar.view.TopView>

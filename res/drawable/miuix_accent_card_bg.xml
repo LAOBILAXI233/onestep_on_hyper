@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 强调色快捷卡：Monet accent 填充 + on-accent ripple，圆角与普通卡一致 -->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android"
+    android:color="#33FFFFFF">
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="@color/miuix_accent" />
+            <corners android:radius="@dimen/miuix_card_radius" />
+        </shape>
+    </item>
+</ripple>

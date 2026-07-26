@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SukiSU StatusTag：6dp 小圆角标签 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@color/miuix_accent_soft" />
+    <corners android:radius="6dp" />
+</shape>

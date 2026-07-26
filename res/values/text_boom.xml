@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="text_boom_background">#F5F7FA</color>
+    <color name="text_boom_surface">#FFFFFF</color>
+    <color name="text_boom_image_background">#E8ECF2</color>
+    <color name="text_boom_text_primary">#17191F</color>
+    <color name="text_boom_text_secondary">#667085</color>
+    <color name="text_boom_accent">#1677FF</color>
+    <color name="text_boom_chip_normal">#FFFFFF</color>
+    <!-- Selected chip fill sampled from the original BigBang pressed 9-patch (#5581F1), a softer
+         periwinkle than the theme accent. Kept separate so it doesn't drag colorAccent with it. -->
+    <color name="text_boom_chip_selected_bg">#5581F1</color>
+    <color name="text_boom_chip_punctuation">#E9EDF3</color>
+    <color name="text_boom_chip_border">#D5DAE2</color>
+
+    <dimen name="text_boom_header_height">64dp</dimen>
+    <dimen name="text_boom_action_height">72dp</dimen>
+    <dimen name="text_boom_content_horizontal">20dp</dimen>
+    <dimen name="text_boom_content_vertical">12dp</dimen>
+    <dimen name="text_boom_content_bottom">28dp</dimen>
+    <dimen name="text_boom_toolbar_padding">8dp</dimen>
+    <dimen name="text_boom_icon_button">48dp</dimen>
+    <dimen name="text_boom_icon_padding">12dp</dimen>
+    <dimen name="text_boom_chip_gap">8dp</dimen>
+    <dimen name="text_boom_row_gap">10dp</dimen>
+    <dimen name="text_boom_chip_padding_horizontal">12dp</dimen>
+    <dimen name="text_boom_chip_padding_vertical">8dp</dimen>
+    <!-- Punctuation chips hug their single mark, so they use a tighter horizontal padding. -->
+    <dimen name="text_boom_punctuation_padding_horizontal">5dp</dimen>
+    <!-- Floating panel: rounded top corners, and a peek of the dimmed host app above the card. -->
+    <dimen name="text_boom_card_corner">18dp</dimen>
+    <dimen name="text_boom_top_peek">56dp</dimen>
+    <dimen name="text_boom_chip_min_height">40dp</dimen>
+    <dimen name="text_boom_chip_text">15sp</dimen>
+    <dimen name="text_boom_edge_scroll">72dp</dimen>
+    <dimen name="text_boom_image_height">280dp</dimen>
+    <dimen name="text_boom_section_gap">20dp</dimen>
+
+    <!-- Chip animation timings (ms). The boom-in ripple is capped at duration + stagger span. -->
+    <integer name="text_boom_boom_in_duration">200</integer>
+    <integer name="text_boom_boom_in_stagger_span">230</integer>
+    <integer name="text_boom_press_duration">120</integer>
+    <integer name="text_boom_select_pop_duration">180</integer>
+
+    <string name="text_boom_title">bigbang</string>
+    <string name="text_boom_close">Close</string>
+    <string name="text_boom_copy">Copy</string>
+    <string name="text_boom_share">Share</string>
+    <string name="text_boom_copied">Copied</string>
+    <string name="text_boom_no_selection">No selection</string>
+    <string name="text_boom_image_label">Image</string>
+    <string name="text_boom_empty_input">No extractable content</string>
+    <string name="text_boom_image_load_failed">Image preview failed</string>
+    <plurals name="text_boom_selection_count">
+        <item quantity="one">%d item selected</item>
+        <item quantity="other">%d items selected</item>
+    </plurals>
+
+    <!-- Slide the floating panel up from the bottom on open, back down on close. -->
+    <style name="TextBoomWindowAnimation">
+        <item name="android:windowEnterAnimation">@anim/text_boom_slide_up_in</item>
+        <item name="android:windowExitAnimation">@anim/text_boom_slide_down_out</item>
+    </style>
+
+    <!-- Translucent so the BigBang card floats over the dimmed host app, like the original. -->
+    <style name="TextBoomTheme" parent="@android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:windowActionModeOverlay">true</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:colorBackgroundCacheHint">@null</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:backgroundDimEnabled">true</item>
+        <!-- 0.5 matches the original BigBang, which sets dimAmount in RealBoomActivity.onCreate. -->
+        <item name="android:backgroundDimAmount">0.5</item>
+        <item name="android:windowAnimationStyle">@style/TextBoomWindowAnimation</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:colorAccent">@color/text_boom_accent</item>
+        <item name="android:windowDisablePreview">true</item>
+    </style>
+</resources>

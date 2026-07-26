@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.hyper.sidebar.view.ContentView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:sidebar="http://schemas.android.com/apk/res/com.hyper.sidebar"
+    android:descendantFocusability="afterDescendants"
+    android:fitsSystemWindows="true"
+    android:background="@color/dim_color"
+    android:focusable="true" >
+    <include layout="@layout/photo_view_group"
+        android:visibility="invisible"/>
+    <include layout="@layout/file_view_group"
+        android:visibility="invisible"/>
+    <include layout="@layout/clipboard_view_group"
+        android:visibility="invisible"/>
+    <include layout="@layout/bookmark_view_group"
+        android:visibility="gone"/>
+</com.hyper.sidebar.view.ContentView>

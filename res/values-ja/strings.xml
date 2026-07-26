@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<resources xmlns:android="http://schemas.android.com/apk/res/android" xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+
+    <string name="topbar_photo">画像</string>
+    <string name="topbar_file">ファイル</string>
+    <string name="topbar_clipboard">ボード</string>
+    <string name="topbar_bookmark">ブックマーク</string>
+    <string name="title_photo">最近の画像</string>
+    <string name="title_file">最近のファイル</string>
+    <string name="title_clipboard">最近のクリップボードテキスト</string>
+    <string name="title_bookmark">最近のブックマーク</string>
+    <string name="add_application_shortcut">アプリショートカット作成</string>
+    <string name="add_contact_dingding">Dingding連絡先</string>
+    <string name="add_contact_wechat">WeChar連絡先</string>
+    <string name="add_contact_mail">メール連絡先</string>
+    <string name="add_contact_mms">SMS連絡先</string>
+    <string name="open_gallery">アルバムを開く</string>
+    <string name="title_confirm_delete_history_photo">履歴のクリアでは画像は削除されません</string>
+    <string name="title_confirm_delete_history_file">履歴のクリアではファイルは削除されません</string>
+    <string name="title_confirm_delete_history_clipboard">クリップボードをクリアすると復元できません</string>
+    <string name="title_confirm_delete_bookmark">ブックマーク内容をクリアすると復元できません</string>
+    <string name="clear">消去</string>
+    <string name="add_wechat_hint">WeChatを開き友人詳細ページの左上の三角アイコンから「ホーム画面に追加」を選択</string>
+
+    <string name="back_text">戻る</string>
+
+    <!-- uninstall -->
+    <string name="uninstall_app_dialog_title">ヒント</string>
+    <string name="uninstall_app_dialog_text">"%1$s"をサイドパネルから削除しますか？</string>
+    <string name="text_copied">テキストコピー済み</string>
+    <string name="photo_empty_text">画像履歴はありません</string>
+    <string name="photo_empty_hint">最近受け取ったり編集した画像はここに表示されます</string>
+    <string name="file_empty_text">ファイル履歴はありません</string>
+    <string name="file_empty_hint">最近受け取ったり編集したファイルはここに表示されます</string>
+    <string name="clipboard_empty_text">クリップボードなし</string>
+    <string name="clipboard_empty_hint">最近切り取ったりコピーしたテキストはここに表示されます</string>
+
+    <!-- pending event -->
+    <string name="pending_ongoing">処理中...</string>
+    <string name="pending_fail">処理失敗</string>
+    <string name="pending_cancel">取り消しました</string>
+
+    <string name="fail_to_load_image">画像を読み込めませんでした</string>
+    <string name="bookmark_empty_text">ブックマークは空です</string>
+    <string name="bookmark_empty_hint">各アプリで「シェア-ブックマークに追加」をタップするか、リンクコピーで文章や画像をブックマークに追加できます</string>
+    <string name="share_component_name">ブックマークに追加</string>
+    <string name="bookmark_source">ソース:</string>
+
+    <string name="date_label_today">今日</string>
+    <string name="date_label_yesterday">昨日</string>
+    <string name="date_label_last_week">過去７日</string>
+    <string name="date_label_last_month">１カ月以内</string>
+    <string name="date_label_earlier">更に前</string>
+    <string name="load_more">さらに表示</string>
+
+    <string name="add_item_to_sidebar">ステータスバーメニューを追加</string>
+    <string name="add_contact_to_sidebar">連絡先を追加</string>
+    <string name="add_app_to_sidebar">アプリを追加</string>
+    <string name="add_share_to_sidebar">ドラッグ＆シェアを追加</string>
+    <string name="switch_previous_app">前のアプリに切り替え</string>
+    <string name="switch_previous_app_hint">起動後、ステータスバーの「切り替えボタン」で前のアプリに切り替えることができます</string>
+    <string name="contact_added">追加されました</string>
+    <string name="add_at_most_contact_number">最大%d件の連絡先を追加できます</string>
+    <string name="add_at_most_app_number">最大%d個のアプリを追加できます</string>
+    <string name="add_at_most_share_number">最大%d個のシェアを追加できます</string>
+    <string name="hint_sort_by_long_press">両側アイコンを長く押すと順序調整は可能</string>
+    <string name="introduction_text">機能紹介</string>
+</resources>

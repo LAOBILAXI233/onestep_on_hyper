@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<resources xmlns:android="http://schemas.android.com/apk/res/android" xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+
+    <string name="topbar_photo">Фото</string>
+    <string name="topbar_file">Файл</string>
+    <string name="topbar_clipboard">Буфер обмена</string>
+    <string name="topbar_bookmark">Избранное</string>
+    <string name="title_photo">Последное фото</string>
+    <string name="title_file">Последние файлы</string>
+    <string name="title_clipboard">Последние тексты в будере обмене</string>
+    <string name="title_bookmark">Последняя закладка</string>
+    <string name="add_application_shortcut">Кликать добавить ярлык приложения</string>
+    <string name="add_contact_dingding">Контакт Dingding</string>
+    <string name="add_contact_wechat">Контакт Wechat</string>
+    <string name="add_contact_mail">Контакт почты</string>
+    <string name="add_contact_mms">Контакт СМС</string>
+    <string name="open_gallery">Открыть альбом</string>
+    <string name="title_confirm_delete_history_photo">Очистка истории не будет удалить фото</string>
+    <string name="title_confirm_delete_history_file">Очистка истории не будет удалить архив</string>
+    <string name="title_confirm_delete_history_clipboard">Очистка буфера обмены не восстановима</string>
+    <string name="title_confirm_delete_bookmark">Удаленные избранные не восстановимы</string>
+    <string name="clear">Очистить</string>
+    <string name="add_wechat_hint">Входив в Wechat, на странице детали друзьей кликать чтобы "добавить друга домой"</string>
+
+    <string name="back_text">назад</string>
+
+    <!-- uninstall -->
+    <string name="uninstall_app_dialog_title">Уведомление</string>
+    <string name="uninstall_app_dialog_text">Удалить из бокового отдела“%1$s”？</string>
+    <string name="text_copied">Текст скопирован</string>
+    <string name="photo_empty_text">История фото пустая</string>
+    <string name="photo_empty_hint">Последнее фото появится здесь</string>
+    <string name="file_empty_text">История архива пустая</string>
+    <string name="file_empty_hint">Последний архив появится здесь</string>
+    <string name="clipboard_empty_text">Буфер обмена пустой</string>
+    <string name="clipboard_empty_hint">Последний текст появится здесь</string>
+
+    <!-- pending event -->
+    <string name="pending_ongoing">Загружается</string>
+    <string name="pending_fail">Неудалось</string>
+    <string name="pending_cancel">Отмено</string>
+
+    <string name="fail_to_load_image">Не удается загрузить изображение</string>
+    <string name="bookmark_empty_text">Закладка пустая</string>
+    <string name="bookmark_empty_hint">Вы можете в приложениях кликать"Поделиться-Добавить в закладку" или копировать ссылку чтобы добавить статьи или фото в закладку</string>
+    <string name="share_component_name">Добавить в избранное</string>
+    <string name="bookmark_source">Из:</string>
+
+    <string name="date_label_today">Сейгодня</string>
+    <string name="date_label_yesterday">Вчера</string>
+    <string name="date_label_last_week">Последние семь дней</string>
+    <string name="date_label_last_month">За месяц</string>
+    <string name="date_label_earlier">Ранее</string>
+    <string name="load_more">Более</string>
+
+    <string name="add_item_to_sidebar">Добавить боковой отдел</string>
+    <string name="add_contact_to_sidebar">Добавить контакты</string>
+    <string name="add_app_to_sidebar">Добавить приложение</string>
+    <string name="add_share_to_sidebar">Добавить разделение</string>
+    <string name="switch_previous_app">Переключить к прошлому</string>
+    <string name="switch_previous_app_hint">После включение вы можете кликать на боковом отделе “Переключение” чтобы переключить к предыдущему приложению</string>
+    <string name="contact_added">Добавить</string>
+    <string name="add_at_most_contact_number">Максимално добавить %d ярлыков</string>
+    <string name="add_at_most_app_number">Максимално добавить %d ярлыков для приложений</string>
+    <string name="add_at_most_share_number">Максимално добавить %d ярлыков для разделения</string>
+    <string name="hint_sort_by_long_press">Долго нажмите чтобы менять их порядок</string>
+    <string name="introduction_text">О функции</string>
+</resources>

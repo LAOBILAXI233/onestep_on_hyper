@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<resources xmlns:android="http://schemas.android.com/apk/res/android" xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <string name="app_name">Van Step</string>
+    <string name="topbar_photo">近期图片</string>
+    <string name="topbar_file">近期文件</string>
+    <string name="topbar_clipboard">剪贴板</string>
+    <string name="topbar_bookmark">收藏</string>
+    <string name="media_no_media">暂无媒体</string>
+    <string name="media_hint">媒体控制会显示在这里</string>
+    <string name="media_unknown_artist">未知艺术家</string>
+    <string name="media_album_art">专辑封面</string>
+    <string name="media_previous">上一首</string>
+    <string name="media_play">播放</string>
+    <string name="media_pause">暂停</string>
+    <string name="media_next">下一首</string>
+    <string name="top_move_left">工作区向左</string>
+    <string name="top_move_right">工作区向右</string>
+    <string name="top_rotate">强制旋转主任务</string>
+    <string name="top_settings">设置</string>
+    <string name="top_exit">退出 Van Step</string>
+    <string name="glass_panel_accessibility_title">工作区快捷操作</string>
+    <string name="title_photo">近期的图片</string>
+    <string name="title_file">近期的文件</string>
+    <string name="title_clipboard">近期复制或剪切过的文字</string>
+    <string name="title_bookmark">最近书签</string>
+    <string name="add_application_shortcut">点击添加应用快捷方式</string>
+    <string name="add_contact_dingding">钉钉联系人</string>
+    <string name="add_contact_wechat">微信联系人</string>
+    <string name="add_contact_mail">邮件联系人</string>
+    <string name="add_contact_mms">短信联系人</string>
+    <string name="open_gallery">打开相册</string>
+    <string name="title_confirm_delete_history_photo">清空记录后不会删除图片</string>
+    <string name="title_confirm_delete_history_file">清空记录后不会删除文件</string>
+    <string name="title_confirm_delete_history_clipboard">清空剪贴板内容将无法恢复</string>
+    <string name="title_confirm_delete_bookmark">清空收藏内容将无法恢复</string>
+    <string name="clear">清空</string>
+    <string name="delete_clipboard_item">删除这条剪贴板内容</string>
+    <string name="add_wechat_hint">打开微信通讯录，点击你要添加的好友，进入好友详细资料界面，点击右上角图标，选择"添加到桌面"。移除桌面联系人时，侧边栏联系人不会消失</string>
+
+    <string name="back_text">返回</string>
+
+    <!-- uninstall -->
+    <string name="uninstall_app_dialog_title">提示</string>
+    <string name="uninstall_app_dialog_text">是否从边栏移除"%1$s"？</string>
+    <string name="text_copied">文本已复制</string>
+    <string name="photo_empty_text">图片记录为空</string>
+    <string name="photo_empty_hint">近期的图片将会出现在这里</string>
+    <string name="file_empty_text">文件记录为空</string>
+    <string name="file_empty_hint">近期的文件将会出现在这里</string>
+    <string name="clipboard_empty_text">剪贴板为空</string>
+    <string name="clipboard_empty_hint">近期复制或剪切过的文字将会出现在这里</string>
+
+    <!-- pending event -->
+    <string name="pending_ongoing">正在处理</string>
+    <string name="pending_fail">处理失败</string>
+    <string name="pending_cancel">已取消</string>
+
+    <string name="fail_to_load_image">无法加载此图片</string>
+    <string name="bookmark_empty_text">书签为空</string>
+    <string name="bookmark_empty_hint">你可以在各应用中，通过点击"分享-添加到书签"，或复制链接将其中的文章图片等添加到书签</string>
+    <string name="share_component_name">添加收藏</string>
+    <string name="bookmark_source">来自:</string>
+
+    <string name="date_label_today">今天</string>
+    <string name="date_label_yesterday">昨天</string>
+    <string name="date_label_last_week">过去 7 天</string>
+    <string name="date_label_last_month">一个月内</string>
+    <string name="date_label_earlier">更早</string>
+    <string name="load_more">显示更多</string>
+
+    <string name="add_item_to_sidebar">添加边栏内容</string>
+    <string name="add_contact_to_sidebar">添加边栏联系人快捷方式</string>
+    <string name="add_app_to_sidebar">添加边栏应用快捷方式</string>
+    <string name="add_share_to_sidebar">添加拖拽分享快捷方式</string>
+    <string name="switch_previous_app">切换上一个应用</string>
+    <string name="drag_recall_tasks">显示小窗</string>
+    <string name="switch_previous_app_hint">开启后，你可以通过点击边栏上的"切换按钮"快速切换上一个应用</string>
+    <string name="contact_added">已添加</string>
+    <string name="add_at_most_contact_number">最多可添加 %d 个联系人快捷方式</string>
+    <string name="add_at_most_app_number">最多可添加 %d 个应用快捷方式</string>
+    <string name="add_at_most_share_number">最多可添加 %d 个分享快捷方式</string>
+    <string name="hint_sort_by_long_press">长按侧边栏上的图标可以调整它们的顺序</string>
+    <string name="introduction_text">操作简介</string>
+    <string name="glass_panel_clear">清空</string>
+    <plurals name="glass_section_item_count">
+        <item quantity="other">%d 项</item>
+    </plurals>
+</resources>

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Lucide PanelLeft, ISC licensed; see THIRD_PARTY_NOTICES.md. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="@android:color/transparent"
+        android:pathData="M5,3H19A2,2 0,0 1,21,5V19A2,2 0,0 1,19,21H5A2,2 0,0 1,3,19V5A2,2 0,0 1,5,3Z"
+        android:strokeColor="@color/topbar_icon_tint"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:strokeWidth="2" />
+    <path
+        android:fillColor="@android:color/transparent"
+        android:pathData="M9,3V21"
+        android:strokeColor="@color/topbar_icon_tint"
+        android:strokeLineCap="round"
+        android:strokeWidth="2" />
+</vector>

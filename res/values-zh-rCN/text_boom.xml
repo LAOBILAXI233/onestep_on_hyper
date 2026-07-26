@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="text_boom_title">bigbang</string>
+    <string name="text_boom_close">关闭</string>
+    <string name="text_boom_copy">复制</string>
+    <string name="text_boom_share">分享</string>
+    <string name="text_boom_copied">已复制</string>
+    <string name="text_boom_no_selection">未选择</string>
+    <string name="text_boom_image_label">图片</string>
+    <string name="text_boom_empty_input">没有可提取的内容</string>
+    <string name="text_boom_image_load_failed">图片预览加载失败</string>
+    <plurals name="text_boom_selection_count">
+        <item quantity="other">已选择 %d 项</item>
+    </plurals>
+</resources>

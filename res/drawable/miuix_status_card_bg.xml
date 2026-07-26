@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SukiSU Miuix 绿色状态大卡背景 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@color/miuix_status_ok_bg" />
+    <corners android:radius="@dimen/miuix_card_radius" />
+</shape>

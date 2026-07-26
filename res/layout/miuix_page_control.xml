@@ -1,0 +1,243 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 控制页：绿色状态大卡（点击对勾弹跳）+ 黑名单计数卡（数字滚动、点击直达）
+     + 强调色快捷切换卡（图标旋转）+ 进入/退出按钮。 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical">
+
+    <!-- 状态区：绿卡 + 右侧计数卡 / 快捷切换卡 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/miuix_status_card_height"
+        android:orientation="horizontal">
+
+        <FrameLayout
+            android:id="@+id/miuix_status_card"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="@drawable/miuix_status_card_bg"
+            android:clipToOutline="true"
+            android:clickable="true"
+            android:focusable="true"
+            android:stateListAnimator="@animator/miuix_press">
+
+            <!-- 溢出右下角的巨大对勾（clipToOutline 按圆角裁剪） -->
+            <ImageView
+                android:id="@+id/miuix_status_check"
+                android:layout_width="@dimen/miuix_status_check_size"
+                android:layout_height="@dimen/miuix_status_check_size"
+                android:layout_gravity="bottom|end"
+                android:alpha="0.9"
+                android:importantForAccessibility="no"
+                android:src="@drawable/ic_lucide_check"
+                android:tint="@color/miuix_status_ok_fg"
+                android:translationX="36dp"
+                android:translationY="40dp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="@dimen/miuix_card_padding_h">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/miuix_status_active"
+                    android:textColor="@color/miuix_status_ok_text"
+                    android:textSize="20sp"
+                    android:textStyle="bold"
+                    android:includeFontPadding="false" />
+
+                <TextView
+                    android:id="@+id/miuix_status_version"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:textColor="@color/miuix_status_ok_text_soft"
+                    android:textSize="14sp"
+                    android:includeFontPadding="false" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:background="@drawable/miuix_tag_bg"
+                    android:paddingStart="8dp"
+                    android:paddingEnd="8dp"
+                    android:paddingTop="3dp"
+                    android:paddingBottom="3dp"
+                    android:text="@string/miuix_tag_api"
+                    android:textColor="@color/miuix_accent"
+                    android:textSize="10sp"
+                    android:textStyle="bold"
+                    android:includeFontPadding="false" />
+            </LinearLayout>
+        </FrameLayout>
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:layout_marginStart="@dimen/miuix_card_gap"
+            android:orientation="vertical">
+
+            <!-- 黑名单计数卡：数字滚动动画，点击直达黑名单管理 -->
+            <LinearLayout
+                android:id="@+id/miuix_count_blacklist_card"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:background="@drawable/miuix_card_bg"
+                android:orientation="vertical"
+                android:gravity="center_vertical"
+                android:clickable="true"
+                android:focusable="true"
+                android:stateListAnimator="@animator/miuix_press"
+                android:paddingStart="@dimen/miuix_card_padding_h"
+                android:paddingEnd="@dimen/miuix_card_padding_h">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/miuix_counter_blacklist"
+                    android:textColor="@color/miuix_text_secondary"
+                    android:textSize="15sp"
+                    android:includeFontPadding="false" />
+
+                <TextView
+                    android:id="@+id/miuix_count_blacklist_value"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="0"
+                    android:textColor="@color/miuix_text_primary"
+                    android:textSize="26sp"
+                    android:textStyle="bold"
+                    android:includeFontPadding="false" />
+            </LinearLayout>
+
+            <!-- 强调色快捷切换卡：点击图标转一圈并发送切换广播 -->
+            <LinearLayout
+                android:id="@+id/miuix_quick_toggle"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:layout_marginTop="@dimen/miuix_card_gap"
+                android:background="@drawable/miuix_accent_card_bg"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:clickable="true"
+                android:focusable="true"
+                android:stateListAnimator="@animator/miuix_press"
+                android:paddingStart="@dimen/miuix_card_padding_h"
+                android:paddingEnd="@dimen/miuix_card_padding_h">
+
+                <ImageView
+                    android:id="@+id/miuix_quick_toggle_icon"
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
+                    android:importantForAccessibility="no"
+                    android:src="@drawable/ic_lucide_rotate_cw"
+                    android:tint="@color/miuix_on_accent" />
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="10dp"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/miuix_action_toggle"
+                        android:textColor="@color/miuix_on_accent"
+                        android:textSize="13sp"
+                        android:textStyle="bold"
+                        android:includeFontPadding="false" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="3dp"
+                        android:text="@string/miuix_quick_toggle_hint"
+                        android:textColor="@color/miuix_on_accent_soft"
+                        android:textSize="10sp"
+                        android:includeFontPadding="false" />
+                </LinearLayout>
+            </LinearLayout>
+        </LinearLayout>
+    </LinearLayout>
+
+    <TextView
+        style="@style/MiuixSectionLabel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="18dp"
+        android:text="@string/miuix_section_mode" />
+
+    <!-- 模式控制卡：进入 / 退出（切换在右上快捷卡） -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@drawable/miuix_card_bg"
+        android:orientation="vertical"
+        android:padding="@dimen/miuix_card_padding_v">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/miuix_action_button_height"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/miuix_action_enter"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:layout_marginEnd="5dp"
+                android:background="@drawable/miuix_action_button_bg"
+                android:stateListAnimator="@animator/miuix_press"
+                android:drawableStart="@drawable/ic_lucide_play"
+                android:drawableTint="@color/miuix_accent"
+                android:drawablePadding="8dp"
+                android:paddingStart="14dp"
+                android:paddingEnd="14dp"
+                android:text="@string/miuix_action_enter"
+                android:textAllCaps="false"
+                android:textColor="@color/miuix_text_primary"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+            <Button
+                android:id="@+id/miuix_action_exit"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:layout_marginStart="5dp"
+                android:background="@drawable/miuix_action_button_bg"
+                android:stateListAnimator="@animator/miuix_press"
+                android:drawableStart="@drawable/ic_lucide_x"
+                android:drawableTint="@color/miuix_text_secondary"
+                android:drawablePadding="8dp"
+                android:paddingStart="14dp"
+                android:paddingEnd="14dp"
+                android:text="@string/miuix_action_exit"
+                android:textAllCaps="false"
+                android:textColor="@color/miuix_text_primary"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="14dp"
+        android:gravity="center"
+        android:text="@string/miuix_control_footer"
+        android:textColor="@color/miuix_text_tertiary"
+        android:textSize="12sp" />
+</LinearLayout>

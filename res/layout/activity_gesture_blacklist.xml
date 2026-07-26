@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 手势黑名单：标题栏（返回 / 保存胶囊）+ 搜索框 + 选中摘要 + 卡片化应用列表 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/miuix_bg"
+    android:fitsSystemWindows="true"
+    android:orientation="vertical"
+    android:paddingStart="@dimen/miuix_screen_margin"
+    android:paddingEnd="@dimen/miuix_screen_margin">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <ImageView
+            android:id="@+id/blacklist_back"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="@drawable/miuix_icon_circle_neutral_bg"
+            android:padding="9dp"
+            android:src="@drawable/ic_lucide_chevron_left"
+            android:tint="@color/miuix_text_primary"
+            android:clickable="true"
+            android:focusable="true"
+            android:contentDescription="@string/miuix_blacklist_back" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="12dp"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/miuix_blacklist_page_title"
+                android:textColor="@color/miuix_text_primary"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                android:includeFontPadding="false" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="3dp"
+                android:text="@string/miuix_blacklist_page_subtitle"
+                android:textColor="@color/miuix_text_secondary"
+                android:textSize="12sp"
+                android:includeFontPadding="false" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/blacklist_save"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:background="@drawable/miuix_accent_button_bg"
+            android:paddingStart="18dp"
+            android:paddingEnd="18dp"
+            android:paddingTop="9dp"
+            android:paddingBottom="9dp"
+            android:text="@string/miuix_blacklist_done"
+            android:textColor="@color/miuix_on_accent"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:includeFontPadding="false"
+            android:clickable="true"
+            android:focusable="true" />
+    </LinearLayout>
+
+    <EditText
+        android:id="@+id/blacklist_search"
+        android:layout_width="match_parent"
+        android:layout_height="46dp"
+        android:layout_marginTop="14dp"
+        android:background="@drawable/miuix_search_bg"
+        android:drawableStart="@drawable/ic_lucide_search"
+        android:drawableTint="@color/miuix_text_tertiary"
+        android:drawablePadding="10dp"
+        android:paddingStart="14dp"
+        android:paddingEnd="14dp"
+        android:hint="@string/miuix_blacklist_search_hint"
+        android:textColorHint="@color/miuix_text_tertiary"
+        android:textColor="@color/miuix_text_primary"
+        android:textSize="14sp"
+        android:inputType="text"
+        android:imeOptions="actionSearch"
+        android:maxLines="1" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:layout_marginBottom="8dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp">
+
+        <TextView
+            android:id="@+id/blacklist_summary"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textColor="@color/miuix_text_secondary"
+            android:textSize="12sp"
+            android:includeFontPadding="false" />
+
+        <TextView
+            android:id="@+id/blacklist_clear"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:padding="4dp"
+            android:text="@string/miuix_blacklist_clear"
+            android:textColor="@color/miuix_accent"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:includeFontPadding="false"
+            android:clickable="true"
+            android:focusable="true" />
+    </LinearLayout>
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginBottom="@dimen/miuix_screen_margin"
+        android:background="@drawable/miuix_card_bg"
+        android:clipToOutline="true">
+
+        <ListView
+            android:id="@+id/blacklist_list"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:divider="@color/miuix_divider"
+            android:dividerHeight="1dp"
+            android:listSelector="@android:color/transparent"
+            android:scrollbars="none"
+            android:clipToPadding="false"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp" />
+
+        <TextView
+            android:id="@+id/blacklist_loading"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:text="@string/miuix_blacklist_loading"
+            android:textColor="@color/miuix_text_secondary"
+            android:textSize="13sp" />
+    </FrameLayout>
+</LinearLayout>

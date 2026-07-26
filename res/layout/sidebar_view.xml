@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.hyper.sidebar.view.SidebarRootView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:smartisanos="http://schemas.android.com/apk/res/smartisanos"
+    android:id="@+id/sidebar_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+    <include layout="@layout/sidebar_sideview"/>
+
+    <ImageView
+        android:id="@+id/trash_with_shadow"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:background="@drawable/trash"
+        android:visibility="gone"
+        android:gravity="center_horizontal|bottom"
+        />
+    <ImageView
+        android:id="@+id/trash_foreground"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:background="@drawable/trash_foreground"
+        android:visibility="gone"
+        android:gravity="center_horizontal|bottom"
+        />
+</com.hyper.sidebar.view.SidebarRootView>

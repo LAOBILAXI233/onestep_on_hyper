@@ -1,0 +1,345 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 手势页：就绪信息卡 + 触感开关卡 + 长按兜底卡（开关/滑条）+ 黑名单入口卡 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical">
+
+    <!-- 就绪信息卡 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@drawable/miuix_card_bg"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:padding="@dimen/miuix_card_padding_v">
+
+        <ImageView
+            android:layout_width="46dp"
+            android:layout_height="46dp"
+            android:background="@drawable/miuix_icon_circle_bg"
+            android:padding="12dp"
+            android:src="@drawable/ic_lucide_hand"
+            android:tint="@color/miuix_accent"
+            android:importantForAccessibility="no" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="12dp"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/miuix_gesture_ready_title"
+                android:textColor="@color/miuix_text_primary"
+                android:textSize="15sp"
+                android:textStyle="bold"
+                android:includeFontPadding="false" />
+
+            <TextView
+                android:id="@+id/miuix_gesture_ready_summary"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:textColor="@color/miuix_text_secondary"
+                android:textSize="12sp"
+                android:includeFontPadding="false" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <TextView
+        style="@style/MiuixSectionLabel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="18dp"
+        android:text="@string/miuix_section_feedback" />
+
+    <!-- 拖拽触感开关卡 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@drawable/miuix_card_bg"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="@dimen/miuix_card_padding_h"
+        android:paddingEnd="@dimen/miuix_card_padding_h"
+        android:paddingTop="@dimen/miuix_card_padding_v"
+        android:paddingBottom="@dimen/miuix_card_padding_v">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/miuix_haptics_title"
+                android:textColor="@color/miuix_text_primary"
+                android:textSize="15sp"
+                android:textStyle="bold"
+                android:includeFontPadding="false" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="@string/miuix_haptics_summary"
+                android:textColor="@color/miuix_text_secondary"
+                android:textSize="12sp"
+                android:includeFontPadding="false" />
+        </LinearLayout>
+
+        <Switch
+            android:id="@+id/miuix_switch_haptics"
+            style="@style/MiuixSwitch"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:contentDescription="@string/miuix_haptics_title" />
+    </LinearLayout>
+
+    <TextView
+        style="@style/MiuixSectionLabel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="18dp"
+        android:text="@string/miuix_section_fallback" />
+
+    <!-- 长按兜底卡 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@drawable/miuix_card_bg"
+        android:orientation="vertical"
+        android:paddingStart="@dimen/miuix_card_padding_h"
+        android:paddingEnd="@dimen/miuix_card_padding_h"
+        android:paddingTop="@dimen/miuix_card_padding_v"
+        android:paddingBottom="@dimen/miuix_card_padding_v">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/miuix_fallback_title"
+                    android:textColor="@color/miuix_text_primary"
+                    android:textSize="15sp"
+                    android:textStyle="bold"
+                    android:includeFontPadding="false" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="@string/miuix_fallback_summary"
+                    android:textColor="@color/miuix_text_secondary"
+                    android:textSize="12sp"
+                    android:includeFontPadding="false" />
+            </LinearLayout>
+
+            <Switch
+                android:id="@+id/miuix_switch_fallback"
+                style="@style/MiuixSwitch"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:contentDescription="@string/miuix_fallback_title" />
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginTop="14dp"
+            android:layout_marginBottom="14dp"
+            android:background="@color/miuix_divider" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/miuix_two_finger_title"
+                    android:textColor="@color/miuix_text_primary"
+                    android:textSize="15sp"
+                    android:textStyle="bold"
+                    android:includeFontPadding="false" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="@string/miuix_two_finger_summary"
+                    android:textColor="@color/miuix_text_secondary"
+                    android:textSize="12sp"
+                    android:includeFontPadding="false" />
+            </LinearLayout>
+
+            <Switch
+                android:id="@+id/miuix_switch_two_finger"
+                style="@style/MiuixSwitch"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:contentDescription="@string/miuix_two_finger_title" />
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginTop="14dp"
+            android:layout_marginBottom="14dp"
+            android:background="@color/miuix_divider" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/miuix_duration_title"
+                android:textColor="@color/miuix_text_primary"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:includeFontPadding="false" />
+
+            <TextView
+                android:id="@+id/miuix_duration_value"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/miuix_pill_bg"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp"
+                android:paddingTop="5dp"
+                android:paddingBottom="5dp"
+                android:textColor="@color/miuix_accent"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                android:includeFontPadding="false" />
+        </LinearLayout>
+
+        <SeekBar
+            android:id="@+id/miuix_duration_slider"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:paddingTop="6dp"
+            android:paddingBottom="6dp"
+            android:progressTint="@color/miuix_accent"
+            android:thumbTint="@color/miuix_accent"
+            android:progressBackgroundTint="@color/miuix_switch_track_off"
+            android:contentDescription="@string/miuix_duration_title" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/miuix_duration_min"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:textColor="@color/miuix_text_tertiary"
+                android:textSize="11sp"
+                android:includeFontPadding="false" />
+
+            <TextView
+                android:id="@+id/miuix_duration_max"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="end"
+                android:textColor="@color/miuix_text_tertiary"
+                android:textSize="11sp"
+                android:includeFontPadding="false" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <TextView
+        style="@style/MiuixSectionLabel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="18dp"
+        android:text="@string/miuix_section_restrict" />
+
+    <!-- 黑名单入口卡 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@drawable/miuix_card_bg"
+        android:orientation="vertical"
+        android:padding="@dimen/miuix_card_padding_v">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/miuix_blacklist_title"
+            android:textColor="@color/miuix_text_primary"
+            android:textSize="15sp"
+            android:textStyle="bold"
+            android:includeFontPadding="false" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:layout_marginBottom="14dp"
+            android:text="@string/miuix_blacklist_summary"
+            android:textColor="@color/miuix_text_secondary"
+            android:textSize="12sp"
+            android:includeFontPadding="false" />
+
+        <Button
+            android:id="@+id/miuix_manage_blacklist"
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/miuix_action_button_height"
+            android:background="@drawable/miuix_action_button_bg"
+            android:drawableStart="@drawable/ic_lucide_ban"
+            android:drawableTint="@color/miuix_accent"
+            android:drawablePadding="8dp"
+            android:paddingStart="14dp"
+            android:paddingEnd="14dp"
+            android:textAllCaps="false"
+            android:textColor="@color/miuix_text_primary"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="14dp"
+        android:gravity="center"
+        android:text="@string/miuix_gesture_footer"
+        android:textColor="@color/miuix_text_tertiary"
+        android:textSize="12sp" />
+</LinearLayout>

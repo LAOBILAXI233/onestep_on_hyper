@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Miuix 设置界面 token 深色覆盖；dimen 不在此重复。 -->
+<resources>
+    <bool name="miuix_light_bars">false</bool>
+
+    <color name="miuix_bg">#0E0E11</color>
+    <color name="miuix_surface">#1C1C20</color>
+    <color name="miuix_field_fill">#26262B</color>
+    <color name="miuix_button_fill">#2A2A30</color>
+    <color name="miuix_divider">#1FFFFFFF</color>
+    <color name="miuix_ripple">#21FFFFFF</color>
+
+    <color name="miuix_text_primary">#EDEDEF</color>
+    <color name="miuix_text_secondary">#9BA1AC</color>
+    <color name="miuix_text_tertiary">#6E7480</color>
+
+    <color name="miuix_accent">@android:color/system_accent1_200</color>
+    <color name="miuix_accent_soft">@android:color/system_accent1_800</color>
+    <color name="miuix_on_accent">#1B1F26</color>
+    <color name="miuix_on_accent_soft">#B31B1F26</color>
+
+    <color name="miuix_status_ok_bg">#1A3825</color>
+    <color name="miuix_status_ok_fg">#36D167</color>
+    <color name="miuix_status_ok_text">#D9F6E1</color>
+    <color name="miuix_status_ok_text_soft">#B3D9F6E1</color>
+
+    <color name="miuix_bar_fill">#F0202024</color>
+    <color name="miuix_bar_stroke">#1AFFFFFF</color>
+
+    <color name="miuix_switch_track_off">#3A3A41</color>
+    <color name="miuix_switch_thumb">#FFFFFF</color>
+</resources>

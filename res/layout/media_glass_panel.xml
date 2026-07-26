@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Glass overlay opened by the TopView edge gesture. The custom root owns
+     blur/elevation; this XML keeps the content hierarchy lightweight. -->
+<com.hyper.sidebar.view.MediaGlassPanel
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/media_glass_panel"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/glass_panel_background"
+    android:clickable="true"
+    android:clipToPadding="false"
+    android:elevation="@dimen/glass_panel_elevation"
+    android:focusable="true"
+    android:importantForAccessibility="yes"
+    android:paddingStart="@dimen/glass_panel_padding_horizontal"
+    android:paddingEnd="@dimen/glass_panel_padding_horizontal"
+    android:paddingTop="@dimen/glass_panel_padding_top"
+    android:paddingBottom="@dimen/glass_panel_padding_bottom"
+    android:visibility="gone"
+    android:accessibilityPaneTitle="@string/glass_panel_accessibility_title">
+    <LinearLayout
+        android:id="@+id/glass_panel_content"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical">
+        <View
+            android:id="@+id/glass_panel_handle"
+            android:layout_width="@dimen/glass_panel_handle_width"
+            android:layout_height="@dimen/glass_panel_handle_height"
+            android:layout_gravity="center_horizontal"
+            android:background="@drawable/glass_panel_handle"
+            android:importantForAccessibility="no" />
+        <ScrollView
+            android:id="@+id/glass_panel_scroll"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_marginTop="@dimen/glass_panel_handle_to_content"
+            android:layout_weight="1"
+            android:clipToPadding="false"
+            android:fillViewport="true"
+            android:overScrollMode="never"
+            android:scrollbars="none">
+        <LinearLayout
+            android:id="@+id/glass_panel_sections"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:divider="@drawable/glass_section_divider"
+            android:orientation="vertical"
+            android:showDividers="middle" />
+        </ScrollView>
+    </LinearLayout>
+</com.hyper.sidebar.view.MediaGlassPanel>
