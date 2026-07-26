@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 关于页：模块信息卡 + 设计来源信息卡 -->
+<!-- 关于页：模块信息、设计来源和项目主页。 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
@@ -100,24 +100,6 @@
                 android:text="@string/miuix_about_api_value" />
         </LinearLayout>
 
-        <LinearLayout
-            style="@style/MiuixDetailRow"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:paddingBottom="0dp">
-
-            <TextView
-                style="@style/MiuixDetailKey"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:text="@string/miuix_about_render" />
-
-            <TextView
-                style="@style/MiuixDetailValue"
-                android:layout_width="210dp"
-                android:layout_height="wrap_content"
-                android:text="@string/miuix_about_render_value" />
-        </LinearLayout>
     </LinearLayout>
 
     <!-- 设计来源信息卡 -->
@@ -147,5 +129,70 @@
             android:textColor="@color/miuix_text_secondary"
             android:textSize="12sp"
             android:includeFontPadding="false" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/miuix_about_github"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/miuix_card_gap"
+        android:background="@drawable/miuix_card_bg"
+        android:clickable="true"
+        android:contentDescription="@string/miuix_about_github_open"
+        android:focusable="true"
+        android:gravity="center_vertical"
+        android:minHeight="76dp"
+        android:orientation="horizontal"
+        android:paddingStart="@dimen/miuix_card_padding_h"
+        android:paddingTop="@dimen/miuix_card_padding_v"
+        android:paddingEnd="@dimen/miuix_card_padding_h"
+        android:paddingBottom="@dimen/miuix_card_padding_v"
+        android:stateListAnimator="@animator/miuix_press">
+
+        <ImageView
+            android:layout_width="46dp"
+            android:layout_height="46dp"
+            android:background="@drawable/miuix_icon_circle_neutral_bg"
+            android:importantForAccessibility="no"
+            android:padding="11dp"
+            android:src="@drawable/ic_lucide_github"
+            android:tint="@color/miuix_text_primary" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:includeFontPadding="false"
+                android:text="@string/miuix_about_github_title"
+                android:textColor="@color/miuix_text_primary"
+                android:textSize="15sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:ellipsize="end"
+                android:includeFontPadding="false"
+                android:maxLines="2"
+                android:text="@string/miuix_about_github_repo"
+                android:textColor="@color/miuix_text_secondary"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <ImageView
+            android:layout_width="22dp"
+            android:layout_height="22dp"
+            android:layout_marginStart="12dp"
+            android:importantForAccessibility="no"
+            android:rotation="180"
+            android:src="@drawable/ic_lucide_chevron_left"
+            android:tint="@color/miuix_text_secondary" />
     </LinearLayout>
 </LinearLayout>

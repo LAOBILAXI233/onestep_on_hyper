@@ -2,6 +2,7 @@ package com.hyper.sidebar.lsp;
 
 import android.animation.ValueAnimator;
 import android.app.Activity;
+import android.content.ActivityNotFoundException;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
@@ -11,8 +12,10 @@ import android.content.res.ColorStateList;
 import android.graphics.Typeface;
 import android.hardware.Sensor;
 import android.hardware.SensorManager;
+import android.net.Uri;
 import android.os.Bundle;
 import android.view.LayoutInflater;
+import android.view.View;
 import android.view.animation.DecelerateInterpolator;
 import android.view.animation.OvershootInterpolator;
 import android.widget.Button;
@@ -36,6 +39,8 @@ import java.util.concurrent.Executors;
 public class ModuleConfigActivity extends Activity {
 
     private static final int XIAOMI_LARGE_AREA_SENSOR_TYPE = 33171031;
+    private static final String GITHUB_REPOSITORY_URL =
+            "https://github.com/LAOBILAXI233/onestep_on_hyper";
 
     private static final String ACTION_ENTER_ONE_STEP =
             "com.hyper.sidebar.ACTION_ENTER_ONE_STEP";
@@ -69,9 +74,6 @@ public class ModuleConfigActivity extends Activity {
         mPageTitle = findViewById(R.id.miuix_page_title);
         mPageSubtitle = findViewById(R.id.miuix_page_subtitle);
 
-        TextView versionTag = findViewById(R.id.miuix_version_tag);
-        versionTag.setText("v" + getModuleVersion());
-
         int[] navIds = {R.id.miuix_nav_control, R.id.miuix_nav_gesture,
                 R.id.miuix_nav_log, R.id.miuix_nav_about};
         for (int i = 0; i < navIds.length; i++) {
@@ -102,6 +104,7 @@ public class ModuleConfigActivity extends Activity {
     private void renderPage(int page) {
         mCurrentPage = page;
         if (mPageContainer == null) return;
+        mPageSubtitle.setVisibility(page == 3 ? View.GONE : View.VISIBLE);
         mPageContainer.removeAllViews();
         LayoutInflater inflater = LayoutInflater.from(this);
         switch (page) {
@@ -119,7 +122,6 @@ public class ModuleConfigActivity extends Activity {
                 break;
             case 3:
                 mPageTitle.setText(R.string.miuix_title_about);
-                mPageSubtitle.setText(R.string.miuix_subtitle_about);
                 inflater.inflate(R.layout.miuix_page_about, mPageContainer, true);
                 bindAboutPage();
                 break;
@@ -397,6 +399,19 @@ public class ModuleConfigActivity extends Activity {
     private void bindAboutPage() {
         TextView version = findViewById(R.id.miuix_about_version);
         version.setText(getString(R.string.miuix_about_version_fmt, getModuleVersion()));
+        findViewById(R.id.miuix_about_github).setOnClickListener(v -> openGitHubRepository());
+    }
+
+    private void openGitHubRepository() {
+        Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(GITHUB_REPOSITORY_URL));
+        intent.addCategory(Intent.CATEGORY_BROWSABLE);
+        try {
+            startActivity(intent);
+        } catch (ActivityNotFoundException | SecurityException error) {
+            LSPLogger.w("ModuleConfigActivity: GitHub navigation failed", error);
+            Toast.makeText(this, R.string.miuix_about_github_unavailable,
+                    Toast.LENGTH_SHORT).show();
+        }
     }
 
     private void updateNavState(boolean animateSelection) {

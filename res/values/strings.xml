@@ -88,8 +88,6 @@
         <item quantity="other">%d items</item>
     </plurals>
 
-    <!-- Miuix 风格设置界面（ModuleConfigActivity / GestureBlacklistActivity）。
-         模块面向 HyperOS 中文用户，与原 Java 硬编码文案保持一致，默认即中文。 -->
     <string name="miuix_subtitle_console">LSP 控制台</string>
     <string name="miuix_nav_control">控制</string>
     <string name="miuix_nav_gesture">手势</string>
@@ -112,7 +110,6 @@
     <string name="miuix_title_log">运行日志</string>
     <string name="miuix_subtitle_log">定位 SystemUI 与桌面状态</string>
     <string name="miuix_title_about">关于 Van Step</string>
-    <string name="miuix_subtitle_about">HyperOS / Android 16</string>
 
     <string name="miuix_gesture_ready_title">软件手势已就绪</string>
     <string name="miuix_gesture_ready_summary_assist">稳按与斜向轨迹负责主判定，HyperOS 面积通道仅作为辅助证据。</string>
@@ -148,10 +145,12 @@
     <string name="miuix_about_platform_value">Android 16 / HyperOS</string>
     <string name="miuix_about_api">接口</string>
     <string name="miuix_about_api_value">LSPosed API 102</string>
-    <string name="miuix_about_render">渲染</string>
-    <string name="miuix_about_render_value">原生 View + Miuix token</string>
     <string name="miuix_about_design_title">设计来源</string>
-    <string name="miuix_about_design_summary">界面参考 SukiSU-Ultra 的 Miuix / HyperOS 设计语言：绿色状态大卡、平面圆角卡片、Monet 动态取色与浮动胶囊底栏。</string>
+    <string name="miuix_about_design_summary">界面参考 SukiSU-Ultra 的 Miuix ：绿色状态超级大卡片、平面圆角卡片、Monet 动态取色与浮动胶囊底栏（太帅了）。</string>
+    <string name="miuix_about_github_title">GitHub 项目主页</string>
+    <string name="miuix_about_github_repo" translatable="false">LAOBILAXI233/onestep_on_hyper</string>
+    <string name="miuix_about_github_open">打开 GitHub 项目主页</string>
+    <string name="miuix_about_github_unavailable">未找到可打开 GitHub 的应用</string>
 
     <string name="miuix_blacklist_page_title">手势黑名单</string>
     <string name="miuix_blacklist_page_subtitle">选择不响应大面积手势的应用</string>

@@ -51,19 +51,6 @@
                     android:includeFontPadding="false" />
             </LinearLayout>
 
-            <TextView
-                android:id="@+id/miuix_version_tag"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:background="@drawable/miuix_tag_bg"
-                android:paddingStart="10dp"
-                android:paddingEnd="10dp"
-                android:paddingTop="5dp"
-                android:paddingBottom="5dp"
-                android:textColor="@color/miuix_accent"
-                android:textSize="12sp"
-                android:textStyle="bold"
-                android:includeFontPadding="false" />
         </LinearLayout>
 
         <ScrollView
