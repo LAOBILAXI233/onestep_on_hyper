@@ -2,8 +2,8 @@
 
 > 将 SmartisanOS 的 **One Step** 侧边栏和 **BigBang** 文字拆分功能，以 LSPosed 模块的形式带入 HyperOS。
 
-[![平台](https://img.shields.io/badge/platform-Android%2013--16-3DDC84?logo=android&logoColor=white)](#环境要求)
-[![HyperOS](https://img.shields.io/badge/HyperOS-1.0%20%7C%202.0%20%7C%203.0-FF6900)](#环境要求)
+[![平台](https://img.shields.io/badge/platform-Android%2015--16-3DDC84?logo=android&logoColor=white)](#环境要求)
+[![HyperOS](https://img.shields.io/badge/HyperOS-2.0%20%7C%203.0-FF6900)](#环境要求)
 [![框架](https://img.shields.io/badge/framework-LSPosed-6200EE)](https://github.com/LSPosed/LSPosed)
 [![许可证](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
