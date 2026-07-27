@@ -3,6 +3,7 @@ package com.hyper.sidebar;
 import java.util.HashSet;
 import java.util.Set;
 
+import android.app.KeyguardManager;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
@@ -246,13 +247,15 @@ public class SidebarController {
             LSPLogger.e("SidebarController.init: addAnimFlagStatusChangedListener failed", t);
         }
 
-        IntentFilter closeSystemDialogFilter = new IntentFilter();
-        closeSystemDialogFilter.addAction(Intent.ACTION_CLOSE_SYSTEM_DIALOGS);
+        IntentFilter systemStateFilter = new IntentFilter();
+        systemStateFilter.addAction(Intent.ACTION_CLOSE_SYSTEM_DIALOGS);
+        systemStateFilter.addAction(Intent.ACTION_SCREEN_OFF);
         try {
-            registerReceiverCompat(mBroadcastReceiver, closeSystemDialogFilter, false);
-            LSPLogger.d("SidebarController.init: registered ACTION_CLOSE_SYSTEM_DIALOGS receiver");
+            registerReceiverCompat(mBroadcastReceiver, systemStateFilter, false);
+            LSPLogger.d("SidebarController.init: registered system state receiver, actions="
+                    + systemStateFilter.countActions());
         } catch (Throwable t) {
-            LSPLogger.e("SidebarController.init: register closeSystemDialogs failed", t);
+            LSPLogger.e("SidebarController.init: register system state receiver failed", t);
         }
 
         IntentFilter iconChangeFilter = new IntentFilter();
@@ -311,6 +314,10 @@ public class SidebarController {
         if (mInOneStepMode) {
             return;
         }
+        if (isKeyguardLocked()) {
+            LSPLogger.i("SidebarController.enterOneStepMode: ignored while keyguard is locked");
+            return;
+        }
         // 防御：如果 init() 时 AddWindows 失败导致窗口 View 为 null，先尝试重新创建
         // 修复 inflateView ClassLoader 问题后，这里 retry 应该能成功
         if (mTopView == null || mSidebarRoot == null || mContentView == null) {
@@ -354,8 +361,12 @@ public class SidebarController {
      * 退出 One Step 模式（替代原 onExitOneStepMode 回调）。
      */
     public void exitOneStepMode() {
+        exitOneStepMode(false);
+    }
+
+    private void exitOneStepMode(boolean forceCleanup) {
         LSPLogger.i("SidebarController.exitOneStepMode: mInOneStepMode=" + mInOneStepMode);
-        if (!mInOneStepMode) {
+        if (!mInOneStepMode && !forceCleanup) {
             return;
         }
         mInOneStepMode = false;
@@ -374,6 +385,17 @@ public class SidebarController {
             LSPLogger.e("SidebarController.exitOneStepMode: cleanup failed", t);
         } finally {
             RotationGuard.unlock(mHostContext);
+        }
+    }
+
+    private boolean isKeyguardLocked() {
+        try {
+            KeyguardManager keyguardManager = (KeyguardManager) mHostContext.getSystemService(
+                    Context.KEYGUARD_SERVICE);
+            return keyguardManager != null && keyguardManager.isKeyguardLocked();
+        } catch (Throwable t) {
+            LSPLogger.w("SidebarController.isKeyguardLocked: query failed: " + t.getMessage());
+            return false;
         }
     }
 
@@ -1034,6 +1056,13 @@ public class SidebarController {
                     Utils.resumeSidebar(context);
                 } catch (Throwable t) {
                     LSPLogger.e("mBroadcastReceiver: resumeSidebar failed", t);
+                }
+            } else if (Intent.ACTION_SCREEN_OFF.equals(action)) {
+                try {
+                    LSPLogger.i("mBroadcastReceiver: screen off, exiting OneStep");
+                    exitOneStepMode(true);
+                } catch (Throwable t) {
+                    LSPLogger.e("mBroadcastReceiver: screen-off cleanup failed", t);
                 }
             }
         }

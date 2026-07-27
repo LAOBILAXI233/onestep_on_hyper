@@ -1,23 +1,23 @@
 package com.hyper.sidebar.util;
 
+import java.io.File;
 import java.lang.ref.SoftReference;
 
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.media.ThumbnailUtils;
+import android.text.TextUtils;
 import android.util.LruCache;
+import android.util.Size;
 
 public class BitmapCache {
+    private static final LOG log = LOG.getInstance(BitmapCache.class);
+
     private int mSize = 0;
     private LruCache<String, SoftReference<Bitmap>> mImageCache = new LruCache<String, SoftReference<Bitmap>>(100) {
         @Override
         protected void entryRemoved(boolean evicted, String key, SoftReference<Bitmap> oldValue, SoftReference<Bitmap> newValue) {
             super.entryRemoved(evicted, key, oldValue, newValue);
-            if (oldValue != null) {
-                Bitmap old = oldValue.get();
-                if(old != null){
-                    old.recycle();
-                }
-            }
         }
     };
 
@@ -26,6 +26,10 @@ public class BitmapCache {
             size = 1;
         }
         mSize = size;
+    }
+
+    public int getTargetSize() {
+        return mSize;
     }
 
     public Bitmap getBitmapDirectly(String filepath){
@@ -38,22 +42,13 @@ public class BitmapCache {
         return null;
     }
 
-    public Bitmap getBitmap(String filepath) {
+    public Bitmap getBitmap(String filepath, String mimeType) {
         Bitmap ret = getBitmapDirectly(filepath);
         if (ret != null) {
             return ret;
         }
-        BitmapFactory.Options boundOptions = new BitmapFactory.Options();
-        boundOptions.inJustDecodeBounds = true;
-        //Just Decode Bounds
-        BitmapFactory.decodeFile(filepath, boundOptions);
-        int inSampleSize = boundOptions.outHeight > boundOptions.outWidth ? boundOptions.outHeight / mSize
-                : boundOptions.outWidth / mSize;
-        BitmapFactory.Options options = new BitmapFactory.Options();
-        options.inSampleSize = inSampleSize;
-        options.inJustDecodeBounds = false;
-        options.inPreferredConfig = Bitmap.Config.RGB_565;
-        Bitmap bitmap = BitmapFactory.decodeFile(filepath, options);
+        Bitmap bitmap = isVideo(mimeType)
+                ? createVideoThumbnail(filepath) : decodeImage(filepath);
         if(bitmap == null){
             return null;
         }
@@ -65,6 +60,32 @@ public class BitmapCache {
         }
         addBitmapToMemoryCache(filepath, bitmap);
         return bitmap;
+    }
+
+    private Bitmap decodeImage(String filepath) {
+        BitmapFactory.Options boundOptions = new BitmapFactory.Options();
+        boundOptions.inJustDecodeBounds = true;
+        BitmapFactory.decodeFile(filepath, boundOptions);
+        int largestSide = Math.max(boundOptions.outHeight, boundOptions.outWidth);
+        BitmapFactory.Options options = new BitmapFactory.Options();
+        options.inSampleSize = Math.max(1, largestSide / mSize);
+        options.inPreferredConfig = Bitmap.Config.RGB_565;
+        return BitmapFactory.decodeFile(filepath, options);
+    }
+
+    private Bitmap createVideoThumbnail(String filepath) {
+        try {
+            return ThumbnailUtils.createVideoThumbnail(
+                    new File(filepath), new Size(mSize, mSize), null);
+        } catch (Throwable t) {
+            log.error("createVideoThumbnail failed [" + filepath + "]: " + t);
+            return null;
+        }
+    }
+
+    private static boolean isVideo(String mimeType) {
+        return !TextUtils.isEmpty(mimeType)
+                && mimeType.toLowerCase().startsWith("video/");
     }
 
     public void clearCache() {

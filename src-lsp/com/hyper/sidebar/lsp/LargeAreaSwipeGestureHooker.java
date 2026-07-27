@@ -179,7 +179,8 @@ public final class LargeAreaSwipeGestureHooker implements XposedInterface.Hooker
 
         Context context = resolveContext(listener);
         GestureSettings.Snapshot settings = GestureSettings.read(context);
-        sLongPressFallbackEnabled = settings.longPressFallbackEnabled;
+        sLongPressFallbackEnabled = settings.bigBangEnabled
+                && settings.longPressFallbackEnabled;
         sLongPressDurationMs = settings.longPressDurationMs;
         sForegroundPackage = resolveForegroundPackage(context);
         if (settings.isBlacklisted(sForegroundPackage)) {
@@ -463,7 +464,8 @@ public final class LargeAreaSwipeGestureHooker implements XposedInterface.Hooker
             return;
         }
         GestureSettings.Snapshot settings = GestureSettings.read(context);
-        if (settings.isBlacklisted(foregroundPackage)
+        if (!settings.bigBangEnabled
+                || settings.isBlacklisted(foregroundPackage)
                 || isCurrentForegroundBlocked(context, "BigBang")) {
             return;
         }
@@ -615,7 +617,7 @@ public final class LargeAreaSwipeGestureHooker implements XposedInterface.Hooker
 
         Context context = resolveContext(listener);
         GestureSettings.Snapshot settings = GestureSettings.read(context);
-        if (!settings.twoFingerLongPressEnabled) return;
+        if (!settings.bigBangEnabled || !settings.twoFingerLongPressEnabled) return;
 
         String foregroundPackage = resolveForegroundPackage(context);
         if (settings.isBlacklisted(foregroundPackage)) {

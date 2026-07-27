@@ -437,14 +437,14 @@ public class Utils {
         }
     }
 
-    public static void openPhotoWithGallery(Context context, ImageInfo info) {
+    public static void openMediaWithDefaultApp(Context context, ImageInfo info) {
         try {
             if (context == null || info == null) {
                 return;
             }
             Uri uri = info.getContentUri(context);
             if (uri == null) {
-                LSPLogger.w("Utils.openPhotoWithGallery: missing content URI");
+                LSPLogger.w("Utils.openMediaWithDefaultApp: missing content URI");
                 return;
             }
             Intent intent = new Intent(Intent.ACTION_VIEW);
@@ -452,10 +452,10 @@ public class Utils {
             intent.addCategory(Intent.CATEGORY_DEFAULT);
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
                     | Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            context.startActivity(intent);
             dismissAllDialog(context);
+            context.startActivity(intent);
         } catch (Throwable t) {
-            LSPLogger.e("Utils.openPhotoWithGallery: no image viewer", t);
+            LSPLogger.e("Utils.openMediaWithDefaultApp: no media viewer", t);
         }
     }
 

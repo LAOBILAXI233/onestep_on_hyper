@@ -72,6 +72,12 @@ public class RecentFileViewGroup extends RoundCornerFrameLayout implements IEmpt
             mRecentFileList.setAdapter(mRecentFileAdapter);
 
             mClearFile.setOnClickListener(mClearListener);
+            findViewById(R.id.scroll_to_top).setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    mRecentFileList.setSelection(0);
+                }
+            });
 
             updateUI();
         } catch (Throwable t) {

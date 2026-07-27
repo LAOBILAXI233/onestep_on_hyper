@@ -45,6 +45,7 @@ public class RecentPhotoAdapter extends BaseAdapter {
     private ImageLoader mImageLoader;
     private Handler mHandler;
     private IEmpty mEmpty;
+    private boolean mPreviewLoadingEnabled = true;
 
     public RecentPhotoAdapter(Context context, IEmpty empty) {
         mContext = context;
@@ -74,6 +75,10 @@ public class RecentPhotoAdapter extends BaseAdapter {
     public void shrink() {
         Arrays.fill(mExpand, false);
         notifyDataSetChanged();
+    }
+
+    public void setPreviewLoadingEnabled(boolean enabled) {
+        mPreviewLoadingEnabled = enabled;
     }
 
     private void updateDataList() {
@@ -189,7 +194,7 @@ public class RecentPhotoAdapter extends BaseAdapter {
                 }
                 // set Image
                 vh.subView[i].setImageLoader(mImageLoader);
-                vh.subView[i].showPhoto(intervalInfos.get(index));
+                vh.subView[i].showPhoto(intervalInfos.get(index), mPreviewLoadingEnabled);
             } else {
                 // NA;
             }

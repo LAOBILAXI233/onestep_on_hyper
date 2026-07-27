@@ -103,7 +103,7 @@ JAVA_HOME="/path/to/jdk-21" ./gradlew assembleDebug
 
 **Smartisan Technology（锤子科技）**——感谢 One Step 和 BigBang，以及将它们开源。本项目是 [SmartisanTech/packages_apps_OneStep](https://github.com/SmartisanTech/packages_apps_OneStep) 的移植版本，以 Apache License 2.0 发布。这里每一个值得称道的交互都是他们的原创；本仓库所做的工作，主要是让这些创意在别人的 ROM 上跑起来。
 
-**BigBang 团队**，其原版 `com.smartisanos.textboom` 构建提供了精确的动画时序、碎片颜色和窗口参数，用于重建文字拆分器——碎片收缩至触摸点并在 200 毫秒内以减速曲线向外迸发，因为原版就是这么做的，而不是因为"看起来差不多"。
+**BigBang 团队**，其原版 `com.smartisanos.textboom` 构建提供了精确的动画时序、碎片颜色和窗口参数。
 
 **[LSPosed](https://github.com/LSPosed/LSPosed)** 和 [libxposed](https://github.com/libxposed/api) 的作者们，感谢这个框架让 Hook SystemUI 和 system_server 成为可能，而无需触碰 ROM。
 
@@ -136,6 +136,8 @@ JAVA_HOME="/path/to/jdk-21" ./gradlew assembleDebug
 ## 贡献
 我的前端和动画很烂，如果你有更好的想法，欢迎提交 Pull Request 或 Issue。
 欢迎提交 Pull Request 或 Issue。
+
+# 可以给我点个star吗？:)
 
 ## Buy me a coffee
 如果你觉得这个项目对你有帮助，欢迎请我喝杯咖啡。

@@ -7,6 +7,7 @@ import android.content.res.Configuration;
 import android.util.AttributeSet;
 import android.view.View;
 import android.widget.FrameLayout;
+import android.widget.AbsListView;
 import android.widget.ListView;
 import android.widget.TextView;
 
@@ -79,7 +80,27 @@ public class RecentPhotoViewGroup extends RoundCornerFrameLayout implements IEmp
             mListView = (ListView) findViewById(R.id.content_list);
             mAdapter = new RecentPhotoAdapter(mContext, this);
             mListView.setAdapter(mAdapter);
+            mListView.setOnScrollListener(new AbsListView.OnScrollListener() {
+                @Override
+                public void onScrollStateChanged(AbsListView view, int scrollState) {
+                    boolean renderPreviews = scrollState
+                            != AbsListView.OnScrollListener.SCROLL_STATE_FLING;
+                    mAdapter.setPreviewLoadingEnabled(renderPreviews);
+                    updateVisiblePreviewWork(renderPreviews);
+                }
+
+                @Override
+                public void onScroll(AbsListView view, int firstVisibleItem,
+                        int visibleItemCount, int totalItemCount) {
+                }
+            });
             mClear.setOnClickListener(mClearListener);
+            findViewById(R.id.scroll_to_top).setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    mListView.setSelection(0);
+                }
+            });
 
             updateUI();
         } catch (Throwable t) {
@@ -224,6 +245,26 @@ public class RecentPhotoViewGroup extends RoundCornerFrameLayout implements IEmp
 
     private void updateUI(){
         mTitle.setText(R.string.title_photo);
+    }
+
+    private void updateVisiblePreviewWork(boolean resume) {
+        for (int rowIndex = 0; rowIndex < mListView.getChildCount(); rowIndex++) {
+            View row = mListView.getChildAt(rowIndex);
+            int[] ids = new int[] {
+                    R.id.photo_line_sub_view_1,
+                    R.id.photo_line_sub_view_2,
+                    R.id.photo_line_sub_view_3,
+            };
+            for (int id : ids) {
+                View child = row.findViewById(id);
+                if (!(child instanceof PhotoLineSubView)) continue;
+                if (resume) {
+                    ((PhotoLineSubView) child).loadPreviewIfNeeded();
+                } else {
+                    ((PhotoLineSubView) child).pausePreviewWork();
+                }
+            }
+        }
     }
 
     @Override

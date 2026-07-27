@@ -2,10 +2,12 @@ package com.hyper.sidebar.util;
 
 import java.io.File;
 
+import android.content.ContentUris;
 import android.content.ContentValues;
 import android.content.Context;
 import android.net.Uri;
 import android.provider.MediaStore;
+import android.text.TextUtils;
 
 public class ImageInfo implements Comparable<ImageInfo> {
     private static final LOG log = LOG.getInstance(ImageInfo.class);
@@ -15,15 +17,28 @@ public class ImageInfo implements Comparable<ImageInfo> {
     public int id;
     public long time;
 
+    public boolean isVideo() {
+        return mimeType != null && mimeType.toLowerCase().startsWith("video/");
+    }
+
+    public boolean isAnimatedImage() {
+        return "image/gif".equalsIgnoreCase(mimeType)
+                || (!TextUtils.isEmpty(filePath) && filePath.toLowerCase().endsWith(".gif"));
+    }
+
     public Uri getContentUri(Context context) {
         if (id != 0) {
-            return Uri.withAppendedPath(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, "" + id);
+            Uri collection = MediaStore.Files.getContentUri(MediaStore.VOLUME_EXTERNAL);
+            return ContentUris.withAppendedId(collection, id);
         } else {
             File file = new File(filePath);
             if (file.isFile()) {
                 ContentValues values = new ContentValues();
-                values.put(MediaStore.Images.Media.DATA, filePath);
-                return context.getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
+                values.put(MediaStore.MediaColumns.DATA, filePath);
+                Uri collection = isVideo()
+                        ? MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+                        : MediaStore.Images.Media.EXTERNAL_CONTENT_URI;
+                return context.getContentResolver().insert(collection, values);
             }
         }
         return null;

@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Set;
 
 import android.content.Context;
+import android.content.ContentResolver;
 import android.content.SharedPreferences;
 import android.database.ContentObserver;
 import android.database.Cursor;
@@ -14,7 +15,9 @@ import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Looper;
 import android.os.Message;
+import android.os.Bundle;
 import android.os.Environment;
+import android.os.SystemClock;
 import android.os.UserManager;
 import android.provider.MediaStore;
 import android.text.TextUtils;
@@ -35,23 +38,12 @@ public class RecentPhotoManager extends DataManager implements IClear{
     private static final String JSON_KEY_TIME = "time";
     private static final String JSON_KEY_ID = "id";
     private static final int MAX_PERSISTED_ITEMS = 200;
+    private static final int MAX_QUERY_ITEMS = 600;
+    private static final long REFRESH_TTL_MS = 30_000L;
     private static final long RETRY_DELAY_MS = 2000L;
 
-    private static final String[] DO_NOT_SUPPORT_TYPE = new String[] {
-            "dng"
-    };
-
     public static boolean isSupportedType(String path) {
-        if (path == null) {
-            return false;
-        }
-        String imgPath = path.toLowerCase();
-        for (String type : DO_NOT_SUPPORT_TYPE) {
-            if (imgPath.endsWith(type)) {
-                return false;
-            }
-        }
-        return true;
+        return !TextUtils.isEmpty(path);
     }
 
     private volatile static RecentPhotoManager sInstance;
@@ -66,11 +58,13 @@ public class RecentPhotoManager extends DataManager implements IClear{
         return sInstance;
     }
 
-    private static final String[] thumbCols = new String[] {
-        MediaStore.Images.ImageColumns.DATA,
-        MediaStore.Images.ImageColumns.MIME_TYPE,
-        MediaStore.Images.ImageColumns.DATE_TAKEN,
-        MediaStore.Images.ImageColumns._ID,
+    private static final String[] MEDIA_COLUMNS = new String[] {
+        MediaStore.Files.FileColumns.DATA,
+        MediaStore.Files.FileColumns.MIME_TYPE,
+        MediaStore.MediaColumns.DATE_TAKEN,
+        MediaStore.Files.FileColumns.DATE_ADDED,
+        MediaStore.Files.FileColumns._ID,
+        MediaStore.Files.FileColumns.MEDIA_TYPE,
     };
 
     private static final String DATABASE_NAME = "UselessPhoto";
@@ -84,6 +78,7 @@ public class RecentPhotoManager extends DataManager implements IClear{
     private boolean mRegistered;
     private int mObserverClients;
     private int mClearGeneration;
+    private long mLastRefreshElapsed;
     private RecentPhotoManager(Context context) {
         mContext = resolveOperationContext(context);
         HandlerThread thread = new HandlerThread(RecentPhotoManager.class.getName());
@@ -137,13 +132,16 @@ public class RecentPhotoManager extends DataManager implements IClear{
             }
             try {
                 mContext.getContentResolver().registerContentObserver(
-                        MediaStore.Images.Media.EXTERNAL_CONTENT_URI, true, mImageObserver);
+                        MediaStore.Files.getContentUri(MediaStore.VOLUME_EXTERNAL),
+                        true, mImageObserver);
                 mRegistered = true;
             } catch (Throwable t) {
                 LSPLogger.e("RecentPhotoManager.startObserver failed", t);
             }
         }
-        sendMessageIfNotExist(MSG_UPDATE_IMAGE_LIST);
+        if (isRefreshStale()) {
+            sendMessageIfNotExist(MSG_UPDATE_IMAGE_LIST);
+        }
     }
 
     public void stopObserver() {
@@ -200,11 +198,23 @@ public class RecentPhotoManager extends DataManager implements IClear{
         int queriedCount = 0;
         boolean querySucceeded = false;
         try {
-            String sortOrder = MediaStore.Images.ImageColumns.DATE_TAKEN + " DESC, "
-                    + MediaStore.Images.ImageColumns._ID + " DESC";
+            String mediaTypeColumn = MediaStore.Files.FileColumns.MEDIA_TYPE;
+            String selection = mediaTypeColumn + "=? OR " + mediaTypeColumn + "=?";
+            String[] selectionArgs = new String[] {
+                    Integer.toString(MediaStore.Files.FileColumns.MEDIA_TYPE_IMAGE),
+                    Integer.toString(MediaStore.Files.FileColumns.MEDIA_TYPE_VIDEO),
+            };
+            String sortOrder = MediaStore.Files.FileColumns.DATE_ADDED + " DESC, "
+                    + MediaStore.Files.FileColumns._ID + " DESC";
+            Bundle queryArgs = new Bundle();
+            queryArgs.putString(ContentResolver.QUERY_ARG_SQL_SELECTION, selection);
+            queryArgs.putStringArray(ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS,
+                    selectionArgs);
+            queryArgs.putString(ContentResolver.QUERY_ARG_SQL_SORT_ORDER, sortOrder);
+            queryArgs.putInt(ContentResolver.QUERY_ARG_LIMIT, MAX_QUERY_ITEMS);
             cursor = mContext.getContentResolver().query(
-                    MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-                    thumbCols, null, null, sortOrder);
+                    MediaStore.Files.getContentUri(MediaStore.VOLUME_EXTERNAL),
+                    MEDIA_COLUMNS, queryArgs, null);
             if (cursor == null) {
                 LSPLogger.w("RecentPhotoManager.updateImageList: MediaStore returned null cursor");
             } else if (cursor.moveToFirst()) {
@@ -212,10 +222,18 @@ public class RecentPhotoManager extends DataManager implements IClear{
                 do {
                     queriedCount++;
                     ImageInfo info = new ImageInfo();
-                    info.filePath = cursor.getString(cursor.getColumnIndexOrThrow(MediaStore.Images.ImageColumns.DATA));
-                    info.mimeType = cursor.getString(cursor.getColumnIndexOrThrow(MediaStore.Images.ImageColumns.MIME_TYPE));
-                    info.time = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.Images.ImageColumns.DATE_TAKEN));
-                    info.id = cursor.getInt(cursor.getColumnIndexOrThrow(MediaStore.Images.ImageColumns._ID));
+                    info.filePath = cursor.getString(cursor.getColumnIndexOrThrow(
+                            MediaStore.Files.FileColumns.DATA));
+                    info.mimeType = cursor.getString(cursor.getColumnIndexOrThrow(
+                            MediaStore.Files.FileColumns.MIME_TYPE));
+                    info.time = cursor.getLong(cursor.getColumnIndexOrThrow(
+                            MediaStore.MediaColumns.DATE_TAKEN));
+                    if (info.time <= 0L) {
+                        info.time = cursor.getLong(cursor.getColumnIndexOrThrow(
+                                MediaStore.Files.FileColumns.DATE_ADDED)) * 1000L;
+                    }
+                    info.id = cursor.getInt(cursor.getColumnIndexOrThrow(
+                            MediaStore.Files.FileColumns._ID));
                     if (!TextUtils.isEmpty(info.filePath)&& !TextUtils.isEmpty(info.mimeType)) {
                         if (!useless.contains(info.id) && isSupportedType(info.filePath)) {
                             imageList.add(info);
@@ -257,6 +275,7 @@ public class RecentPhotoManager extends DataManager implements IClear{
             return;
         }
         persistSnapshot();
+        mLastRefreshElapsed = SystemClock.elapsedRealtime();
         LSPLogger.i("RecentPhotoManager.updateImageList: queried=" + queriedCount
                 + " visible=" + imageList.size() + " cleared=" + useless.size());
         notifyListener();
@@ -433,7 +452,14 @@ public class RecentPhotoManager extends DataManager implements IClear{
 
     public void refresh() {
         notifyListener();
-        sendMessageIfNotExist(MSG_UPDATE_IMAGE_LIST);
+        if (isRefreshStale()) {
+            sendMessageIfNotExist(MSG_UPDATE_IMAGE_LIST);
+        }
+    }
+
+    private boolean isRefreshStale() {
+        return mLastRefreshElapsed == 0L
+                || SystemClock.elapsedRealtime() - mLastRefreshElapsed >= REFRESH_TTL_MS;
     }
 
     private void sendMessageIfNotExist(int msgId) {

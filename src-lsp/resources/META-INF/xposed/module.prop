@@ -3,14 +3,11 @@
 
 id=van_step
 name=Van Step
-version=1.0-lsp
-versionCode=1
+version=1.0.1-alpha
+versionCode=2
 author=LAOBILAXI233
 description=SmartisanOS One Step sidebar and BigBang for HyperOS / Android 15-16
-# Must match the io.github.libxposed:api version this module compiles against (see build.gradle);
-# XposedModule's constructor contract differs between API levels.
 minApiVersion=100
 targetApiVersion=102
-# Left false so LSPosed can grant the system_server ("android") scope from the manager.
 staticScope=false
 exceptionMode=protective

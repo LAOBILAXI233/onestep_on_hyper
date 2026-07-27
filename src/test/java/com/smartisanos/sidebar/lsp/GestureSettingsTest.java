@@ -12,7 +12,7 @@ public class GestureSettingsTest {
     public void modulePackageIsAlwaysBlacklisted() {
         GestureSettings.Snapshot settings = new GestureSettings.Snapshot(
                 false, GestureSettings.DEFAULT_LONG_PRESS_DURATION_MS,
-                Collections.emptySet(), true, true);
+                Collections.emptySet(), true, true, true);
 
         assertTrue(settings.isBlacklisted(TextBoomContract.MODULE_PACKAGE));
     }
@@ -21,9 +21,14 @@ public class GestureSettingsTest {
     public void userBlacklistStillApplies() {
         GestureSettings.Snapshot settings = new GestureSettings.Snapshot(
                 false, GestureSettings.DEFAULT_LONG_PRESS_DURATION_MS,
-                Collections.singleton("example.blocked"), true, true);
+                Collections.singleton("example.blocked"), true, true, true);
 
         assertTrue(settings.isBlacklisted("example.blocked"));
         assertFalse(settings.isBlacklisted("example.allowed"));
+    }
+
+    @Test
+    public void bigBangDefaultsToEnabled() {
+        assertTrue(GestureSettings.Snapshot.defaults().bigBangEnabled);
     }
 }

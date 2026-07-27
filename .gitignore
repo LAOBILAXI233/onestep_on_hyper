@@ -20,7 +20,7 @@
 /.tools/
 /.touchdiag/
 /window.xml
-/*.png
+
 
 # 参考资料与分析缓存（非工程组成部分）
 /sukisu-manager/

@@ -14,6 +14,15 @@
         android:textSize="13.5dp"
         android:layout_marginLeft="15dp"
         android:layout_weight="1"/>
+    <ImageButton
+        android:id="@+id/scroll_to_top"
+        android:layout_width="36dp"
+        android:layout_height="40dp"
+        android:background="?android:attr/selectableItemBackgroundBorderless"
+        android:contentDescription="@string/scroll_to_top"
+        android:padding="9dp"
+        android:src="@drawable/ic_lucide_arrow_up_to_line"
+        android:tooltipText="@string/scroll_to_top" />
     <Button
         android:id="@+id/clear"
         android:background="@drawable/clear"

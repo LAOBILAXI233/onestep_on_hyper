@@ -108,9 +108,9 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="18dp"
-        android:text="@string/miuix_section_fallback" />
+        android:text="@string/miuix_section_bigbang" />
 
-    <!-- 长按兜底卡 -->
+    <!-- BigBang 总开关与兼容触发 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -120,6 +120,66 @@
         android:paddingEnd="@dimen/miuix_card_padding_h"
         android:paddingTop="@dimen/miuix_card_padding_v"
         android:paddingBottom="@dimen/miuix_card_padding_v">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:includeFontPadding="false"
+                    android:text="@string/miuix_bigbang_title"
+                    android:textColor="@color/miuix_text_primary"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:includeFontPadding="false"
+                    android:text="@string/miuix_bigbang_summary"
+                    android:textColor="@color/miuix_text_secondary"
+                    android:textSize="12sp" />
+            </LinearLayout>
+
+            <Switch
+                android:id="@+id/miuix_switch_bigbang"
+                style="@style/MiuixSwitch"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:contentDescription="@string/miuix_bigbang_title" />
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginTop="14dp"
+            android:layout_marginBottom="12dp"
+            android:background="@color/miuix_divider" />
+
+        <TextView
+            style="@style/MiuixSectionLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="10dp"
+            android:text="@string/miuix_section_fallback" />
+
+        <LinearLayout
+            android:id="@+id/miuix_bigbang_compat_group"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -281,6 +341,7 @@
                 android:textColor="@color/miuix_text_tertiary"
                 android:textSize="11sp"
                 android:includeFontPadding="false" />
+        </LinearLayout>
         </LinearLayout>
     </LinearLayout>
 

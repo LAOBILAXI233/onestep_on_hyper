@@ -150,14 +150,18 @@ public class TaskSwitcherView extends LinearLayout
     /**
      * Rebind live slot surfaces when OneStep is shown again.
      *
-     * The virtual displays are portrait-locked and never change geometry, so a plain
-     * refresh is enough — recreating the TextureView on every entry used to force the
-     * parked task through a producer rebind (visible re-render + first-frame stall).
-     * refreshVirtualDisplay() still recreates internally if the geometry is stale.
+     * Hiding and showing the sidebar can leave HyperOS reusing a stale TextureView consumer.
+     * Reattaching the same Surface is not sufficient in that state: the preview renders only
+     * the producer buffer's top-left corner. Occupied slots therefore get a fresh consumer
+     * after an actual hide/show cycle, while empty slots keep the cheaper in-place refresh.
      */
     public void refreshVirtualDisplays() {
         for (SlotView slot : mSlotViews) {
-            slot.refreshVirtualDisplay();
+            if (mNeedsFreshSurfaces && slot.getTag() != null) {
+                slot.recreateTextureView();
+            } else {
+                slot.refreshVirtualDisplay();
+            }
         }
         mNeedsFreshSurfaces = false;
     }

@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <resources xmlns:android="http://schemas.android.com/apk/res/android" xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <string name="scroll_to_top">Back to top</string>
     <string name="app_name">Van Step</string>
     <string name="module_description">Van Step for HyperOS / Android 16 via LSPosed. Hooks SystemUI and the system launcher.</string>
-    <string name="topbar_photo">Images</string>
+    <string name="topbar_photo">Media</string>
     <string name="topbar_file">Files</string>
     <string name="topbar_clipboard">Clipboard</string>
     <string name="topbar_bookmark">Bookmark</string>
@@ -20,7 +21,7 @@
     <string name="top_settings">Settings</string>
     <string name="top_exit">Exit Van Step</string>
     <string name="glass_panel_accessibility_title">Workspace quick actions</string>
-    <string name="title_photo">Recent Images</string>
+    <string name="title_photo">Recent Media</string>
     <string name="title_file">Recent Files</string>
     <string name="title_clipboard">Recent Clipboard Text</string>
     <string name="title_bookmark">Recent Bookmarks</string>
@@ -30,7 +31,7 @@
     <string name="add_contact_mail">Email Contact</string>
     <string name="add_contact_mms">Messaging Contact</string>
     <string name="open_gallery">Open Albums</string>
-    <string name="title_confirm_delete_history_photo">Clearing The History Will Not Delete Images</string>
+    <string name="title_confirm_delete_history_photo">Clearing The History Will Not Delete Media Files</string>
     <string name="title_confirm_delete_history_file">Clearing The History Will Not Delete Files</string>
     <string name="title_confirm_delete_history_clipboard">Contents Of The Clipboard Can"'"t Be Recovered Once It Is Cleared</string>
     <string name="title_confirm_delete_bookmark">Bookmarks Can"'"t Be Recovered Once Deleted.</string>
@@ -44,8 +45,8 @@
     <string name="uninstall_app_dialog_title">Notice</string>
     <string name="uninstall_app_dialog_text">Remove "%1$s" from Side Panel?</string>
     <string name="text_copied">Text Copied</string>
-    <string name="photo_empty_text">Image History Is Empty</string>
-    <string name="photo_empty_hint">Recent images will appear here</string>
+    <string name="photo_empty_text">Media History Is Empty</string>
+    <string name="photo_empty_hint">Recent images and videos will appear here</string>
     <string name="file_empty_text">File History Is Empty</string>
     <string name="file_empty_hint">Recent files will appear here</string>
     <string name="clipboard_empty_text">Clipboard Is Empty</string>
@@ -56,7 +57,7 @@
     <string name="pending_fail">Action Failed</string>
     <string name="pending_cancel">Canceled</string>
 
-    <string name="fail_to_load_image">Unable to Load the Image</string>
+    <string name="fail_to_load_image">Unable to Load the Media</string>
     <string name="bookmark_empty_text">No Bookmarks</string>
     <string name="bookmark_empty_hint">Add to Bookmarks, or copy the link and add the page"'"s text and images to Bookmarks</string>
     <string name="share_component_name">Add to Bookmarks</string>
@@ -106,7 +107,7 @@
 
     <string name="miuix_title_control">Van Step</string>
     <string name="miuix_title_gesture">手势与触发</string>
-    <string name="miuix_subtitle_gesture">大面积算法、长按兼容与应用黑名单</string>
+    <string name="miuix_subtitle_gesture">大面积算法、BigBang 与应用黑名单</string>
     <string name="miuix_title_log">运行日志</string>
     <string name="miuix_subtitle_log">定位 SystemUI 与桌面状态</string>
     <string name="miuix_title_about">关于 Van Step</string>
@@ -119,16 +120,19 @@
     <string name="miuix_section_feedback">交互反馈</string>
     <string name="miuix_haptics_title">拖拽触感</string>
     <string name="miuix_haptics_summary">划过分享应用、命中小窗和召回小窗时提供轻触反馈</string>
+    <string name="miuix_section_bigbang">BigBang (Beta)</string>
+    <string name="miuix_bigbang_title">BigBang</string>
+    <string name="miuix_bigbang_summary">提取当前页面中的文字和图片，并联动拖拽分享</string>
     <string name="miuix_section_fallback">兼容触发</string>
-    <string name="miuix_fallback_title">静止长按兜底</string>
-    <string name="miuix_fallback_summary">默认关闭；仅当系统算法没有识别时参与判定</string>
+    <string name="miuix_fallback_title">静止长按</string>
+    <string name="miuix_fallback_summary">默认关闭；单指保持静止，达到设定时间后触发</string>
     <string name="miuix_two_finger_title">双指长按</string>
     <string name="miuix_two_finger_summary">默认开启；两指按住片刻即可唤出 BigBang，不依赖触摸面积</string>
     <string name="miuix_duration_title">长按时间</string>
     <string name="miuix_section_restrict">应用限制</string>
     <string name="miuix_blacklist_title">手势黑名单</string>
-    <string name="miuix_blacklist_summary">黑名单应用内，大面积算法和长按兜底都不会触发。</string>
-    <string name="miuix_gesture_footer">静止长按不会参与默认判定；需要时再打开兼容开关。</string>
+    <string name="miuix_blacklist_summary">黑名单应用内，大面积算法和 BigBang 兼容触发都不会响应。</string>
+    <string name="miuix_gesture_footer">关闭 BigBang 后，大面积重按和所有兼容触发均不会唤出提取面板。</string>
 
     <string name="miuix_section_diagnostics">诊断记录</string>
     <string name="miuix_logging_title">记录运行日志</string>

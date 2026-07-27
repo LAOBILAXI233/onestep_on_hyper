@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <resources xmlns:android="http://schemas.android.com/apk/res/android" xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <string name="scroll_to_top">回到顶部</string>
     <string name="app_name">Van Step</string>
-    <string name="topbar_photo">近期图片</string>
+    <string name="topbar_photo">最近媒体</string>
     <string name="topbar_file">近期文件</string>
     <string name="topbar_clipboard">剪贴板</string>
     <string name="topbar_bookmark">收藏</string>
@@ -19,7 +20,7 @@
     <string name="top_settings">设置</string>
     <string name="top_exit">退出 Van Step</string>
     <string name="glass_panel_accessibility_title">工作区快捷操作</string>
-    <string name="title_photo">近期的图片</string>
+    <string name="title_photo">最近媒体</string>
     <string name="title_file">近期的文件</string>
     <string name="title_clipboard">近期复制或剪切过的文字</string>
     <string name="title_bookmark">最近书签</string>
@@ -29,7 +30,7 @@
     <string name="add_contact_mail">邮件联系人</string>
     <string name="add_contact_mms">短信联系人</string>
     <string name="open_gallery">打开相册</string>
-    <string name="title_confirm_delete_history_photo">清空记录后不会删除图片</string>
+    <string name="title_confirm_delete_history_photo">清空记录后不会删除媒体文件</string>
     <string name="title_confirm_delete_history_file">清空记录后不会删除文件</string>
     <string name="title_confirm_delete_history_clipboard">清空剪贴板内容将无法恢复</string>
     <string name="title_confirm_delete_bookmark">清空收藏内容将无法恢复</string>
@@ -43,8 +44,8 @@
     <string name="uninstall_app_dialog_title">提示</string>
     <string name="uninstall_app_dialog_text">是否从边栏移除"%1$s"？</string>
     <string name="text_copied">文本已复制</string>
-    <string name="photo_empty_text">图片记录为空</string>
-    <string name="photo_empty_hint">近期的图片将会出现在这里</string>
+    <string name="photo_empty_text">媒体记录为空</string>
+    <string name="photo_empty_hint">最近的图片、GIF 和视频会出现在这里</string>
     <string name="file_empty_text">文件记录为空</string>
     <string name="file_empty_hint">近期的文件将会出现在这里</string>
     <string name="clipboard_empty_text">剪贴板为空</string>
@@ -55,7 +56,7 @@
     <string name="pending_fail">处理失败</string>
     <string name="pending_cancel">已取消</string>
 
-    <string name="fail_to_load_image">无法加载此图片</string>
+    <string name="fail_to_load_image">无法加载此媒体</string>
     <string name="bookmark_empty_text">书签为空</string>
     <string name="bookmark_empty_hint">你可以在各应用中，通过点击"分享-添加到书签"，或复制链接将其中的文章图片等添加到书签</string>
     <string name="share_component_name">添加收藏</string>

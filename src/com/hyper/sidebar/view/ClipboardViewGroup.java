@@ -75,6 +75,12 @@ public class ClipboardViewGroup extends RoundCornerFrameLayout implements IEmpty
             mClipboardAdapter = new ClipboardAdapter(mContext, this);
             mClipList.setAdapter(mClipboardAdapter);
             mClearClipboard.setOnClickListener(mClearListener);
+            findViewById(R.id.scroll_to_top).setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    mClipList.setSelection(0);
+                }
+            });
 
             updateUI();
         } catch (Throwable t) {

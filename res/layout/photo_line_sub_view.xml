@@ -12,8 +12,9 @@
         android:layout_marginLeft="@dimen/recent_photo_padding_vertical"
         android:layout_marginRight="@dimen/recent_photo_padding_vertical"
         android:layout_gravity="center"
-        android:src="@drawable/photo_mask"
-        android:scaleType="fitXY"
+        android:background="#9a404040"
+        android:foreground="@drawable/photo_mask"
+        android:scaleType="centerCrop"
         android:visibility="invisible"/>
     <TextView
         android:id="@+id/load_fail"
@@ -28,6 +29,16 @@
         android:text="@string/fail_to_load_image"
         android:background="#181818"
         android:visibility="invisible"/>
+    <ImageView
+        android:id="@+id/media_type_badge"
+        android:layout_width="36dp"
+        android:layout_height="36dp"
+        android:layout_gravity="center"
+        android:background="@drawable/media_button_background"
+        android:contentDescription="@string/media_play"
+        android:padding="7dp"
+        android:src="@drawable/ic_media_play"
+        android:visibility="invisible" />
     <RelativeLayout
         android:id="@+id/open_gallery"
         android:layout_width="@dimen/recent_photo_size"

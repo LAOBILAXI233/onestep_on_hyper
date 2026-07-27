@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <resources xmlns:android="http://schemas.android.com/apk/res/android" xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
 
-    <string name="topbar_photo">画像</string>
+    <string name="topbar_photo">メディア</string>
     <string name="topbar_file">ファイル</string>
     <string name="topbar_clipboard">ボード</string>
     <string name="topbar_bookmark">ブックマーク</string>
-    <string name="title_photo">最近の画像</string>
+    <string name="title_photo">最近のメディア</string>
     <string name="title_file">最近のファイル</string>
     <string name="title_clipboard">最近のクリップボードテキスト</string>
     <string name="title_bookmark">最近のブックマーク</string>
@@ -15,7 +15,7 @@
     <string name="add_contact_mail">メール連絡先</string>
     <string name="add_contact_mms">SMS連絡先</string>
     <string name="open_gallery">アルバムを開く</string>
-    <string name="title_confirm_delete_history_photo">履歴のクリアでは画像は削除されません</string>
+    <string name="title_confirm_delete_history_photo">履歴を消去してもメディアファイルは削除されません</string>
     <string name="title_confirm_delete_history_file">履歴のクリアではファイルは削除されません</string>
     <string name="title_confirm_delete_history_clipboard">クリップボードをクリアすると復元できません</string>
     <string name="title_confirm_delete_bookmark">ブックマーク内容をクリアすると復元できません</string>
@@ -28,8 +28,8 @@
     <string name="uninstall_app_dialog_title">ヒント</string>
     <string name="uninstall_app_dialog_text">"%1$s"をサイドパネルから削除しますか？</string>
     <string name="text_copied">テキストコピー済み</string>
-    <string name="photo_empty_text">画像履歴はありません</string>
-    <string name="photo_empty_hint">最近受け取ったり編集した画像はここに表示されます</string>
+    <string name="photo_empty_text">メディア履歴はありません</string>
+    <string name="photo_empty_hint">最近の画像と動画がここに表示されます</string>
     <string name="file_empty_text">ファイル履歴はありません</string>
     <string name="file_empty_hint">最近受け取ったり編集したファイルはここに表示されます</string>
     <string name="clipboard_empty_text">クリップボードなし</string>
@@ -40,7 +40,7 @@
     <string name="pending_fail">処理失敗</string>
     <string name="pending_cancel">取り消しました</string>
 
-    <string name="fail_to_load_image">画像を読み込めませんでした</string>
+    <string name="fail_to_load_image">メディアを読み込めませんでした</string>
     <string name="bookmark_empty_text">ブックマークは空です</string>
     <string name="bookmark_empty_hint">各アプリで「シェア-ブックマークに追加」をタップするか、リンクコピーで文章や画像をブックマークに追加できます</string>
     <string name="share_component_name">ブックマークに追加</string>

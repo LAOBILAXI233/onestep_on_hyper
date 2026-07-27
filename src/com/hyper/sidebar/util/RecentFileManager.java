@@ -1,6 +1,7 @@
 package com.hyper.sidebar.util;
 
 import android.content.Context;
+import android.content.ContentResolver;
 import android.content.SharedPreferences;
 import android.database.ContentObserver;
 import android.database.Cursor;
@@ -9,8 +10,10 @@ import android.os.Environment;
 import android.os.FileObserver;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.os.Bundle;
 import android.os.Looper;
 import android.os.Message;
+import android.os.SystemClock;
 import android.os.UserManager;
 import android.provider.MediaStore;
 import android.provider.MediaStore.Files.FileColumns;
@@ -41,6 +44,9 @@ public class RecentFileManager extends DataManager implements IClear{
     private static final String JSON_KEY_MIME = "mime";
     private static final String JSON_KEY_TIME = "time";
     private static final int MAX_PERSISTED_ITEMS = 200;
+    private static final int MAX_QUERY_ITEMS = 1000;
+    private static final long DATABASE_REFRESH_TTL_MS = 30_000L;
+    private static final long FOLDER_REFRESH_TTL_MS = 5L * 60L * 1000L;
     private static final long RETRY_DELAY_MS = 2000L;
 
     private volatile static RecentFileManager sInstance;
@@ -93,6 +99,8 @@ public class RecentFileManager extends DataManager implements IClear{
     private boolean mInitialDatabaseLoaded;
     private boolean mInitialSearchLoaded;
     private int mClearGeneration;
+    private long mLastDatabaseRefreshElapsed;
+    private long mLastFolderRefreshElapsed;
 
     private boolean mRegistered;
     private int mObserverClients;
@@ -161,7 +169,9 @@ public class RecentFileManager extends DataManager implements IClear{
     }
 
     public void startSearchFile() {
-        sendMessageIfNotExist(MSG_SEARCH_FILE);
+        if (isFolderRefreshStale()) {
+            sendMessageIfNotExist(MSG_SEARCH_FILE);
+        }
     }
 
     public void startFileObserver(){
@@ -184,7 +194,9 @@ public class RecentFileManager extends DataManager implements IClear{
                 LSPLogger.w("RecentFileManager.startFileObserver: recorder failed: " + t);
             }
         }
-        sendMessageIfNotExist(MSG_UPDATE_DATABASE_LIST);
+        if (isDatabaseRefreshStale()) {
+            sendMessageIfNotExist(MSG_UPDATE_DATABASE_LIST);
+        }
     }
 
     public void stopFileObserver() {
@@ -280,8 +292,16 @@ public class RecentFileManager extends DataManager implements IClear{
         boolean querySucceeded = false;
         int queriedCount = 0;
         try {
+            Bundle queryArgs = new Bundle();
+            queryArgs.putString(ContentResolver.QUERY_ARG_SQL_SELECTION,
+                    "(" + FileColumns.MIME_TYPE + " LIKE 'video/%' OR "
+                            + FileColumns.MIME_TYPE + " LIKE 'audio/%' OR "
+                            + FileColumns.MIME_TYPE + "='text/plain' OR "
+                            + FileColumns.MIME_TYPE + " LIKE 'application/%')");
+            queryArgs.putString(ContentResolver.QUERY_ARG_SQL_SORT_ORDER, FILE_SORT_ORDER);
+            queryArgs.putInt(ContentResolver.QUERY_ARG_LIMIT, MAX_QUERY_ITEMS);
             Cursor cursor = mContext.getContentResolver().query(
-                    FILES_URI, FILE_PROJECTION, null, null, FILE_SORT_ORDER);
+                    FILES_URI, FILE_PROJECTION, queryArgs, null);
             if (cursor != null) {
                 queriedCount = cursor.getCount();
                 cursorCacheList.addAll(getFileInfoByCursor(cursor));
@@ -615,6 +635,7 @@ public class RecentFileManager extends DataManager implements IClear{
                 case MSG_UPDATE_DATABASE_LIST:
                     int databaseGeneration = getClearGeneration();
                     if (updateDatabaseContent()) {
+                        mLastDatabaseRefreshElapsed = SystemClock.elapsedRealtime();
                         onScanComplete(true, databaseGeneration);
                     } else {
                         scheduleRetry(MSG_UPDATE_DATABASE_LIST);
@@ -623,6 +644,7 @@ public class RecentFileManager extends DataManager implements IClear{
                 case MSG_SEARCH_FILE:
                     int searchGeneration = getClearGeneration();
                     if (searchFile()) {
+                        mLastFolderRefreshElapsed = SystemClock.elapsedRealtime();
                         onScanComplete(false, searchGeneration);
                     } else {
                         scheduleRetry(MSG_SEARCH_FILE);
@@ -650,7 +672,23 @@ public class RecentFileManager extends DataManager implements IClear{
 
     public void refresh() {
         notifyListener();
-        sendMessageIfNotExist(MSG_UPDATE_DATABASE_LIST);
-        sendMessageIfNotExist(MSG_SEARCH_FILE);
+        if (isDatabaseRefreshStale()) {
+            sendMessageIfNotExist(MSG_UPDATE_DATABASE_LIST);
+        }
+        if (isFolderRefreshStale()) {
+            sendMessageIfNotExist(MSG_SEARCH_FILE);
+        }
+    }
+
+    private boolean isDatabaseRefreshStale() {
+        return mLastDatabaseRefreshElapsed == 0L
+                || SystemClock.elapsedRealtime() - mLastDatabaseRefreshElapsed
+                >= DATABASE_REFRESH_TTL_MS;
+    }
+
+    private boolean isFolderRefreshStale() {
+        return mLastFolderRefreshElapsed == 0L
+                || SystemClock.elapsedRealtime() - mLastFolderRefreshElapsed
+                >= FOLDER_REFRESH_TTL_MS;
     }
 }

@@ -15,7 +15,10 @@ import android.media.session.MediaController;
 import android.media.session.MediaSessionManager;
 import android.media.session.PlaybackState;
 import android.os.Handler;
+import android.os.HandlerThread;
 import android.os.Looper;
+import android.os.Process;
+import android.os.SystemClock;
 import android.text.TextUtils;
 import android.util.AttributeSet;
 import android.view.Gravity;
@@ -68,6 +71,14 @@ public class TopView extends FrameLayout {
     private ImageButton mMediaNext;
     private AppManager mAppManager;
     private SidebarController mController;
+    private HandlerThread mAppLoaderThread;
+    private Handler mAppLoader;
+    private boolean mAppRefreshPending;
+    private long mAppsLoadedAt;
+    private int mAppRenderGeneration;
+
+    private static final int MAX_TOP_APPS = 64;
+    private static final long APP_CACHE_TTL_MS = 5L * 60L * 1000L;
 
     private View mCurrentPage;
     private View mLegacyPage;
@@ -136,7 +147,7 @@ public class TopView extends FrameLayout {
                     post(new Runnable() {
                         @Override
                         public void run() {
-                            refreshApps();
+                            requestAppsRefresh(true);
                         }
                     });
                 }
@@ -221,13 +232,17 @@ public class TopView extends FrameLayout {
         mController = SidebarController.getInstance(getContext());
         mAppManager = AppManager.getInstance(getContext());
         mAppManager.addListener(mAppsChangedListener);
+        mAppLoaderThread = new HandlerThread("OneStep-TopApps",
+                Process.THREAD_PRIORITY_BACKGROUND);
+        mAppLoaderThread.start();
+        mAppLoader = new Handler(mAppLoaderThread.getLooper());
 
         bindLegacyItems();
         bindControls();
         bindMediaControls();
         resetPages(PAGE_CURRENT);
         startMediaController();
-        refreshApps();
+        requestAppsRefresh(true);
     }
 
     private void bindLegacyItems() {
@@ -264,6 +279,11 @@ public class TopView extends FrameLayout {
     @Override
     protected void onDetachedFromWindow() {
         if (mAppManager != null) mAppManager.removeListener(mAppsChangedListener);
+        if (mAppLoaderThread != null) {
+            mAppLoaderThread.quitSafely();
+            mAppLoaderThread = null;
+            mAppLoader = null;
+        }
         cancelPageGesture();
         stopMediaController();
         super.onDetachedFromWindow();
@@ -345,7 +365,6 @@ public class TopView extends FrameLayout {
         cancelPageGesture();
         if (show) {
             resetPages(rememberedPage());
-            refreshApps();
             setVisibility(VISIBLE);
             setAlpha(0f);
             setTranslationY(-getResources().getDimensionPixelSize(
@@ -355,7 +374,7 @@ public class TopView extends FrameLayout {
             postDelayed(new Runnable() {
                 @Override
                 public void run() {
-                    refreshApps();
+                    requestAppsRefresh(false);
                     if (mAppStrip != null) {
                         mAppStrip.requestLayout();
                         mAppStrip.invalidate();
@@ -508,10 +527,14 @@ public class TopView extends FrameLayout {
 
     private boolean canStartPageSwipe(MotionEvent event) {
         if (mCurrentPage == null || mLegacyPage == null) return false;
+        // The app strip is shared by both pages. Never let page switching steal its horizontal
+        // scroll gesture, especially on the legacy recent-items page.
+        if (isTouchInsideView(mAppScroll, event)
+                || isTouchInsideView(mControls, event)) {
+            return false;
+        }
         if (mPage == PAGE_LEGACY) return true;
-        return !isTouchInsideView(mAppScroll, event)
-                && !isTouchInsideView(mControls, event)
-                && !isTouchInsideView(mMediaPrevious, event)
+        return !isTouchInsideView(mMediaPrevious, event)
                 && !isTouchInsideView(mMediaPlayPause, event)
                 && !isTouchInsideView(mMediaNext, event);
     }
@@ -1025,8 +1048,42 @@ public class TopView extends FrameLayout {
         }
     }
 
-    private void refreshApps() {
-        if (mAppStrip == null || mAppManager == null) return;
+    private void requestAppsRefresh(boolean force) {
+        if (mAppStrip == null || mAppManager == null || mAppLoader == null
+                || mAppRefreshPending) {
+            return;
+        }
+        long age = SystemClock.uptimeMillis() - mAppsLoadedAt;
+        if (!force && mAppStrip.getChildCount() > 0 && age < APP_CACHE_TTL_MS) {
+            return;
+        }
+        mAppRefreshPending = true;
+        mAppLoader.post(new Runnable() {
+            @Override
+            public void run() {
+                List<AppItem> loaded = null;
+                try {
+                    loaded = loadAppsInBackground();
+                } catch (Throwable t) {
+                    LSPLogger.e("TopView.loadAppsInBackground failed", t);
+                }
+                final List<AppItem> apps = loaded;
+                post(new Runnable() {
+                    @Override
+                    public void run() {
+                        mAppRefreshPending = false;
+                        if (apps == null || mAppStrip == null) return;
+                        renderApps(apps);
+                        mAppsLoadedAt = SystemClock.uptimeMillis();
+                    }
+                });
+            }
+        });
+    }
+
+    private List<AppItem> loadAppsInBackground() {
+        if (mAppManager == null) return null;
+        long started = SystemClock.uptimeMillis();
         List<AppItem> pinned = mAppManager.getAddedAppItem();
         List<AppItem> recommended = mAppManager.getUnAddedAppItem();
         sortByRecentUsage(recommended);
@@ -1034,9 +1091,29 @@ public class TopView extends FrameLayout {
         for (AppItem app : recommended) {
             if (!apps.contains(app)) apps.add(app);
         }
-        mAppStrip.removeAllViews();
-        int count = Math.min(apps.size(), 64);
+        int count = Math.min(apps.size(), MAX_TOP_APPS);
         for (int i = 0; i < count; i++) {
+            AppItem app = apps.get(i);
+            app.getDisplayName();
+            app.getAvatar();
+        }
+        LSPLogger.i("TopView.loadAppsInBackground: count=" + count
+                + " elapsedMs=" + (SystemClock.uptimeMillis() - started));
+        return apps;
+    }
+
+    private void renderApps(List<AppItem> apps) {
+        final int generation = ++mAppRenderGeneration;
+        mAppStrip.removeAllViews();
+        renderAppBatch(apps, 0, generation);
+    }
+
+    private void renderAppBatch(final List<AppItem> apps, int start,
+            final int generation) {
+        if (generation != mAppRenderGeneration || mAppStrip == null) return;
+        int count = Math.min(apps.size(), MAX_TOP_APPS);
+        int end = Math.min(count, start + 8);
+        for (int i = start; i < end; i++) {
             final AppItem app = apps.get(i);
             mAppStrip.addView(createAppItem(app), new LinearLayout.LayoutParams(
                     getResources().getDimensionPixelSize(R.dimen.multitask_app_item_width),
@@ -1044,7 +1121,17 @@ public class TopView extends FrameLayout {
         }
         mAppStrip.requestLayout();
         mAppStrip.invalidate();
-        LSPLogger.i("TopView.refreshApps: count=" + count);
+        if (end >= count) {
+            LSPLogger.i("TopView.renderApps: count=" + count);
+            return;
+        }
+        final int next = end;
+        postOnAnimation(new Runnable() {
+            @Override
+            public void run() {
+                renderAppBatch(apps, next, generation);
+            }
+        });
     }
 
     private void sortByRecentUsage(List<AppItem> apps) {

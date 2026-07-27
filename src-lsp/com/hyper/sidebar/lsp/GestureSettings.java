@@ -26,6 +26,8 @@ public final class GestureSettings {
             "onestep_gesture_blacklist_v1";
     private static final String KEY_DRAG_HAPTICS =
             "onestep_drag_haptics_enabled_v1";
+    private static final String KEY_BIG_BANG_ENABLED =
+            "onestep_bigbang_enabled_v1";
 
     private GestureSettings() {
     }
@@ -41,11 +43,13 @@ public final class GestureSettings {
                     KEY_GESTURE_BLACKLIST);
             boolean dragHaptics = Settings.Global.getInt(context.getContentResolver(),
                     KEY_DRAG_HAPTICS, 1) != 0;
+            boolean bigBangEnabled = Settings.Global.getInt(context.getContentResolver(),
+                    KEY_BIG_BANG_ENABLED, 1) != 0;
             // Two-finger long press is a device-agnostic fallback, so it defaults on.
             boolean twoFinger = Settings.Global.getInt(context.getContentResolver(),
                     KEY_TWO_FINGER_LONG_PRESS, 1) != 0;
             return new Snapshot(fallback, duration, decodeBlacklist(encoded), dragHaptics,
-                    twoFinger);
+                    twoFinger, bigBangEnabled);
         } catch (Throwable t) {
             LSPLogger.w("GestureSettings.read failed: " + t);
             return Snapshot.defaults();
@@ -82,6 +86,10 @@ public final class GestureSettings {
 
     public static boolean setDragHapticsEnabled(Context context, boolean enabled) {
         return putInt(context, KEY_DRAG_HAPTICS, enabled ? 1 : 0);
+    }
+
+    public static boolean setBigBangEnabled(Context context, boolean enabled) {
+        return putInt(context, KEY_BIG_BANG_ENABLED, enabled ? 1 : 0);
     }
 
     public static int clampDuration(int durationMs) {
@@ -191,21 +199,23 @@ public final class GestureSettings {
         public final Set<String> blacklistedPackages;
         public final boolean dragHapticsEnabled;
         public final boolean twoFingerLongPressEnabled;
+        public final boolean bigBangEnabled;
 
         Snapshot(boolean longPressFallbackEnabled, int longPressDurationMs,
                 Set<String> blacklistedPackages, boolean dragHapticsEnabled,
-                boolean twoFingerLongPressEnabled) {
+                boolean twoFingerLongPressEnabled, boolean bigBangEnabled) {
             this.longPressFallbackEnabled = longPressFallbackEnabled;
             this.longPressDurationMs = clampDuration(longPressDurationMs);
             this.blacklistedPackages = blacklistedPackages == null
                     ? Collections.emptySet() : blacklistedPackages;
             this.dragHapticsEnabled = dragHapticsEnabled;
             this.twoFingerLongPressEnabled = twoFingerLongPressEnabled;
+            this.bigBangEnabled = bigBangEnabled;
         }
 
         static Snapshot defaults() {
             return new Snapshot(false, DEFAULT_LONG_PRESS_DURATION_MS,
-                    Collections.emptySet(), true, true);
+                    Collections.emptySet(), true, true, true);
         }
 
         public boolean isBlacklisted(String packageName) {

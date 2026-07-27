@@ -16,6 +16,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.animation.DecelerateInterpolator;
 import android.view.animation.OvershootInterpolator;
 import android.widget.Button;
@@ -242,6 +243,36 @@ public class ModuleConfigActivity extends Activity {
             });
         });
 
+        View bigBangCompatGroup = findViewById(R.id.miuix_bigbang_compat_group);
+        Switch bigBangSwitch = findViewById(R.id.miuix_switch_bigbang);
+        bigBangSwitch.setChecked(settings.bigBangEnabled);
+        setGroupEnabled(bigBangCompatGroup, settings.bigBangEnabled);
+        final boolean[] updatingBigBang = {false};
+        bigBangSwitch.setOnCheckedChangeListener((button, checked) -> {
+            if (updatingBigBang[0]) return;
+            button.setEnabled(false);
+            mSettingsExecutor.execute(() -> {
+                boolean saved = GestureSettings.setBigBangEnabled(
+                        ModuleConfigActivity.this, checked);
+                runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    button.setEnabled(true);
+                    if (!saved) {
+                        updatingBigBang[0] = true;
+                        button.setChecked(!checked);
+                        updatingBigBang[0] = false;
+                        Toast.makeText(this, "无法保存 BigBang 开关",
+                                Toast.LENGTH_LONG).show();
+                    } else {
+                        setGroupEnabled(bigBangCompatGroup, checked);
+                        Toast.makeText(this, checked
+                                        ? "BigBang 已开启" : "BigBang 已关闭",
+                                Toast.LENGTH_SHORT).show();
+                    }
+                });
+            });
+        });
+
         Switch fallbackSwitch = findViewById(R.id.miuix_switch_fallback);
         fallbackSwitch.setChecked(settings.longPressFallbackEnabled);
         final boolean[] updatingSwitch = {false};
@@ -258,11 +289,11 @@ public class ModuleConfigActivity extends Activity {
                         updatingSwitch[0] = true;
                         button.setChecked(!checked);
                         updatingSwitch[0] = false;
-                        Toast.makeText(this, "无法保存长按兜底开关",
+                        Toast.makeText(this, "无法保存静止长按开关",
                                 Toast.LENGTH_LONG).show();
                     } else {
                         Toast.makeText(this, checked
-                                        ? "长按兜底已开启" : "长按兜底已关闭",
+                                        ? "静止长按已开启" : "静止长按已关闭",
                                 Toast.LENGTH_SHORT).show();
                     }
                 });
@@ -351,6 +382,26 @@ public class ModuleConfigActivity extends Activity {
                 settings.blacklistedPackages.size()));
         manageBlacklist.setOnClickListener(v -> startActivity(
                 new Intent(this, GestureBlacklistActivity.class)));
+    }
+
+    private static void setGroupEnabled(View view, boolean enabled) {
+        if (view == null) return;
+        view.setEnabled(enabled);
+        view.setAlpha(enabled ? 1f : 0.45f);
+        if (!(view instanceof ViewGroup)) return;
+        ViewGroup group = (ViewGroup) view;
+        for (int i = 0; i < group.getChildCount(); i++) {
+            setDescendantEnabled(group.getChildAt(i), enabled);
+        }
+    }
+
+    private static void setDescendantEnabled(View view, boolean enabled) {
+        view.setEnabled(enabled);
+        if (!(view instanceof ViewGroup)) return;
+        ViewGroup group = (ViewGroup) view;
+        for (int i = 0; i < group.getChildCount(); i++) {
+            setDescendantEnabled(group.getChildAt(i), enabled);
+        }
     }
 
     private void bindLogPage() {

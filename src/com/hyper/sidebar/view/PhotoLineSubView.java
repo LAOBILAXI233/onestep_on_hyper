@@ -4,6 +4,7 @@ import android.content.Context;
 import android.content.res.Configuration;
 import android.graphics.Bitmap;
 import android.graphics.Color;
+import android.graphics.drawable.Animatable;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.os.Handler;
@@ -18,7 +19,6 @@ import android.widget.RelativeLayout;
 import android.widget.TextView;
 
 import com.hyper.sidebar.R;
-import com.hyper.sidebar.util.BitmapUtils;
 import com.hyper.sidebar.util.ImageInfo;
 import com.hyper.sidebar.util.ImageLoader;
 import com.hyper.sidebar.util.Tracker;
@@ -31,6 +31,7 @@ public class PhotoLineSubView extends FrameLayout {
     private static final int IMAGE_COLOR = Color.parseColor("#9a404040");
 
     ImageView photoImageView;
+    ImageView mediaTypeBadge;
     TextView loadFailedText;
     RelativeLayout openGallery;
     RelativeLayout showMorePhoto;
@@ -65,6 +66,7 @@ public class PhotoLineSubView extends FrameLayout {
     protected void onFinishInflate() {
         super.onFinishInflate();
         photoImageView = (ImageView) findViewById(R.id.image);
+        mediaTypeBadge = (ImageView) findViewById(R.id.media_type_badge);
         loadFailedText = (TextView) findViewById(R.id.load_fail);
         openGallery = (RelativeLayout) findViewById(R.id.open_gallery);
         showMorePhoto = (RelativeLayout) findViewById(R.id.show_more);
@@ -91,22 +93,32 @@ public class PhotoLineSubView extends FrameLayout {
     }
 
     public void reset() {
+        stopPreviewAnimation();
+        if (mCallBack != null) {
+            mCallBack.setValid(false);
+        }
         photoImageView.setVisibility(View.INVISIBLE);
+        mediaTypeBadge.setVisibility(View.INVISIBLE);
         loadFailedText.setVisibility(View.INVISIBLE);
         openGallery.setVisibility(View.INVISIBLE);
         showMorePhoto.setVisibility(View.INVISIBLE);
     }
 
     public void showPhoto(ImageInfo info) {
+        showPhoto(info, true);
+    }
+
+    public void showPhoto(ImageInfo info, boolean loadPreview) {
         photoImageView.setVisibility(View.VISIBLE);
-        if (imageInfo != null && imageInfo.filePath.equals(info.filePath)) {
-            return ;
-        }
+        loadFailedText.setVisibility(View.INVISIBLE);
+        boolean sameMedia = imageInfo != null && imageInfo.filePath != null
+                && imageInfo.filePath.equals(info.filePath);
         imageInfo = info;
+        mediaTypeBadge.setVisibility(info.isVideo() ? View.VISIBLE : View.INVISIBLE);
         photoImageView.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                Utils.openPhotoWithGallery(v.getContext(), imageInfo);
+                Utils.openMediaWithDefaultApp(v.getContext(), imageInfo);
                 Tracker.onClick(Tracker.EVENT_OPEN_PIC, "type", "1");
             }
         });
@@ -128,17 +140,41 @@ public class PhotoLineSubView extends FrameLayout {
         if(mCallBack != null) {
             mCallBack.setValid(false);
         }
-        Drawable oldBg = photoImageView.getBackground();
-        photoImageView.setBackgroundColor(IMAGE_COLOR);
-        if (oldBg != null && (oldBg instanceof BitmapDrawable)) {
-            BitmapDrawable bitmapDrawable = (BitmapDrawable) oldBg;
-            bitmapDrawable.setCallback(null);
-            Bitmap oldBitmap = bitmapDrawable.getBitmap();
-            if (oldBitmap != null) {
-                oldBitmap.recycle();
+        if (sameMedia && photoImageView.getDrawable() != null) {
+            if (loadPreview && photoImageView.getDrawable() instanceof Animatable) {
+                ((Animatable) photoImageView.getDrawable()).start();
             }
+            return;
         }
-        mImageLoader.loadImage(imageInfo.filePath, mCallBack = new ImageLoaderCallBack());
+        photoImageView.setBackgroundColor(IMAGE_COLOR);
+        replacePreviewDrawable(null);
+        if (loadPreview) {
+            loadPreviewIfNeeded();
+        }
+    }
+
+    public void pausePreviewWork() {
+        if (mCallBack != null) {
+            mCallBack.setValid(false);
+        }
+        stopPreviewAnimation();
+    }
+
+    public void loadPreviewIfNeeded() {
+        if (imageInfo == null || mImageLoader == null
+                || photoImageView.getVisibility() != View.VISIBLE) {
+            return;
+        }
+        Drawable current = photoImageView.getDrawable();
+        if (current != null) {
+            if (current instanceof Animatable) {
+                ((Animatable) current).start();
+            }
+            return;
+        }
+        loadFailedText.setVisibility(View.INVISIBLE);
+        mImageLoader.loadImage(imageInfo.filePath, imageInfo.mimeType,
+                mCallBack = new ImageLoaderCallBack());
     }
 
     public void showMorePhoto(View.OnClickListener listener) {
@@ -155,25 +191,44 @@ public class PhotoLineSubView extends FrameLayout {
 
     public void updateBitmap(Bitmap bmp) {
         if (photoImageView.getVisibility() != View.VISIBLE) {
-            bmp.recycle();
             return;
         }
-        String path = imageInfo.filePath;
-        Drawable oldBg = photoImageView.getBackground();
-        photoImageView.setBackground(new BitmapDrawable(mContext.getResources(), bmp));
-        if (oldBg != null && (oldBg instanceof BitmapDrawable)) {
-            BitmapDrawable bitmapDrawable = (BitmapDrawable) oldBg;
-            bitmapDrawable.setCallback(null);
-            Bitmap oldBitmap = bitmapDrawable.getBitmap();
-            if (oldBitmap != null) {
-                oldBitmap.recycle();
-            }
+        replacePreviewDrawable(new BitmapDrawable(mContext.getResources(), bmp));
+    }
+
+    public void updateDrawable(Drawable drawable) {
+        if (photoImageView.getVisibility() != View.VISIBLE) {
+            stopDrawable(drawable);
+            return;
+        }
+        replacePreviewDrawable(drawable);
+        if (drawable instanceof Animatable) {
+            ((Animatable) drawable).start();
+        }
+    }
+
+    private void replacePreviewDrawable(Drawable drawable) {
+        Drawable old = photoImageView.getDrawable();
+        if (old == drawable) {
+            return;
+        }
+        stopDrawable(old);
+        photoImageView.setImageDrawable(drawable);
+    }
+
+    private void stopPreviewAnimation() {
+        stopDrawable(photoImageView.getDrawable());
+    }
+
+    private static void stopDrawable(Drawable drawable) {
+        if (drawable instanceof Animatable) {
+            ((Animatable) drawable).stop();
         }
     }
 
     class ImageLoaderCallBack implements ImageLoader.Callback {
 
-        private boolean mValid = true;
+        private volatile boolean mValid = true;
 
         public void setValid(boolean valid) {
             mValid = valid;
@@ -186,31 +241,61 @@ public class PhotoLineSubView extends FrameLayout {
 
         @Override
         public void onLoadComplete(final String filePath, Bitmap bitmap) {
-            if (imageInfo.filePath == null || !imageInfo.filePath.equals(filePath)) {
+            if (!mValid || imageInfo.filePath == null || !imageInfo.filePath.equals(filePath)) {
                 return ;
             }
-            Bitmap newBitmap = BitmapUtils.allNewBitmap(bitmap);
-            if(newBitmap == null) {
+            if(bitmap == null) {
                 return ;
             }
-            mHandler.post(new SetBitmapTask(newBitmap, imageInfo.filePath));
+            mHandler.post(new SetBitmapTask(bitmap, imageInfo.filePath, this));
+        }
+
+        @Override
+        public void onLoadDrawableComplete(final String filePath, final Drawable drawable) {
+            if (!mValid || imageInfo.filePath == null || !imageInfo.filePath.equals(filePath)) {
+                stopDrawable(drawable);
+                return;
+            }
+            if (drawable == null) {
+                mHandler.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (mValid && imageInfo.filePath.equals(filePath)) {
+                            photoImageView.setVisibility(View.INVISIBLE);
+                            loadFailedText.setVisibility(View.VISIBLE);
+                        }
+                    }
+                });
+                return;
+            }
+            mHandler.post(new Runnable() {
+                @Override
+                public void run() {
+                    if (mValid && imageInfo.filePath.equals(filePath)) {
+                        updateDrawable(drawable);
+                    } else {
+                        stopDrawable(drawable);
+                    }
+                }
+            });
         }
     }
 
     class SetBitmapTask implements Runnable {
         private Bitmap mBitmap;
         private String mFilePath;
-        public SetBitmapTask(Bitmap newBitmap, String filePath) {
+        private ImageLoaderCallBack mOwner;
+        public SetBitmapTask(Bitmap newBitmap, String filePath, ImageLoaderCallBack owner) {
             mBitmap = newBitmap;
             mFilePath = filePath;
+            mOwner = owner;
         }
 
         @Override
         public void run() {
-            if (imageInfo.filePath != null && imageInfo.filePath.equals(mFilePath)) {
+            if (mOwner.valid() && imageInfo.filePath != null
+                    && imageInfo.filePath.equals(mFilePath)) {
                 updateBitmap(mBitmap);
-            } else {
-                mBitmap.recycle();
             }
         }
     }
