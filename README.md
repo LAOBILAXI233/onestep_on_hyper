@@ -144,7 +144,7 @@ JAVA_HOME="/path/to/jdk-21" ./gradlew assembleDebug
 ![alt text](PixPin_2026-07-27_00-08-30.png)
 
 # 贡献者名单（比较腼腆的朋友可以备注一下:)）
-（一下名单不分先后顺序）感谢 6ix9ine | 哔哩哔哩WinProto | 
+（以下名单不分先后顺序）感谢 6ix9ine | 哔哩哔哩WinProto | 
 感谢支持 让我走的更远
    ## 许可证
 
