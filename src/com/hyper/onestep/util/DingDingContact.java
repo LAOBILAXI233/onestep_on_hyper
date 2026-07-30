@@ -1,5 +1,4 @@
 package com.hyper.onestep.util;
-
 import android.content.ActivityNotFoundException;
 import android.content.ClipDescription;
 import android.content.ContentValues;
@@ -12,31 +11,25 @@ import android.graphics.Bitmap;
 import android.provider.BaseColumns;
 import android.text.TextUtils;
 import android.view.DragEvent;
-
 import com.hyper.onestep.R;
-
 import java.util.ArrayList;
 import java.util.List;
-
+// 钉钉联系人项，封装钉钉分享意图
 public class DingDingContact extends ContactItem {
     public static final String PKG_NAME = "com.alibaba.android.rimet";
-    // may be null in old version dingding.
     public final String sendUserId;
     public final String encodedUid;
     public final int systemUid;
-
     public DingDingContact(Context context, int systemUid, String sendUserId, String encodedUid, Bitmap avatar, CharSequence displayName) {
         super(context, avatar, displayName);
         this.sendUserId = sendUserId;
         this.encodedUid = encodedUid;
         this.systemUid = systemUid;
     }
-
     @Override
     public boolean acceptDragEvent(Context context, DragEvent event) {
         return event.getClipDescription().getMimeTypeCount() == 1;
     }
-
     @Override
     public boolean handleDragEvent(Context context, DragEvent event) {
         Tracker.dragSuccess(2, PKG_NAME);
@@ -44,12 +37,10 @@ public class DingDingContact extends ContactItem {
         if(sret){
             return true;
         }
-
         if (event.getClipData().getItemCount() != 1
                 || event.getClipData().getDescription().getMimeTypeCount() != 1) {
             return false;
         }
-
         Intent intent = new Intent("com.alibaba.android.rimet.SEND");
         intent.putExtra("user_id_string", encodedUid);
         intent.putExtra("send_user_id", sendUserId);
@@ -66,16 +57,13 @@ public class DingDingContact extends ContactItem {
         } else {
             intent.setDataAndType(event.getClipData().getItemAt(0).getUri(), mimeType);
         }
-
         try {
             LaunchApp.start(mContext, intent, true, PKG_NAME, systemUid);
             return true;
         } catch (ActivityNotFoundException e) {
-            // NA
         }
         return false;
     }
-
     @Override
     public boolean openUI(Context context) {
         Tracker.onClick(Tracker.EVENT_CLICK_CONTACTS, "contacts_type", "1");
@@ -87,31 +75,25 @@ public class DingDingContact extends ContactItem {
             LaunchApp.start(mContext, intent, true, PKG_NAME, systemUid);
             return true;
         } catch (ActivityNotFoundException e) {
-            // NA
         }
         return false;
     }
-
     @Override
     public void save() {
         DatabaseHelper.getInstance(mContext).update(this);
     }
-
     @Override
     public void deleteFromDatabase() {
         DatabaseHelper.getInstance(mContext).remove(this);
     }
-
     @Override
     public int getTypeIcon() {
         return R.drawable.contact_icon_dingding;
     }
-
     @Override
     public String getPackageName() {
         return PKG_NAME;
     }
-
     @Override
     public boolean sameContact(ContactItem ci) {
         if (!(ci instanceof DingDingContact)) {
@@ -121,11 +103,9 @@ public class DingDingContact extends ContactItem {
         return TextUtils.equals(sendUserId, ddc.sendUserId)
                 && TextUtils.equals(encodedUid, ddc.encodedUid);
     }
-
     public static List<ContactItem> getContacts(Context context){
         return DatabaseHelper.getInstance(context).getContacts();
     }
-
     public static final class DatabaseHelper extends SQLiteOpenHelper{
         private volatile static DatabaseHelper sInstance;
         public synchronized static DatabaseHelper getInstance(Context context){
@@ -138,17 +118,14 @@ public class DingDingContact extends ContactItem {
             }
             return sInstance;
         }
-
         private static final String TABLE_CONTACTS = "contacts";
         private static final String DB_NAME = "ding_contacts";
         private static final int DB_VERSION = 1;
-
         private Context mContext;
         private DatabaseHelper(Context context) {
             super(context, DB_NAME, null, DB_VERSION);
             mContext = context;
         }
-
         private static final String CREATE_SQL = "CREATE TABLE IF NOT EXISTS " + TABLE_CONTACTS + " ("
                 + "_id INTEGER PRIMARY KEY AUTOINCREMENT,"
                 + "system_uid INTEGER,"
@@ -157,17 +134,13 @@ public class DingDingContact extends ContactItem {
                 + "avatar BLOB,"
                 + "display_name TEXT,"
                 + "weight INTEGER);";
-
         @Override
         public void onCreate(SQLiteDatabase db) {
             db.execSQL(CREATE_SQL);
         }
-
         @Override
         public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-            // NA
         }
-
         public int getId(DingDingContact ddc) {
             ThreadVerify.verify(false);
             Cursor cursor = null;
@@ -195,11 +168,9 @@ public class DingDingContact extends ContactItem {
             }
             return 0;
         }
-
         public void update(DingDingContact ddc) {
             ThreadVerify.verify(false);
             int id = getId(ddc);
-            // insert
             ContentValues cv = new ContentValues();
             cv.put(ContactColumns.SYS_UID, ddc.systemUid);
             cv.put(ContactColumns.SEND_USER_ID, ddc.sendUserId);
@@ -208,14 +179,12 @@ public class DingDingContact extends ContactItem {
             cv.put(ContactColumns.DISPLAY_NAME, ddc.getDisplayName().toString());
             cv.put(ContactColumns.WEIGHT, ddc.getIndex());
             if (id != 0) {
-                // update database;
                 getWritableDatabase().update(TABLE_CONTACTS, cv,
                         ContactColumns._ID + "=?", new String[] { id + "" });
             } else {
                 getWritableDatabase().insert(TABLE_CONTACTS, null, cv);
             }
         }
-
         public void remove(DingDingContact ddc) {
             ThreadVerify.verify(false);
             int id = getId(ddc);
@@ -224,7 +193,6 @@ public class DingDingContact extends ContactItem {
                         ContactColumns._ID + "=?", new String[] { id + "" });
             }
         }
-
         public void remove(String where) {
             ThreadVerify.verify(false);
             try {
@@ -233,7 +201,6 @@ public class DingDingContact extends ContactItem {
                 e.printStackTrace();
             }
         }
-
         public List<ContactItem> getContacts() {
             ThreadVerify.verify(false);
             List<ContactItem> ret = new ArrayList<ContactItem>();
@@ -260,7 +227,6 @@ public class DingDingContact extends ContactItem {
             }
             return ret;
         }
-
         static class ContactColumns implements BaseColumns{
             static final String SYS_UID = "system_uid";
             static final String SEND_USER_ID = "send_user_id";
@@ -270,7 +236,6 @@ public class DingDingContact extends ContactItem {
             static final String WEIGHT = "weight";
         }
     }
-
     public static void removeDoppelgangerShortcut(Context context) {
     }
 }

@@ -1,15 +1,12 @@
 package com.hyper.onestep.view;
-
 import java.util.ArrayList;
 import java.util.List;
-
 import com.hyper.onestep.SidebarController;
 import com.hyper.onestep.SidebarMode;
 import com.hyper.onestep.util.ContactItem;
 import com.hyper.onestep.util.ContactManager;
 import com.hyper.onestep.util.LOG;
 import com.hyper.onestep.util.Utils;
-
 import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
@@ -21,16 +18,14 @@ import android.view.ViewGroup;
 import android.view.animation.AccelerateDecelerateInterpolator;
 import android.widget.ImageView;
 import android.widget.TextView;
-
 import com.hyper.onestep.R;
 import com.hyper.onestep.util.anim.Anim;
 import com.hyper.onestep.util.anim.AnimListener;
 import com.hyper.onestep.util.anim.Vector3f;
-
+// 联系人列表适配器，支持拖拽分享
 public class ContactListAdapter extends SidebarAdapter {
     private static float SCALE_SIZE = 1.4f;
     private static final LOG log = LOG.getInstance(ContactListAdapter.class);
-
     private Context mContext;
     private ContactManager mManager;
     private List<ContactItem> mContacts;
@@ -38,7 +33,6 @@ public class ContactListAdapter extends SidebarAdapter {
     private DragEvent mDragEvent;
     private Handler mHandler;
     public boolean isEnableIconShadow = false;
-
     public ContactListAdapter(Context context) {
         mContext = context;
         mHandler = new Handler(Looper.getMainLooper());
@@ -52,7 +46,6 @@ public class ContactListAdapter extends SidebarAdapter {
             }
         });
     }
-
     private void updateAcceptableResolveInfos() {
         mAcceptableContacts.clear();
         for (ContactItem ci : mContacts) {
@@ -62,7 +55,6 @@ public class ContactListAdapter extends SidebarAdapter {
         }
         notifyDataSetChanged();
     }
-
     @Override
     public void moveItemPostion(Object object, int index) {
         ContactItem item = (ContactItem) object;
@@ -80,15 +72,11 @@ public class ContactListAdapter extends SidebarAdapter {
         mContacts.add(index, item);
         onOrderChange();
     }
-
     @Override
     public void onDragStart(DragEvent event) {
-        // SDK 36 已移除 DragEvent.recycle() / DragEvent.obtain(DragEvent) 隐藏 API，
-        // 直接保留事件引用（与 OngoingAdapter/ResolveInfoListAdapter 一致）
         mDragEvent = event;
         updateAcceptableResolveInfos();
     }
-
     @Override
     public void onDragEnd() {
         if (mDragEvent == null) {
@@ -97,7 +85,6 @@ public class ContactListAdapter extends SidebarAdapter {
         mDragEvent = null;
         updateAcceptableResolveInfos();
     }
-
     @Override
     public void updateData() {
         mHandler.post(new Runnable(){
@@ -108,24 +95,19 @@ public class ContactListAdapter extends SidebarAdapter {
             }
         });
     }
-
     @Override
     public int getCount() {
         return mAcceptableContacts.size();
     }
-
     @Override
     public Object getItem(int position) {
         return mAcceptableContacts.get(position);
     }
-
     @Override
     public long getItemId(int position) {
         return position;
     }
-
     private Anim mIconTouchedAnim;
-
     @Override
     public View getView(final int position, View convertView, ViewGroup parent) {
         final ViewHolder holder;
@@ -156,9 +138,7 @@ public class ContactListAdapter extends SidebarAdapter {
                         mIconTouchedAnim.setListener(new AnimListener() {
                             @Override
                             public void onStart() {
-
                             }
-
                             @Override
                             public void onComplete(int type) {
                                 if (mIconTouchedAnim != null) {
@@ -217,15 +197,12 @@ public class ContactListAdapter extends SidebarAdapter {
         });
         return holder.view;
     }
-
     public static class ViewHolder {
         public View view;
         public ImageView contactAvatar;
         public ImageView typeIcon;
         public TextView displayName;
-
         public ContactItem mItem;
-
         public void setItem(ContactItem item, boolean dragging, boolean isLeftMode) {
             mItem = item;
             if (item == null) {
@@ -244,7 +221,6 @@ public class ContactListAdapter extends SidebarAdapter {
                 displayName.setVisibility(View.GONE);
             }
         }
-
         public void restore(){
             if (view.getVisibility() == View.INVISIBLE) {
                 view.setVisibility(View.VISIBLE);
@@ -252,7 +228,6 @@ public class ContactListAdapter extends SidebarAdapter {
             view.setTranslationY(0);
         }
     }
-
     public int objectIndex(ContactItem item) {
         if (item == null) {
             return -1;
@@ -262,14 +237,12 @@ public class ContactListAdapter extends SidebarAdapter {
         }
         return mContacts.indexOf(item);
     }
-
     private void onOrderChange(){
         for(int i = 0; i < mContacts.size(); ++ i){
             mContacts.get(i).setIndex(mContacts.size() - 1 - i);
         }
         mManager.updateOrder();
     }
-
     public void dumpAdapter() {
         if (mContacts == null) {
             return;

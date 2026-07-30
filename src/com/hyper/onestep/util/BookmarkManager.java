@@ -1,5 +1,4 @@
 package com.hyper.onestep.util;
-
 import android.content.ContentValues;
 import android.content.Context;
 import android.database.Cursor;
@@ -9,19 +8,15 @@ import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Looper;
 import android.os.Message;
-
 import com.hyper.onestep.util.net.NetworkHandler;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
+// 书签数据管理器，读写浏览器书签并缓存
 public class BookmarkManager extends DataManager implements IClear {
     private static final LOG log = LOG.getInstance(BookmarkManager.class);
-
     private volatile static BookmarkManager sInstance;
-
     public synchronized static BookmarkManager getInstance(Context context){
         if(sInstance == null) {
             synchronized(BookmarkManager.class) {
@@ -32,11 +27,9 @@ public class BookmarkManager extends DataManager implements IClear {
         }
         return sInstance;
     }
-
     private Context mContext;
     private Handler mHandler;
     private List<BookmarkItem> mList = new ArrayList<BookmarkItem>();
-
     private BookmarkManager(Context context) {
         mContext = context;
         HandlerThread thread = new HandlerThread(BookmarkManager.class.getName());
@@ -44,7 +37,6 @@ public class BookmarkManager extends DataManager implements IClear {
         mHandler = new BookmarkManagerHandler(thread.getLooper());
         mHandler.obtainMessage(MSG_LIST_BOOKMARK).sendToTarget();
     }
-
     public List<BookmarkItem> getBookmarks() {
         List<BookmarkItem> list = new ArrayList<BookmarkItem>();
         synchronized (mList) {
@@ -52,14 +44,12 @@ public class BookmarkManager extends DataManager implements IClear {
         }
         return list;
     }
-
     public void addBookmark(BookmarkItem item) {
         if (item == null) {
             return;
         }
         mHandler.obtainMessage(MSG_ADD_BOOKMARK, item).sendToTarget();
     }
-
     public void updateBookmark(BookmarkItem item) {
         if (item == null) {
             return;
@@ -67,7 +57,6 @@ public class BookmarkManager extends DataManager implements IClear {
         mHandler.obtainMessage(MSG_UPDATE_BOOKMARK, item).sendToTarget();
         notifyListener();
     }
-
     public void removeBookmark(BookmarkItem item) {
         if (item == null) {
             return;
@@ -75,7 +64,6 @@ public class BookmarkManager extends DataManager implements IClear {
         mHandler.obtainMessage(MSG_REMOVE_BOOKMARK, item).sendToTarget();
         notifyListener();
     }
-
     @Override
     public void clear() {
         synchronized (mList) {
@@ -84,18 +72,15 @@ public class BookmarkManager extends DataManager implements IClear {
         }
         notifyListener();
     }
-
     private static final int MSG_ADD_BOOKMARK        = 0;
     private static final int MSG_REMOVE_BOOKMARK     = 1;
     private static final int MSG_REMOVE_ALL_BOOKMARK = 2;
     private static final int MSG_UPDATE_BOOKMARK     = 3;
     private static final int MSG_LIST_BOOKMARK       = 4;
-
     private class BookmarkManagerHandler extends Handler {
         public BookmarkManagerHandler(Looper looper) {
             super(looper);
         }
-
         @Override
         public void handleMessage(Message msg) {
             switch (msg.what) {
@@ -146,7 +131,6 @@ public class BookmarkManager extends DataManager implements IClear {
             }
         }
     }
-
     public static class BookmarkItem implements Comparable<BookmarkItem> {
         public long id = -1;
         public String title;
@@ -154,7 +138,6 @@ public class BookmarkManager extends DataManager implements IClear {
         public String source;
         public String fullText;
         public long time;
-
         @Override
         public int compareTo(BookmarkItem item) {
             if (item == null) {
@@ -170,14 +153,10 @@ public class BookmarkManager extends DataManager implements IClear {
             }
         }
     }
-
     public static final class DatabaseHelper extends SQLiteOpenHelper {
-
         private static final int DB_VERSION = 1;
         private static final String DB_NAME = "bookmark";
-
         private volatile static DatabaseHelper sInstance;
-
         public synchronized static DatabaseHelper getInstance(Context context){
             if(sInstance == null){
                 synchronized(DatabaseHelper.class){
@@ -188,7 +167,6 @@ public class BookmarkManager extends DataManager implements IClear {
             }
             return sInstance;
         }
-
         public static final String TABLE_NAME    = "bookmark";
         public static final String ID            = "_id";
         public static final String TITLE         = "title";
@@ -197,7 +175,6 @@ public class BookmarkManager extends DataManager implements IClear {
         public static final String SOURCE        = "source";
         public static final String FULL_TEXT     = "full_text";
         public static final String ADD_TIME      = "time";
-
         public static final String[] columns = new String[] {ID, WEIGHT, ADD_TIME, TITLE, CONTENT_URI, SOURCE, FULL_TEXT};
         private static final Map<String, String> columnProps = new HashMap<String, String>();
         static {
@@ -209,20 +186,16 @@ public class BookmarkManager extends DataManager implements IClear {
             columnProps.put(SOURCE,            "TEXT");
             columnProps.put(FULL_TEXT,         "TEXT");
         }
-
         private Context mContext;
-
         private DatabaseHelper(Context context) {
             super(context, DB_NAME, null, DB_VERSION);
             mContext = context;
         }
-
         @Override
         public void onCreate(SQLiteDatabase db) {
             String sql = generateCreateSQL(TABLE_NAME, columns, columnProps);
             db.execSQL(sql);
         }
-
         private static String generateCreateSQL(String table, String[] columns, Map<String, String> props) {
             StringBuffer buffer = new StringBuffer();
             buffer.append("CREATE TABLE IF NOT EXISTS " + table + " (");
@@ -239,11 +212,9 @@ public class BookmarkManager extends DataManager implements IClear {
             buffer.append(");");
             return buffer.toString();
         }
-
         @Override
         public void onUpgrade(SQLiteDatabase sqLiteDatabase, int i, int i1) {
         }
-
         private boolean exist(String uri) {
             if (uri == null) {
                 return false;
@@ -267,7 +238,6 @@ public class BookmarkManager extends DataManager implements IClear {
             }
             return exist;
         }
-
         private long getRecordId(BookmarkItem item) {
             if (item == null) {
                 return -1;
@@ -289,7 +259,6 @@ public class BookmarkManager extends DataManager implements IClear {
             }
             return -1;
         }
-
         public long insert(BookmarkItem item) {
             if (item == null) {
                 return -1;
@@ -306,7 +275,6 @@ public class BookmarkManager extends DataManager implements IClear {
             }
             return item.id;
         }
-
         public int update(BookmarkItem item) {
             if (item == null) {
                 return -1;
@@ -320,12 +288,10 @@ public class BookmarkManager extends DataManager implements IClear {
             cv.put(ADD_TIME, item.time);
             boolean exist = exist(item.content_uri);
             if (exist) {
-                //update
                 result = getWritableDatabase().update(TABLE_NAME, cv, CONTENT_URI + "=?", new String[] {item.content_uri});
             }
             return result;
         }
-
         public boolean remove(long item) {
             if (item > 0) {
                 String where = ID + "=" + item;
@@ -336,7 +302,6 @@ public class BookmarkManager extends DataManager implements IClear {
             }
             return false;
         }
-
         public void removeAll() {
             SQLiteDatabase db = getWritableDatabase();
             try {
@@ -345,9 +310,7 @@ public class BookmarkManager extends DataManager implements IClear {
                 e.printStackTrace();
             }
         }
-
         private static final String DEFAULT_ORDER = ADD_TIME + " DESC";
-
         public List<BookmarkItem> list() {
             List<BookmarkItem> list = new ArrayList<BookmarkItem>();
             Cursor cursor = null;
@@ -374,7 +337,6 @@ public class BookmarkManager extends DataManager implements IClear {
                         list.add(item);
                     } while (cursor.moveToNext());
                 }
-
             } catch (Exception e) {
                 e.printStackTrace();
             } finally {

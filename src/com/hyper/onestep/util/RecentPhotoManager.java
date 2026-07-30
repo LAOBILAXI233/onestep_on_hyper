@@ -1,11 +1,9 @@
 package com.hyper.onestep.util;
-
 import java.io.File;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-
 import android.content.Context;
 import android.content.ContentResolver;
 import android.content.SharedPreferences;
@@ -21,16 +19,13 @@ import android.os.SystemClock;
 import android.os.UserManager;
 import android.provider.MediaStore;
 import android.text.TextUtils;
-
 import com.hyper.onestep.SidebarController;
 import com.hyper.onestep.lsp.LSPLogger;
-
 import org.json.JSONArray;
 import org.json.JSONObject;
-
+// 最近照片数据管理器，查询 MediaStore 并缓存
 public class RecentPhotoManager extends DataManager implements IClear{
     private static final LOG log = LOG.getInstance(RecentPhotoManager.class);
-
     private static final String PREFS_NAME = "onestep_recent_photo_cache";
     private static final String PREFS_KEY_ITEMS = "items";
     private static final String JSON_KEY_PATH = "path";
@@ -41,11 +36,9 @@ public class RecentPhotoManager extends DataManager implements IClear{
     private static final int MAX_QUERY_ITEMS = 600;
     private static final long REFRESH_TTL_MS = 30_000L;
     private static final long RETRY_DELAY_MS = 2000L;
-
     public static boolean isSupportedType(String path) {
         return !TextUtils.isEmpty(path);
     }
-
     private volatile static RecentPhotoManager sInstance;
     public synchronized static RecentPhotoManager getInstance(Context context){
         if(sInstance == null){
@@ -57,7 +50,6 @@ public class RecentPhotoManager extends DataManager implements IClear{
         }
         return sInstance;
     }
-
     private static final String[] MEDIA_COLUMNS = new String[] {
         MediaStore.Files.FileColumns.DATA,
         MediaStore.Files.FileColumns.MIME_TYPE,
@@ -66,9 +58,7 @@ public class RecentPhotoManager extends DataManager implements IClear{
         MediaStore.Files.FileColumns._ID,
         MediaStore.Files.FileColumns.MEDIA_TYPE,
     };
-
     private static final String DATABASE_NAME = "UselessPhoto";
-
     private final Context mContext;
     private List<ImageInfo> mList = new ArrayList<ImageInfo>();
     private final ClearDatabaseHelper mDatabaseHelper;
@@ -90,7 +80,6 @@ public class RecentPhotoManager extends DataManager implements IClear{
         mDatabaseHelper = new ClearDatabaseHelper(mContext, DATABASE_NAME, mCallback);
         LSPLogger.i("RecentPhotoManager: operation context=" + mContext.getPackageName());
     }
-
     private static Context resolveOperationContext(Context context) {
         Context resolved = context;
         try {
@@ -104,7 +93,6 @@ public class RecentPhotoManager extends DataManager implements IClear{
         Context application = resolved == null ? null : resolved.getApplicationContext();
         return application == null ? resolved : application;
     }
-
     private static SharedPreferences openPreferences(Context context) {
         if (context == null) {
             return null;
@@ -123,7 +111,7 @@ public class RecentPhotoManager extends DataManager implements IClear{
             return null;
         }
     }
-
+    // 注册 MediaStore 内容观察者并触发首次刷新
     public void startObserver() {
         synchronized (mImageObserver) {
             mObserverClients++;
@@ -143,7 +131,6 @@ public class RecentPhotoManager extends DataManager implements IClear{
             sendMessageIfNotExist(MSG_UPDATE_IMAGE_LIST);
         }
     }
-
     public void stopObserver() {
         synchronized (mImageObserver) {
             if (mObserverClients == 0) {
@@ -165,14 +152,12 @@ public class RecentPhotoManager extends DataManager implements IClear{
             }
         }
     }
-
     private ClearDatabaseHelper.Callback mCallback = new ClearDatabaseHelper.Callback(){
         @Override
         public void onInitComplete() {
             sendMessageIfNotExist(MSG_UPDATE_IMAGE_LIST);
         }
     };
-
     public List<ImageInfo> getImageList(){
         List<ImageInfo> list =new ArrayList<ImageInfo>();
         synchronized(RecentPhotoManager.class){
@@ -180,7 +165,6 @@ public class RecentPhotoManager extends DataManager implements IClear{
         }
         return list;
     }
-
     private void updateImageList() {
         ThreadVerify.verify(false);
         if (!mDatabaseHelper.isDataSetOk()) {
@@ -260,7 +244,6 @@ public class RecentPhotoManager extends DataManager implements IClear{
             scheduleRetry();
             return;
         }
-
         boolean staleResult = false;
         synchronized (RecentPhotoManager.class) {
             if (clearGeneration != mClearGeneration) {
@@ -280,13 +263,11 @@ public class RecentPhotoManager extends DataManager implements IClear{
                 + " visible=" + imageList.size() + " cleared=" + useless.size());
         notifyListener();
     }
-
     private int getClearGeneration() {
         synchronized (RecentPhotoManager.class) {
             return mClearGeneration;
         }
     }
-
     private boolean hasExistingCurrentItem() {
         List<ImageInfo> current = new ArrayList<ImageInfo>();
         synchronized (RecentPhotoManager.class) {
@@ -303,7 +284,6 @@ public class RecentPhotoManager extends DataManager implements IClear{
         }
         return false;
     }
-
     private boolean isExternalStorageReady() {
         try {
             UserManager userManager = (UserManager) mContext.getSystemService(Context.USER_SERVICE);
@@ -318,7 +298,6 @@ public class RecentPhotoManager extends DataManager implements IClear{
             return false;
         }
     }
-
     private void scheduleRetry() {
         synchronized (mImageObserver) {
             if (mObserverClients <= 0 || mHandler.hasMessages(MSG_UPDATE_IMAGE_LIST)) {
@@ -327,7 +306,6 @@ public class RecentPhotoManager extends DataManager implements IClear{
             mHandler.sendEmptyMessageDelayed(MSG_UPDATE_IMAGE_LIST, RETRY_DELAY_MS);
         }
     }
-
     private void restoreSnapshot() {
         if (mPreferences == null) {
             return;
@@ -342,7 +320,6 @@ public class RecentPhotoManager extends DataManager implements IClear{
         if (TextUtils.isEmpty(encoded)) {
             return;
         }
-
         List<ImageInfo> restored = new ArrayList<ImageInfo>();
         Set<String> seen = new HashSet<String>();
         try {
@@ -371,18 +348,15 @@ public class RecentPhotoManager extends DataManager implements IClear{
                     + t.getClass().getSimpleName() + ")");
             return;
         }
-
         synchronized (RecentPhotoManager.class) {
             mList = restored;
         }
         LSPLogger.i("RecentPhotoManager: restored snapshot count=" + restored.size());
     }
-
     private void persistSnapshot() {
         if (mPreferences == null) {
             return;
         }
-
         final String encoded;
         try {
             JSONArray array = new JSONArray();
@@ -408,7 +382,6 @@ public class RecentPhotoManager extends DataManager implements IClear{
                     + t.getClass().getSimpleName() + ")");
             return;
         }
-
         mHandler.post(new Runnable() {
             @Override
             public void run() {
@@ -422,19 +395,16 @@ public class RecentPhotoManager extends DataManager implements IClear{
             }
         });
     }
-
     private class ImageObserver extends ContentObserver{
         public ImageObserver(Handler handler) {
             super(handler);
         }
-
         @Override
         public void onChange(boolean selfChange) {
             super.onChange(selfChange);
             sendMessageIfNotExist(MSG_UPDATE_IMAGE_LIST);
         }
     }
-
     @Override
     public void clear() {
         List<Integer> clearList = new ArrayList<Integer>();
@@ -449,31 +419,26 @@ public class RecentPhotoManager extends DataManager implements IClear{
         persistSnapshot();
         notifyListener();
     }
-
     public void refresh() {
         notifyListener();
         if (isRefreshStale()) {
             sendMessageIfNotExist(MSG_UPDATE_IMAGE_LIST);
         }
     }
-
     private boolean isRefreshStale() {
         return mLastRefreshElapsed == 0L
                 || SystemClock.elapsedRealtime() - mLastRefreshElapsed >= REFRESH_TTL_MS;
     }
-
     private void sendMessageIfNotExist(int msgId) {
         if (!mHandler.hasMessages(msgId)) {
             mHandler.obtainMessage(msgId).sendToTarget();
         }
     }
-
     private static final int MSG_UPDATE_IMAGE_LIST = 0;
     private class PhotoManagerHandler extends Handler {
         public PhotoManagerHandler(Looper looper) {
             super(looper);
         }
-
         @Override
         public void handleMessage(Message msg) {
             switch (msg.what) {

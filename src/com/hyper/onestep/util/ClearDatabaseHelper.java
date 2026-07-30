@@ -1,10 +1,8 @@
 package com.hyper.onestep.util;
-
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-
 import android.content.ContentValues;
 import android.content.Context;
 import android.database.Cursor;
@@ -15,9 +13,8 @@ import android.os.HandlerThread;
 import android.os.Looper;
 import android.os.Message;
 import android.provider.BaseColumns;
-
 import com.hyper.onestep.lsp.LSPLogger;
-
+// 已删除条目数据库助手，记录 useless_id 用于过滤
 public class ClearDatabaseHelper extends SQLiteOpenHelper {
     private static final int DB_VERSION =  1;
     private static final String TABLE_USELESS = "useless";
@@ -26,7 +23,6 @@ public class ClearDatabaseHelper extends SQLiteOpenHelper {
     private Callback mCallback;
     private volatile boolean mIsDataSetOk;
     private final String mDatabaseName;
-
     public ClearDatabaseHelper(Context context, String name, Callback callback) {
         super(context, name, null, DB_VERSION);
         mDatabaseName = name;
@@ -36,17 +32,13 @@ public class ClearDatabaseHelper extends SQLiteOpenHelper {
         mHandler = new DataHandler(thread.getLooper());
         mHandler.obtainMessage(MSG_INIT_DATA).sendToTarget();
     }
-
     @Override
     public void onCreate(SQLiteDatabase db) {
         db.execSQL("CREATE TABLE " + TABLE_USELESS+  " ( _id INTEGER PRIMARY KEY AUTOINCREMENT," + "useless_id INTEGER" + ");");
     }
-
     @Override
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-        // nothing to do now
     }
-
     private void initData(){
         Cursor cursor = null;
         List<Integer> list = new ArrayList<Integer>();
@@ -67,7 +59,6 @@ public class ClearDatabaseHelper extends SQLiteOpenHelper {
             mSet.clear();
             mSet.addAll(list);
         }
-
         mIsDataSetOk = true;
         LSPLogger.i("ClearDatabaseHelper.initData database=" + mDatabaseName
                 + " entries=" + list.size());
@@ -80,11 +71,9 @@ public class ClearDatabaseHelper extends SQLiteOpenHelper {
             }
         }
     }
-
     public boolean isDataSetOk(){
         return mIsDataSetOk;
     }
-
     public Set<Integer> getSet(){
         Set<Integer> set = new HashSet<Integer>();
         synchronized(mSet){
@@ -92,7 +81,6 @@ public class ClearDatabaseHelper extends SQLiteOpenHelper {
         }
         return set;
     }
-
     public void addUselessId(List<Integer> list){
         if (list == null || list.isEmpty()) {
             return;
@@ -110,7 +98,6 @@ public class ClearDatabaseHelper extends SQLiteOpenHelper {
             mHandler.obtainMessage(MSG_INSERT_DATA, local).sendToTarget();
         }
     }
-
     private void insertDatabase(List<Integer> list) {
         SQLiteDatabase db = null;
         boolean transactionStarted = false;
@@ -135,11 +122,9 @@ public class ClearDatabaseHelper extends SQLiteOpenHelper {
             }
         }
     }
-
     static class UselessColumns implements BaseColumns{
         static final String USELESS_ID = "useless_id";
     }
-
     private static final int MSG_INSERT_DATA = 0;
     private static final int MSG_REMOVE_DATA = 1;
     private static final int MSG_INIT_DATA = 2;
@@ -147,7 +132,6 @@ public class ClearDatabaseHelper extends SQLiteOpenHelper {
         public DataHandler(Looper looper) {
             super(looper);
         }
-
         @Override
         public void handleMessage(Message msg) {
             switch (msg.what) {
@@ -163,7 +147,6 @@ public class ClearDatabaseHelper extends SQLiteOpenHelper {
             }
         }
     }
-
     public interface Callback{
         void onInitComplete();
     }

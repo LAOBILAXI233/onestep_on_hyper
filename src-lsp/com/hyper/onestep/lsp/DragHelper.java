@@ -1,5 +1,4 @@
 package com.hyper.onestep.lsp;
-
 import android.content.ClipData;
 import android.content.ClipDescription;
 import android.content.ContentUris;
@@ -9,42 +8,21 @@ import android.net.Uri;
 import android.provider.MediaStore;
 import android.text.TextUtils;
 import android.view.View;
-
 import com.hyper.onestep.util.Utils;
-
 import java.io.File;
-
-/**
- * 拖拽工具，替代原 android.view.onestep.OneStepDragUtils。
- *
- * 原生 API：View.startDragAndDrop(ClipData, DragShadowBuilder, localState, flags)
- * 在 SystemUI 进程内运行，URI 权限授予由 SystemUI 自身的 GRANT_URI_PERMISSION 能力保证。
- */
+// OneStep 文本与图片拖拽启动工具
 public final class DragHelper {
     private static final String TAG = "DragHelper";
-
     private DragHelper() {}
-
-    /**
-     * 拖拽文本。
-     */
+    // 启动文本拖拽并在开始后恢复侧边栏
     public static boolean dragText(View v, Context context, CharSequence text) {
         return dragTextInternal(v, context, text, true);
     }
-
-    /**
-     * Starts a global text drag from an Activity owned by the module APK.
-     *
-     * <p>The regular entry point resumes the in-process sidebar after the drag starts. A module
-     * Activity runs in a different process from SystemUI, so doing that there would create a
-     * second, unusable {@code SidebarController}. The SystemUI bridge is responsible for keeping
-     * the real sidebar visible before this method is called.</p>
-     */
+    // 从模块进程启动文本拖拽，不恢复侧边栏
     public static boolean dragTextFromModuleProcess(
             View v, Context context, CharSequence text) {
         return dragTextInternal(v, context, text, false);
     }
-
     private static boolean dragTextInternal(View v, Context context, CharSequence text,
             boolean resumeSidebar) {
         LSPLogger.i("DragHelper.dragText: view=" + v + " textLen="
@@ -58,22 +36,18 @@ public final class DragHelper {
             return false;
         }
     }
-
-    /**
-     * 拖拽图片文件。
-     */
+    // 启动图片文件拖拽
     public static boolean dragImage(View v, Context context, File file, String mimeType) {
         LSPLogger.i("DragHelper.dragImage: view=" + v + " file=" + file
                 + " mimeType=" + mimeType);
         return dragFile(v, context, file, mimeType);
     }
-
+    // 启动图片Uri拖拽
     public static boolean dragImage(View v, Context context, Uri uri, String mimeType) {
         LSPLogger.i("DragHelper.dragImage: view=" + v + " uri=" + uri
                 + " mimeType=" + mimeType);
         return dragUri(v, context, uri, mimeType, uri, true);
     }
-
     /** See {@link #dragTextFromModuleProcess(View, Context, CharSequence)}. */
     public static boolean dragImageFromModuleProcess(
             View v, Context context, Uri uri, String mimeType) {
@@ -81,10 +55,7 @@ public final class DragHelper {
                 + " mimeType=" + mimeType);
         return dragUri(v, context, uri, mimeType, uri, false);
     }
-
-    /**
-     * 拖拽任意文件。
-     */
+    // 启动文件拖拽，优先解析为MediaStore的content Uri
     public static boolean dragFile(View v, Context context, File file, String mimeType) {
         LSPLogger.i("DragHelper.dragFile: view=" + v + " file=" + file
                 + " mimeType=" + mimeType);
@@ -97,9 +68,6 @@ public final class DragHelper {
                     + " readable=" + file.canRead());
             Uri uri = resolveContentUri(context, file);
             if (uri == null) {
-                // Keep the original Smartisan file:// fallback for unindexed files.
-                // Indexed media/documents use content:// and therefore work with
-                // scoped storage and temporary URI grants on modern Android.
                 uri = Uri.fromFile(file);
                 LSPLogger.w("DragHelper.dragFile: no MediaStore row, using file URI fallback");
             }
@@ -110,7 +78,6 @@ public final class DragHelper {
             return false;
         }
     }
-
     private static boolean dragUri(View v, Context context, Uri uri, String mimeType,
             Object localState, boolean resumeSidebar) {
         if (uri == null) return false;
@@ -128,7 +95,6 @@ public final class DragHelper {
         return startDrag(v, context, clip, localState,
                 View.DRAG_FLAG_GLOBAL | View.DRAG_FLAG_GLOBAL_URI_READ, resumeSidebar);
     }
-
     private static boolean startDrag(final View v, final Context context, ClipData clip,
             Object localState, int flags, boolean resumeSidebar) {
         if (v == null || context == null) return false;
@@ -138,8 +104,6 @@ public final class DragHelper {
                 + " flags=0x" + Integer.toHexString(flags)
                 + " mime=" + clip.getDescription());
         if (started && resumeSidebar) {
-            // Let ACTION_DRAG_STARTED reach the SideView first. The drag surface then
-            // remains under the finger while the secondary content menu retracts.
             v.post(new Runnable() {
                 @Override
                 public void run() {
@@ -149,11 +113,7 @@ public final class DragHelper {
         }
         return started;
     }
-
-    /**
-     * Resolves an external-storage file to its indexed MediaStore content URI.
-     * Returns {@code null} when the file has not been indexed or cannot be queried.
-     */
+    // 通过MediaStore查询文件路径对应的content Uri
     public static Uri resolveContentUri(Context context, File file) {
         if (context == null || file == null) return null;
         Cursor cursor = null;

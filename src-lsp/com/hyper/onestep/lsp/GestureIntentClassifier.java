@@ -1,21 +1,14 @@
 package com.hyper.onestep.lsp;
-
 import java.util.Locale;
-
-/**
- * Recognizes the deliberate "steady press, then diagonal swipe" gesture from pointer geometry.
- * Contact-area evidence can arm immediately, but is not required for the diagonal gesture.
- */
+// 将触摸轨迹分类为左滑、右滑或无意图
 final class GestureIntentClassifier {
     enum Outcome {
         NONE,
         SWIPE_LEFT,
         SWIPE_RIGHT
     }
-
     static final long STEADY_PRESS_TIME_MS = 260L;
     static final long MAX_GESTURE_TIME_MS = 2400L;
-
     private static final float STEADY_RADIUS_DP = 12f;
     private static final float MAX_STEADY_PATH_DP = 28f;
     private static final float DIRECTION_LOCK_DP = 8f;
@@ -24,10 +17,10 @@ final class GestureIntentClassifier {
     private static final float MAX_UPWARD_DP = 18f;
     private static final float MAX_REVERSE_DP = 12f;
     private static final float MIN_SEGMENT_DP = 0.5f;
-    private static final float MIN_SLOPE = 0.46f; // about 25 degrees
-    private static final float MAX_SLOPE = 1.43f; // about 55 degrees
-    private static final float READY_MIN_SLOPE = 0.31f; // about 17 degrees
-    private static final float READY_MAX_SLOPE = 1.96f; // about 63 degrees
+    private static final float MIN_SLOPE = 0.46f;
+    private static final float MAX_SLOPE = 1.43f;
+    private static final float READY_MIN_SLOPE = 0.31f;
+    private static final float READY_MAX_SLOPE = 1.96f;
     private static final float READY_DISTANCE_RETENTION = 0.75f;
     private static final float READY_MAX_REVERSE_DP = 24f;
     private static final float READY_MIN_PATH_EFFICIENCY = 0.58f;
@@ -35,13 +28,11 @@ final class GestureIntentClassifier {
     private static final long MIN_SWIPE_TIME_MS = 60L;
     private static final long SWIPE_BASELINE_IDLE_MS = 100L;
     private static final int MIN_MOVEMENT_SAMPLES = 4;
-
     private boolean mTracking;
     private boolean mArmed;
     private boolean mSoftwareRejected;
     private boolean mTimedOut;
     private Outcome mOutcome = Outcome.NONE;
-
     private float mDensity = 1f;
     private float mDownX;
     private float mDownY;
@@ -63,7 +54,7 @@ final class GestureIntentClassifier {
     private int mMovementSamples;
     private String mArmSource = "none";
     private String mRejectReason = "not-armed";
-
+    // 开始一次手势轨迹追踪并记录起始坐标
     void start(float x, float y, long eventTime, float density) {
         reset();
         mTracking = true;
@@ -77,13 +68,10 @@ final class GestureIntentClassifier {
         mDownTime = eventTime;
         mLastSampleTime = eventTime;
     }
-
+    // 添加触摸采样点并更新武装状态与滑动方向判定
     void addSample(float x, float y, long eventTime, boolean strongAreaEvidence,
             String areaSource) {
         if (!mTracking) return;
-
-        // A DOWN sample has the same time and coordinates installed by start(). Preserve its
-        // contact evidence before filtering replayed MotionEvent history.
         if (strongAreaEvidence && !mArmed) {
             arm(areaSource == null ? "contact-area" : areaSource,
                     Math.max(mLastSampleTime, eventTime));
@@ -94,7 +82,6 @@ final class GestureIntentClassifier {
                 && Float.compare(y, mLastY) == 0) {
             return;
         }
-
         long sampleTime = eventTime;
         float segmentX = x - mLastX;
         float segmentY = y - mLastY;
@@ -102,7 +89,6 @@ final class GestureIntentClassifier {
         float dx = x - mDownX;
         float dy = y - mDownY;
         float radius = distance(dx, dy);
-
         if (!mArmed && !mSoftwareRejected) {
             long previousElapsed = mLastSampleTime - mDownTime;
             long elapsed = sampleTime - mDownTime;
@@ -114,7 +100,6 @@ final class GestureIntentClassifier {
             if (steadyThroughDeadline) {
                 arm("steady-press", mDownTime + STEADY_PRESS_TIME_MS);
             }
-
             if (!mArmed) {
                 mMaxSteadyRadius = Math.max(mMaxSteadyRadius, radius);
                 mSteadyPath += segmentDistance;
@@ -125,20 +110,15 @@ final class GestureIntentClassifier {
                 }
             }
         }
-
         if (mArmed) {
             if (mDirectionSign == 0
                     && sampleTime - mLastSampleTime >= SWIPE_BASELINE_IDLE_MS) {
                 resetSwipeBaseline(mLastX, mLastY);
             }
-
             float swipeDx = x - mSwipeBaselineX;
             float swipeDy = y - mSwipeBaselineY;
             if (mDirectionSign == 0 && Math.abs(swipeDx) >= dp(DIRECTION_LOCK_DP)) {
                 int directionSign = swipeDx < 0f ? -1 : 1;
-
-                // Everything before direction lock is press dwell, not swipe evidence. Start the
-                // path and sample gates at the segment that commits to a horizontal direction,
                 mPathAfterArm = segmentDistance;
                 mReverseDistance = 0f;
                 mMovementSamples = segmentDistance >= dp(MIN_SEGMENT_DP) ? 1 : 0;
@@ -155,14 +135,13 @@ final class GestureIntentClassifier {
             }
             evaluate(swipeDx, swipeDy, sampleTime);
         }
-
         mCurrentX = x;
         mCurrentY = y;
         mLastX = x;
         mLastY = y;
         mLastSampleTime = sampleTime;
     }
-
+    // 长按兜底武装，满足静止条件时激活手势识别
     void armFallback(long eventTime) {
         if (!mTracking || mArmed || mSoftwareRejected) return;
         if (mMaxSteadyRadius <= dp(STEADY_RADIUS_DP)
@@ -170,18 +149,11 @@ final class GestureIntentClassifier {
             arm("long-press-fallback", eventTime);
         }
     }
-
     boolean canArmFallback() {
         return mTracking && !mArmed && !mSoftwareRejected
                 && mMaxSteadyRadius <= dp(STEADY_RADIUS_DP)
                 && mSteadyPath <= dp(MAX_STEADY_PATH_DP);
     }
-
-    /**
-     * Returns whether the pointer is still a stationary fallback candidate at the configured
-     * deadline. The software steady-press path may already have armed swipe recognition by then,
-     * so this deliberately does not require {@code !mArmed}.
-     */
     boolean canConfirmLongPressFallback() {
         if (!mTracking || mSoftwareRejected || mTimedOut
                 || mOutcome != Outcome.NONE || mDirectionSign != 0) {
@@ -192,15 +164,12 @@ final class GestureIntentClassifier {
                 && mMaxSteadyRadius <= dp(STEADY_RADIUS_DP)
                 && mSteadyPath + mPathAfterArm <= dp(MAX_STEADY_PATH_DP);
     }
-
     Outcome getOutcome() {
         return mOutcome;
     }
-
     boolean isArmed() {
         return mArmed;
     }
-
     float getHorizontalDelta() {
         if (mOutcome == Outcome.SWIPE_LEFT) {
             return -Math.max(1f, Math.abs(mCurrentX - mSwipeBaselineX));
@@ -210,7 +179,6 @@ final class GestureIntentClassifier {
         }
         return mCurrentX - mDownX;
     }
-
     String summary(long eventTime) {
         float dx = mCurrentX - mDownX;
         float dy = mCurrentY - mDownY;
@@ -226,7 +194,7 @@ final class GestureIntentClassifier {
                 mArmSource, mOutcome, Math.max(0L, eventTime - mDownTime), dx, dy,
                 mMaxSteadyRadius, efficiency, mReverseDistance, reason);
     }
-
+    // 重置分类器所有状态以备下次手势追踪
     void reset() {
         mTracking = false;
         mArmed = false;
@@ -255,7 +223,6 @@ final class GestureIntentClassifier {
         mArmSource = "none";
         mRejectReason = "not-armed";
     }
-
     private void evaluate(float dx, float dy, long eventTime) {
         if (eventTime - mDownTime > MAX_GESTURE_TIME_MS) {
             mTimedOut = true;
@@ -276,7 +243,6 @@ final class GestureIntentClassifier {
             mRejectReason = "upward";
             return;
         }
-
         float absDx = Math.abs(dx);
         if (mDirectionSign == 0 || absDx < dp(MIN_HORIZONTAL_DP)
                 || dy < dp(MIN_DOWNWARD_DP)) {
@@ -287,7 +253,6 @@ final class GestureIntentClassifier {
             mRejectReason = "direction-reversed";
             return;
         }
-
         float slope = dy / absDx;
         if (slope < MIN_SLOPE || slope > MAX_SLOPE) {
             mRejectReason = "angle";
@@ -309,11 +274,9 @@ final class GestureIntentClassifier {
             mRejectReason = "too-fast";
             return;
         }
-
         mOutcome = mDirectionSign < 0 ? Outcome.SWIPE_LEFT : Outcome.SWIPE_RIGHT;
         mRejectReason = "ready";
     }
-
     private void arm(String source, long eventTime) {
         mArmed = true;
         mArmSource = source;
@@ -321,7 +284,6 @@ final class GestureIntentClassifier {
         resetSwipeBaseline(mLastX, mLastY);
         mRejectReason = "distance";
     }
-
     private void resetSwipeBaseline(float x, float y) {
         mSwipeBaselineX = x;
         mSwipeBaselineY = y;
@@ -331,11 +293,9 @@ final class GestureIntentClassifier {
         mMovementSamples = 0;
         mSwipeStartTime = 0L;
     }
-
     private boolean retainsReadyOutcome(float dx, float dy) {
         int outcomeSign = mOutcome == Outcome.SWIPE_LEFT ? -1 : 1;
         if ((dx < 0f ? -1 : 1) != outcomeSign) return false;
-
         float absDx = Math.abs(dx);
         if (absDx < dp(MIN_HORIZONTAL_DP * READY_DISTANCE_RETENTION)
                 || dy < dp(MIN_DOWNWARD_DP * READY_DISTANCE_RETENTION)) {
@@ -344,22 +304,18 @@ final class GestureIntentClassifier {
         float slope = dy / absDx;
         if (slope < READY_MIN_SLOPE || slope > READY_MAX_SLOPE) return false;
         if (mReverseDistance > dp(READY_MAX_REVERSE_DP)) return false;
-
         float net = distance(dx, dy);
         float efficiency = mPathAfterArm <= 0f ? 0f
                 : Math.min(1f, net / mPathAfterArm);
         return efficiency >= READY_MIN_PATH_EFFICIENCY;
     }
-
     private void rejectSoftware(String reason) {
         mSoftwareRejected = true;
         mRejectReason = reason;
     }
-
     private float dp(float value) {
         return value * mDensity;
     }
-
     private static float distance(float x, float y) {
         return (float) Math.hypot(x, y);
     }

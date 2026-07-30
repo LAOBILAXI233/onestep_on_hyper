@@ -1,7 +1,5 @@
 package com.hyper.onestep.view;
-
 import java.util.List;
-
 import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
@@ -11,9 +9,10 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
-
 import com.hyper.onestep.R;
 import com.hyper.onestep.SidebarController;
+import com.hyper.onestep.util.AppIconLoader;
+import com.hyper.onestep.util.AppIconPlaceholder;
 import com.hyper.onestep.util.AppItem;
 import com.hyper.onestep.util.AppManager;
 import com.hyper.onestep.util.DataManager;
@@ -22,10 +21,9 @@ import com.hyper.onestep.util.anim.Anim;
 import com.hyper.onestep.util.anim.AnimListener;
 import com.hyper.onestep.util.anim.AnimStatusManager;
 import com.hyper.onestep.util.anim.Vector3f;
-
+// 侧边栏应用列表适配器
 public class AppListAdapter extends SidebarAdapter {
     private static final LOG log = LOG.getInstance(AppListAdapter.class);
-
     private Context mContext;
     private List<AppItem> mAppItems;
     private AppManager mManager;
@@ -49,11 +47,9 @@ public class AppListAdapter extends SidebarAdapter {
                     }
                 });
     }
-
     private DataManager.RecentUpdateListener resolveInfoUpdateListener = new DataManager.RecentUpdateListener() {
         @Override
         public void onUpdate() {
-            // do anim first !
             new Handler(Looper.getMainLooper()).post(new Runnable() {
                 @Override
                 public void run() {
@@ -62,7 +58,7 @@ public class AppListAdapter extends SidebarAdapter {
             });
         }
     };
-
+    // 在主线程刷新应用列表数据，拖拽中延迟执行
     public void updateData() {
         new Handler(Looper.getMainLooper()).post(new Runnable() {
             @Override
@@ -78,36 +74,16 @@ public class AppListAdapter extends SidebarAdapter {
             }
         });
     }
-
     @Override
     public void onDragStart(DragEvent event) {
-        /**
-        if (mDragEvent != null) {
-            mDragEvent.recycle();
-            mDragEvent = null;
-        }
-        mDragEvent = DragEvent.obtain(event);
-        updateAcceptableResolveInfos();
-        **/
     }
-
     @Override
     public void onDragEnd() {
-        /**
-        if (mDragEvent == null) {
-            return;
-        }
-        mDragEvent.recycle();
-        mDragEvent = null;
-        updateAcceptableResolveInfos();
-        **/
     }
-
     @Override
     public int getCount() {
         return mAppItems.size() + 1;
     }
-
     @Override
     public Object getItem(int position) {
         if (position == 0) {
@@ -115,12 +91,11 @@ public class AppListAdapter extends SidebarAdapter {
         }
         return mAppItems.get(position - 1);
     }
-
     @Override
     public long getItemId(int position) {
         return position;
     }
-
+    // 将指定应用项移动到目标位置并更新排序
     @Override
     public void moveItemPostion(Object object, int index) {
         index --;
@@ -139,16 +114,14 @@ public class AppListAdapter extends SidebarAdapter {
         mAppItems.add(index, item);
         onOrderChange();
     }
-
     private void onOrderChange() {
         for(int i = 0; i < mAppItems.size(); ++ i){
             mAppItems.get(i).setIndex(mAppItems.size() - 1 - i);
         }
         mManager.updateOrder();
     }
-
     private Anim mIconTouchedAnim;
-
+    // 渲染指定位置的应用项视图，首位置渲染切换应用入口
     @Override
     public View getView(final int position, View convertView, ViewGroup parent) {
         ViewHolder holder;
@@ -174,9 +147,7 @@ public class AppListAdapter extends SidebarAdapter {
                     mIconTouchedAnim.setListener(new AnimListener() {
                         @Override
                         public void onStart() {
-
                         }
-
                         @Override
                         public void onComplete(int type) {
                             if (mIconTouchedAnim != null) {
@@ -190,7 +161,6 @@ public class AppListAdapter extends SidebarAdapter {
                     return false;
                 }
             });
-
             holder = new ViewHolder();
             holder.view = view;
             holder.switchApp = switchApp;
@@ -207,23 +177,40 @@ public class AppListAdapter extends SidebarAdapter {
         }
         return holder.view;
     }
-
     public static class ViewHolder {
         public View view;
         public View switchApp;
         public ImageView iconImageView;
-
+        // 显示切换应用入口，隐藏图标
         public void showSwitchApp() {
+            iconImageView.setTag(null);
+            iconImageView.setImageDrawable(null);
             iconImageView.setVisibility(View.GONE);
             switchApp.setVisibility(View.VISIBLE);
         }
-
-        public void setInfo(AppItem ai) {
+        // 绑定应用数据，缺失图标时异步加载
+        public void setInfo(final AppItem app) {
             iconImageView.setVisibility(View.VISIBLE);
             switchApp.setVisibility(View.GONE);
-            iconImageView.setImageDrawable(ai.getAvatar());
-        }
+            iconImageView.setTag(app.mName);
+            android.graphics.drawable.Drawable icon = app.getCachedAvatar();
+            iconImageView.setImageDrawable(icon != null ? icon
+                    : AppIconPlaceholder.get(view.getContext()));
+            if (icon != null) return;
+            AppIconLoader.getInstance().load(app, new AppIconLoader.Callback() {
+                @Override
+                public boolean isValid() {
+                    return app.mName.equals(iconImageView.getTag());
+                }
 
+                @Override
+                public void onIconLoaded(AppItem loadedApp,
+                        android.graphics.drawable.Drawable loadedIcon) {
+                    if (loadedIcon != null) iconImageView.setImageDrawable(loadedIcon);
+                }
+            });
+        }
+        // 还原视图的可见性与位移状态
         public void restore() {
             view.setVisibility(View.VISIBLE);
             view.setTranslationY(0);

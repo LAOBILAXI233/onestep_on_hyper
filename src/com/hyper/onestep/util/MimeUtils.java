@@ -1,30 +1,24 @@
 package com.hyper.onestep.util;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
 import android.net.Uri;
 import android.text.TextUtils;
 import android.view.DragEvent;
-
 import com.hyper.onestep.R;
-
 /**
  * Utilities for dealing with MIME types.
  */
 public final class MimeUtils {
     private static final Map<String, Integer> mimeTypeToIconMap = new HashMap<String, Integer>();
     private static final Map<String, Integer> extensionToIconMap = new HashMap<String, Integer>();
-
     static {
         add("application/*", "fodp", R.drawable.file_icon_fodp);
         add("application/*", "fods", R.drawable.file_icon_fods);
         add("application/*", "fodt", R.drawable.file_icon_fodt);
         add("application/*", "pages", R.drawable.file_icon_pages);
         add("application/*", "numbers", R.drawable.file_icon_numbers);
-
         add("application/vnd.ms-word.document.macroenabled.12", "docm", R.drawable.file_icon_docm);
         add("application/x-7z-compressed", "7z", R.drawable.file_icon_7z);
         add("application/vnd.oasis.opendocument.presentation", "odp", R.drawable.file_icon_odp);
@@ -52,7 +46,6 @@ public final class MimeUtils {
         add("text/plain", "txt", R.drawable.file_icon_txt);
         add("message/rfc822", "eml", R.drawable.file_icon_eml);
     }
-
     private static void add(String mimeType, String extension, int resId) {
         if (!TextUtils.isEmpty(mimeType)) {
             mimeTypeToIconMap.put(mimeType, resId);
@@ -61,10 +54,8 @@ public final class MimeUtils {
             extensionToIconMap.put(extension, resId);
         }
     }
-
     private MimeUtils() {
     }
-
     public static int getResId(String mimeType, String extension) {
         if (!TextUtils.isEmpty(extension)) {
             if (extensionToIconMap.containsKey(extension)) {
@@ -75,7 +66,6 @@ public final class MimeUtils {
             if (mimeTypeToIconMap.containsKey(mimeType)) {
                 return mimeTypeToIconMap.get(mimeType);
             }
-            // use default for current type
             if (mimeType.startsWith("images/")) {
                 return R.drawable.file_icon_type_image;
             } else if (mimeType.startsWith("audio/")) {
@@ -86,12 +76,10 @@ public final class MimeUtils {
         }
         return R.drawable.file_icon_default;
     }
-
     public static String getCommonMimeType(List<String> mimeTypes) {
         if (mimeTypes == null || mimeTypes.size() <= 0) {
             return null;
         }
-
         boolean sameType = true;
         for (int i = 1; i < mimeTypes.size(); ++i) {
             if (!mimeTypes.get(0).equals(mimeTypes.get(i))) {
@@ -102,7 +90,6 @@ public final class MimeUtils {
         if (sameType) {
             return mimeTypes.get(0);
         }
-
         int index0 = mimeTypes.get(0).indexOf("/");
         if (index0 == -1) {
             return null;
@@ -120,7 +107,6 @@ public final class MimeUtils {
         }
         return mimeTypes.get(0).substring(0, index0 + 1) + "*";
     }
-
     public static String getCommonMimeType(DragEvent event) {
         List<String> mimeTypes = new ArrayList<String>();
         for (int i = 0; i < event.getClipDescription().getMimeTypeCount(); ++i) {
@@ -128,7 +114,6 @@ public final class MimeUtils {
         }
         return MimeUtils.getCommonMimeType(mimeTypes);
     }
-
     public static ArrayList<Uri> getUris(DragEvent event) {
         ArrayList<Uri> uris = new ArrayList<Uri>();
         for (int i = 0; i < event.getClipData().getItemCount(); ++i) {

@@ -1,14 +1,10 @@
 package com.hyper.onestep.util;
-
 import android.os.Process;
-
+// 线程校验工具，确保调用运行于指定线程
 public class ThreadVerify {
     private static final LOG log = LOG.getInstance(ThreadVerify.class);
-
     private static final boolean DISABLE_THREAD_VERIFY = false;
-
     public static int PROCESS_ID = 0;
-
     public static void verify(boolean needRunningInUiThread) {
         if (DISABLE_THREAD_VERIFY) {
             return;
@@ -19,7 +15,6 @@ public class ThreadVerify {
         }
         boolean failed = false;
         int tid = Process.myTid();
-
         if (needRunningInUiThread) {
             if (tid != PROCESS_ID) {
                 failed = true;
@@ -34,7 +29,6 @@ public class ThreadVerify {
             throw new IllegalArgumentException("verifyThread failed");
         }
     }
-
     public static void dumpTreadId() {
         int tid = Process.myTid();
         log.error("current running thread id ["+tid+"], Main thread id ["+PROCESS_ID+"]");

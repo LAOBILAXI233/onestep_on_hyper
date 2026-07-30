@@ -1,5 +1,4 @@
 package com.hyper.onestep.lsp;
-
 import android.app.ActivityManager;
 import android.app.ActivityOptions;
 import android.content.ComponentName;
@@ -12,59 +11,21 @@ import android.os.Looper;
 import android.os.SystemClock;
 import android.provider.Settings;
 import android.view.Display;
-
-
 import java.lang.reflect.Method;
 import java.util.List;
-
-/**
- * 应用缩窗实现 —— freeform + resizeTask 方案。
- *
- * 背景:
- *   Android 16 / HyperOS 上 fullscreen task 即使设了 resizeable=2 也不会响应 resizeTask。
- *   实测 `cmd activity task resizeable <taskId> 2` + `cmd activity task resize <taskId> ...`
- *   后 task 仍 mode=fullscreen,bounds 不变。
- *   原因:HyperOS 屏蔽了 fullscreen task 的 resize 行为,必须先切到 freeform windowing mode。
- *
- * 新方案:
- *   1. setTaskResizeable(taskId, 2) 强制可 resize
- *   2. setTaskWindowingMode(taskId, FREEFORM) 切到 freeform 模式
- *   3. resizeTask(taskId, rect, 0) 缩小窗口到指定 bounds
- *
- * 退出:
- *   1. resizeTask(taskId, fullScreenRect, 0) 恢复窗口大小
- *   2. setTaskWindowingMode(taskId, FULLSCREEN) 切回 fullscreen
- *
- * 优点:
- *   - 真改窗口 bounds,app 收到 configuration change,触摸坐标自动校正
- *   - 不需要 SurfaceControl 句柄(已验证 Android 16 上拿不到)
- *
- * 缺点:
- *   - app 可能 recreate(取决于 manifest 配置)
- *   - freeform 模式可能有窗口装饰/阴影,体验跟原 SmartisanOS 不完全一致
- */
+// 在全屏与自由窗口模式间切换并校验任务尺寸
 public final class TaskResizer {
     private static final String TAG = "OneStepLSP";
-
     /** Windowing mode 常量(参见 AOSP android.app.WindowConfiguration) */
     private static final int WINDOWING_MODE_FULLSCREEN = 1;
     private static final int WINDOWING_MODE_FREEFORM = 5;
     private static final long FREEFORM_VERIFY_TIMEOUT_MS = 360L;
     private static final long FREEFORM_VERIFY_INTERVAL_MS = 40L;
-
     /** Resize mode 常量(参见 AOSP android.app.ActivityInfo) */
     private static final int RESIZE_MODE_FORCE_RESIZEABLE = 2;
-
-    /**
-     * Experimental backend switch. Keep the old VirtualDisplay path as the
-     * default until the on-device freeform pilot has passed its test matrix.
-     * The value is intentionally a Global setting so it can be changed with
-     * adb without rebuilding or touching user data.
-     */
     private static final String RENDER_BACKEND_SETTING =
             "smartisanos_onestep_render_backend";
     private static final String RENDER_BACKEND_FREEFORM = "freeform";
-
     /** 记录缩窗前的状态,用于退出时恢复 */
     private static Integer sResizedTaskId = null;
     private static Rect sOriginalBounds = null;
@@ -97,26 +58,14 @@ public final class TaskResizer {
     private static Object sTaskOrganizer = null;
     /** The task explicitly rotated by the user for the current OneStep session. */
     private static int sManualRotationTaskId = -1;
-
     private TaskResizer() {}
-
-    /**
-     * 缩小当前前台 app 的窗口,腾出 sidebarWidth 给侧边栏。
-     *
-     * @param context 任意 Context
-     * @param sidebarWidth 侧边栏宽度(px)
-     * @param screenWidth 屏幕宽
-     * @param screenHeight 屏幕高
-     * @param sidebarOnLeft true=侧边栏在左,app 缩到右
-     * @return true 成功缩小
-     */
+    // 缩小前台任务为侧边栏让出空间，优先使用freeform其次Surface变换
     public static boolean shrinkForegroundTask(Context context, int sidebarWidth,
                                                int screenWidth, int screenHeight,
                                                boolean sidebarOnLeft) {
         LSPLogger.i("TaskResizer.shrinkForegroundTask: sidebarW=" + sidebarWidth
                 + " screen=" + screenWidth + "x" + screenHeight
                 + " sidebarOnLeft=" + sidebarOnLeft);
-
         clearPendingMainTaskCandidate();
         sExternalLaunchForceFrom = 0L;
         sExternalLaunchWatchUntil = 0L;
@@ -131,29 +80,22 @@ public final class TaskResizer {
                     + " is home/system, skip");
             return false;
         }
-
-        // 计算目标 bounds
         int left, right;
         if (sidebarOnLeft) {
-            // 侧边栏在左,app 缩到右:bounds=(sidebarWidth, 0, screenWidth, screenHeight)
             left = sidebarWidth;
             right = screenWidth;
         } else {
-            // 侧边栏在右,app 缩到左:bounds=(0, 0, screenWidth - sidebarWidth, screenHeight)
             left = 0;
             right = screenWidth - sidebarWidth;
         }
         Rect targetBounds = new Rect(left, 0, right, screenHeight);
         int topHeight = Math.round(screenHeight * (sidebarWidth / (float) screenWidth));
-
-        // 先记录原状态
         sOriginalBounds = getTaskBounds(taskId);
         sOriginalWindowingMode = getTaskWindowingMode(taskId);
         sOriginalResizeMode = getTaskResizeable(taskId);
         LSPLogger.i("TaskResizer.shrinkForegroundTask: original bounds=" + sOriginalBounds
                 + " windowingMode=" + sOriginalWindowingMode
                 + " resizeMode=" + sOriginalResizeMode);
-
         if (placeMainTask(context, taskId, sidebarWidth, screenWidth,
                 topHeight, screenHeight, sidebarOnLeft)) {
             sResizedTaskId = taskId;
@@ -164,50 +106,34 @@ public final class TaskResizer {
         }
         LSPLogger.w("TaskResizer.shrinkForegroundTask: main presentation failed, "
                 + "trying legacy freeform fallback");
-
-        // The pilot must never fall through to setDisplayWindowingMode(0, ...),
-        // because that changes every task on the physical display at once.
         if (isDefaultDisplayFreeformEnabled(context)) {
             LSPLogger.e("TaskResizer.shrinkForegroundTask: freeform pilot and "
                     + "surface fallback both failed; refusing display-wide mode change");
             return false;
         }
-
-        // Step1: setTaskResizeable(taskId, 2) 强制可 resize
         if (!setTaskResizeable(taskId, RESIZE_MODE_FORCE_RESIZEABLE)) {
             LSPLogger.w("TaskResizer.shrinkForegroundTask: setTaskResizeable failed, continue anyway");
         }
-
-        // Step2: 通过 MIUI 自有的 IMiuiFreeformModeControl.freeformFullscreenTask(taskId)
-        // 切到 freeform。注意 HyperOS 3 / Android 16 中 fromFullToFreeform() 实际只会
-        // 调用 exitTemporaryFullscreen(),普通全屏 task 上是 no-op；真正触发
-        // switchFullscreenToFreeform() 的反而是 freeformFullscreenTask()。
         boolean inFreeform = tryMiuiEnterFreeform(taskId);
         if (!inFreeform) {
             LSPLogger.w("TaskResizer.shrinkForegroundTask: MIUI freeform entry failed, "
                     + "trying TaskOrganizer path");
-            // 兜底: TaskOrganizer createRootTask
             inFreeform = tryEnterFreeformViaTaskOrganizer(taskId);
         }
         if (!inFreeform) {
             LSPLogger.w("TaskResizer.shrinkForegroundTask: all freeform paths failed, "
                     + "trying setDisplayWindowingMode fallback");
-            // 最后兜底: 切 display 的 windowing mode (可能被 HyperOS 静默拒绝)
             setDisplayWindowingMode(0, WINDOWING_MODE_FREEFORM);
         }
-
-        // Step3: resizeTask(taskId, targetBounds, 0)
         if (!resizeTask(taskId, targetBounds, 0)) {
             LSPLogger.e("TaskResizer.shrinkForegroundTask: resizeTask failed");
             return false;
         }
-
         sResizedTaskId = taskId;
         LSPLogger.i("TaskResizer.shrinkForegroundTask: success, taskId=" + taskId
                 + " targetBounds=" + targetBounds);
         return true;
     }
-
     /** Returns the bounds reserved for the main task below the OneStep top bar. */
     private static Rect getMainTaskBounds(int sidebarWidth, int screenWidth, int topHeight,
             int screenHeight, boolean sidebarOnLeft) {
@@ -215,11 +141,6 @@ public final class TaskResizer {
         int right = sidebarOnLeft ? screenWidth : screenWidth - sidebarWidth;
         return new Rect(left, topHeight, right, screenHeight);
     }
-
-    /**
-     * Applies the selected main-task backend. The freeform pilot is limited to
-     * portrait activities; landscape still needs the existing leash rotation.
-     */
     private static boolean placeMainTask(Context context, int taskId, int sidebarWidth,
             int screenWidth, int topHeight, int screenHeight, boolean sidebarOnLeft) {
         Rect taskBounds = getTaskBounds(taskId);
@@ -237,9 +158,6 @@ public final class TaskResizer {
             LSPLogger.w("TaskResizer.placeMainTask: freeform pilot failed, "
                     + "falling back to ShellTaskOrganizer leash");
         }
-
-        // HyperOS SystemUI already owns the task leash through ShellTaskOrganizer.
-        // Transforming that leash avoids registering a competing TaskOrganizer.
         if (shrinkTaskSurface(context, taskId, sidebarWidth, screenWidth,
                 topHeight, screenHeight, sidebarOnLeft)) {
             sUsingDefaultDisplayFreeform = false;
@@ -248,13 +166,11 @@ public final class TaskResizer {
         }
         return false;
     }
-
     /** Enters task-level freeform without changing the windowing mode of display 0. */
     private static boolean placeTaskInDefaultDisplayFreeform(int taskId, Rect bounds) {
         if (taskId <= 0 || bounds == null || bounds.width() <= 0 || bounds.height() <= 0) {
             return false;
         }
-
         int mode = getTaskWindowingMode(taskId);
         if (mode != WINDOWING_MODE_FREEFORM) {
             setTaskResizeable(taskId, RESIZE_MODE_FORCE_RESIZEABLE);
@@ -277,7 +193,6 @@ public final class TaskResizer {
                 return false;
             }
         }
-
         if (!resizeTask(taskId, bounds, 0)) {
             LSPLogger.w("TaskResizer.placeTaskInDefaultDisplayFreeform: resize failed, "
                     + "attempting freeform exit taskId=" + taskId);
@@ -299,11 +214,6 @@ public final class TaskResizer {
                 + " bounds=" + bounds);
         return true;
     }
-
-    /**
-     * MIUI's freeform request is asynchronous and may be accepted as a no-op.
-     * Do not publish the freeform backend until WMS reports mode 5.
-     */
     private static boolean waitForFreeformMode(int taskId) {
         long deadline = SystemClock.uptimeMillis() + FREEFORM_VERIFY_TIMEOUT_MS;
         do {
@@ -314,7 +224,6 @@ public final class TaskResizer {
         } while (SystemClock.uptimeMillis() < deadline);
         return getTaskWindowingMode(taskId) == WINDOWING_MODE_FREEFORM;
     }
-
     /** Verifies both the task mode and the bounds after resizeTask returns. */
     private static boolean waitForFreeformPlacement(int taskId, Rect expectedBounds) {
         long deadline = SystemClock.uptimeMillis() + FREEFORM_VERIFY_TIMEOUT_MS;
@@ -331,7 +240,6 @@ public final class TaskResizer {
         return getTaskWindowingMode(taskId) == WINDOWING_MODE_FREEFORM
                 && (actualBounds == null || expectedBounds.equals(actualBounds));
     }
-
     private static boolean isDefaultDisplayFreeformEnabled(Context context) {
         if (context == null) return false;
         try {
@@ -343,7 +251,6 @@ public final class TaskResizer {
             return false;
         }
     }
-
     /** Restores whichever presentation is currently active for a task. */
     private static void restoreTaskPresentation(int taskId) {
         if (taskId <= 0) return;
@@ -362,7 +269,6 @@ public final class TaskResizer {
             clearPresentationState();
         }
     }
-
     private static void clearPresentationState() {
         sResizedTaskId = null;
         sOriginalBounds = null;
@@ -377,17 +283,6 @@ public final class TaskResizer {
         sLastLandscapeSource = null;
         clearPendingMainTaskCandidate();
     }
-
-    /**
-     * 用 TaskOrganizer API 让 task 进入 freeform 模式。
-     *
-     * HyperOS 上 TaskOrganizer.createRootTask 签名变为 (int, int, IBinder),
-     * 需要 TaskOrganizer 实例的 mToken 字段(IBinder)作为第三个参数。
-     *
-     * 但更优的路径是 MIUI 自有的 freeform 控制 API:
-     *   registerMiuiFreeformModeControl(IMiuiFreeformModeControl)
-     * 这是 HyperOS 专门为 freeform 模式提供的接口。
-     */
     private static boolean tryEnterFreeformViaTaskOrganizer(int taskId) {
         LSPLogger.i("TaskResizer.tryEnterFreeformViaTaskOrganizer: taskId=" + taskId);
         Class<?> taskOrganizerClz = null;
@@ -397,13 +292,10 @@ public final class TaskResizer {
             LSPLogger.w("TaskResizer.tryEnterFreeformViaTaskOrganizer: TaskOrganizer class not found: " + t);
             return false;
         }
-        // 第一次调用时 dump 一次
         if (sTaskOrganizer == null) {
             dumpTaskOrganizerMethods(taskOrganizerClz);
             dumpMiuiFreeformModeControlInterface();
         }
-
-        // 创建 TaskOrganizer 实例
         Object organizer;
         try {
             organizer = taskOrganizerClz.getDeclaredConstructor().newInstance();
@@ -411,8 +303,6 @@ public final class TaskResizer {
             LSPLogger.w("TaskResizer.tryEnterFreeformViaTaskOrganizer: cannot create instance: " + t);
             return false;
         }
-
-        // 注册 organizer
         try {
             Method register = taskOrganizerClz.getMethod("registerOrganizer");
             register.setAccessible(true);
@@ -421,8 +311,6 @@ public final class TaskResizer {
         } catch (Throwable t) {
             LSPLogger.w("TaskResizer.tryEnterFreeformViaTaskOrganizer: registerOrganizer failed: " + t);
         }
-
-        // 反射拿 mToken (IBinder)
         Object ownerToken = null;
         try {
             java.lang.reflect.Field f = taskOrganizerClz.getDeclaredField("mToken");
@@ -436,8 +324,6 @@ public final class TaskResizer {
             LSPLogger.w("TaskResizer.tryEnterFreeformViaTaskOrganizer: no mToken, fallback to new Binder");
             ownerToken = new android.os.Binder();
         }
-
-        // 拿 IBinder 接口类用于反射方法签名
         Class<?> iBinderClz = null;
         try {
             iBinderClz = Class.forName("android.os.IBinder");
@@ -445,9 +331,6 @@ public final class TaskResizer {
             LSPLogger.w("TaskResizer.tryEnterFreeformViaTaskOrganizer: IBinder class not found: " + t);
             return false;
         }
-
-        // createRootTask(int displayId, int windowingMode, IBinder ownerToken)
-        // HyperOS 签名
         try {
             Method createRootTask = taskOrganizerClz.getMethod("createRootTask",
                     int.class, int.class, iBinderClz);
@@ -456,7 +339,6 @@ public final class TaskResizer {
             LSPLogger.i("TaskResizer.tryEnterFreeformViaTaskOrganizer: createRootTask(3-arg) invoked");
         } catch (Throwable t) {
             LSPLogger.w("TaskResizer.tryEnterFreeformViaTaskOrganizer: createRootTask(3-arg) failed: " + t);
-            // 4 参数版本
             try {
                 Method createRootTask = taskOrganizerClz.getMethod("createRootTask",
                         int.class, int.class, iBinderClz, boolean.class);
@@ -468,9 +350,6 @@ public final class TaskResizer {
                 return false;
             }
         }
-
-        // createRootTask 是异步的,需要等 onTaskAppeared 回调拿到 rootTaskId
-        // 这里用 getRootTasks 拿最新的 freeform root task
         Integer freeformRootTaskId = null;
         try {
             Method getRootTasks = taskOrganizerClz.getMethod("getRootTasks", int.class, int[].class);
@@ -489,14 +368,11 @@ public final class TaskResizer {
         } catch (Throwable t) {
             LSPLogger.w("TaskResizer.tryEnterFreeformViaTaskOrganizer: getRootTasks failed: " + t);
         }
-
         if (freeformRootTaskId == null || freeformRootTaskId <= 0) {
             LSPLogger.w("TaskResizer.tryEnterFreeformViaTaskOrganizer: no freeform root task, "
                     + "MIUI freeform API may be the real path");
             return false;
         }
-
-        // moveTaskToRootTask(taskId, freeformRootTaskId, true)
         try {
             Object iatm = getIActivityTaskManager();
             Class<?> iface = getIActivityTaskManagerInterface();
@@ -518,10 +394,8 @@ public final class TaskResizer {
             return false;
         }
     }
-
     /** dump IMiuiFreeformModeControl 接口的所有方法,并尝试通过 IWindowManager 拿实例 */
     private static void dumpMiuiFreeformModeControlInterface() {
-        // 1. dump 接口方法
         Class<?> miuiIfcClz = null;
         String[] candidates = {
                 "miui.app.IMiuiFreeformModeControl",
@@ -554,8 +428,6 @@ public final class TaskResizer {
             sb.append(") -> ").append(m.getReturnType().getSimpleName());
             LSPLogger.d("TaskResizer.dumpMiuiFreeformModeControl:" + sb);
         }
-
-        // 2. dump IWindowManager 上所有 miui/freeform 相关方法
         try {
             Class<?> iwmIfc = Class.forName("android.view.IWindowManager");
             Method[] iwmMethods = iwmIfc.getMethods();
@@ -579,8 +451,6 @@ public final class TaskResizer {
         } catch (Throwable t) {
             LSPLogger.w("TaskResizer.dumpMiuiFreeformModeControl: dump IWM failed: " + t);
         }
-
-        // 3. dump IActivityTaskManager 上所有 miui/freeform 相关方法
         try {
             Class<?> iatmIfc = Class.forName("android.app.IActivityTaskManager");
             Method[] iatmMethods = iatmIfc.getMethods();
@@ -604,8 +474,6 @@ public final class TaskResizer {
         } catch (Throwable t) {
             LSPLogger.w("TaskResizer.dumpMiuiFreeformModeControl: dump IATM failed: " + t);
         }
-
-        // 4. 尝试找客户端 wrapper 类(类似 WindowManagerGlobal)
         String[] managerCandidates = {
                 "miui.app.MiuiFreeformModeManager",
                 "android.app.MiuiFreeformModeManager",
@@ -634,7 +502,6 @@ public final class TaskResizer {
             }
         }
     }
-
     /** dump TaskOrganizer 类的所有 public 方法 */
     private static void dumpTaskOrganizerMethods(Class<?> clz) {
         try {
@@ -662,10 +529,7 @@ public final class TaskResizer {
             LSPLogger.d("TaskResizer.dumpTaskOrganizerMethods: threw: " + t);
         }
     }
-
-    /**
-     * 恢复之前缩小的 app 到全屏。
-     */
+    // 恢复前台任务到原始窗口模式与边界
     public static boolean restoreForegroundTask() {
         LSPLogger.i("TaskResizer.restoreForegroundTask: sResizedTaskId=" + sResizedTaskId);
         clearPendingMainTaskCandidate();
@@ -678,7 +542,6 @@ public final class TaskResizer {
         }
         int taskId = sResizedTaskId;
         boolean ok = true;
-
         if (sUsingDefaultDisplayFreeform) {
             if (sOriginalBounds != null) {
                 ok = resizeTask(taskId, sOriginalBounds, 0) && ok;
@@ -693,7 +556,6 @@ public final class TaskResizer {
             LSPLogger.i("TaskResizer.restoreForegroundTask: freeform pilot done, ok=" + ok);
             return ok;
         }
-
         if (sUsingSurfaceTransform) {
             ok = TaskSurfaceTransformer.restore(taskId);
             sResizedTaskId = null;
@@ -704,26 +566,17 @@ public final class TaskResizer {
             LSPLogger.i("TaskResizer.restoreForegroundTask: surface path done, ok=" + ok);
             return ok;
         }
-
-        // Step1: 先 resize 回原 bounds
         if (sOriginalBounds != null) {
             resizeTask(taskId, sOriginalBounds, 0);
         }
-
-        // Step2: 通过 MIUI freeform API 退出 freeform (回到 fullscreen)
-        // 优先用 exitFreeformTask,会触发系统的退出动画和状态恢复
         if (!tryMiuiExitFreeformTask(taskId)) {
             LSPLogger.w("TaskResizer.restoreForegroundTask: MIUI exitFreeformTask failed, "
                     + "trying setDisplayWindowingMode fallback");
-            // 兜底: 切回原 windowing mode
             int targetMode = (sOriginalWindowingMode != 0)
                     ? sOriginalWindowingMode : WINDOWING_MODE_FULLSCREEN;
             setDisplayWindowingMode(0, targetMode);
         }
-
-        // Step3: 恢复原 resizeMode
         setTaskResizeable(taskId, sOriginalResizeMode);
-
         sResizedTaskId = null;
         sOriginalBounds = null;
         sOriginalWindowingMode = WINDOWING_MODE_FULLSCREEN;
@@ -732,15 +585,11 @@ public final class TaskResizer {
         LSPLogger.i("TaskResizer.restoreForegroundTask: done, ok=" + ok);
         return ok;
     }
-
     /** Returns the task currently occupying the main OneStep area. */
     public static Integer getCurrentTaskId() {
         return sResizedTaskId;
     }
-
-    /**
-     * Exchanges the transformed main task while keeping OneStep active.
-     */
+    // 切换主任务到指定任务，恢复旧任务并应用新任务的OneStep变换
     public static boolean switchToTask(Context context, int taskId,
             int sidebarWidth, int screenWidth, int topHeight, int screenHeight,
             boolean sidebarOnLeft) {
@@ -751,7 +600,6 @@ public final class TaskResizer {
             return placeMainTask(context, taskId, sidebarWidth, screenWidth,
                     topHeight, screenHeight, sidebarOnLeft);
         }
-
         if (previousTaskId != null) {
             restoreTaskPresentation(previousTaskId);
         }
@@ -778,7 +626,6 @@ public final class TaskResizer {
                 + " current=" + taskId);
         return true;
     }
-
     /** Reapplies the OneStep transform after another task was briefly launched for a slot. */
     public static boolean reapplyCurrentTransform(Context context, int sidebarWidth, int screenWidth,
             int topHeight, int screenHeight, boolean sidebarOnLeft) {
@@ -786,7 +633,6 @@ public final class TaskResizer {
         return taskId != null && placeMainTask(context, taskId, sidebarWidth, screenWidth,
                 topHeight, screenHeight, sidebarOnLeft);
     }
-
     /** Transfers the OneStep transform when display 0 changes to another app or Home. */
     public static boolean syncMainTaskTransform(Context context, int sidebarWidth,
             int screenWidth, int topHeight, int screenHeight, boolean sidebarOnLeft) {
@@ -800,14 +646,12 @@ public final class TaskResizer {
             sExternalLaunchWatchUntil = 0L;
             clearPendingMainTaskCandidate();
         }
-
         if (isHomeTask(context, actualTaskId)) {
             clearPendingMainTaskCandidate();
             if (previousTaskId != null) restoreTaskPresentation(previousTaskId);
             clearPresentationState();
             return true;
         }
-
         if (actualTaskId.equals(previousTaskId)) {
             clearPendingMainTaskCandidate();
             boolean externalForceActive = externalLaunchActive
@@ -828,13 +672,6 @@ public final class TaskResizer {
                 }
                 return true;
             }
-            // Always re-apply on orientation flip (landscape↔portrait), inside the
-            // short reapply window after a transform change, or when WMS publishes a
-            // NEW fixed-letterbox rect for this landscape task (the first entry often
-            // transforms with the fallback rect before WMS finishes layout — without
-            // this, a wrong early rotate90 stuck until the user swapped twice).
-            // Do NOT re-apply merely because the task is landscape: that made the
-            // 120 ms reconcile loop re-issue the same rotate90 transaction forever.
             Rect landscapeSource = landscape
                     ? getLandscapeSourceBounds(context, actualTaskId,
                             screenWidth, screenHeight)
@@ -872,12 +709,10 @@ public final class TaskResizer {
             }
             return true;
         }
-
         if (externalLaunchActive && !isStableMainTaskCandidate(actualTaskId, now)) {
             return false;
         }
         clearPendingMainTaskCandidate();
-
         Rect originalBounds = getTaskBounds(actualTaskId);
         int originalWindowingMode = getTaskWindowingMode(actualTaskId);
         int originalResizeMode = getTaskResizeable(actualTaskId);
@@ -899,12 +734,7 @@ public final class TaskResizer {
                 + " actual=" + actualTaskId);
         return true;
     }
-
-    /**
-     * Marks a share/drag launch that can traverse resolver and translucent activities.
-     * The existing 120 ms reconcile loop consumes this bounded window; no second loop is
-     * created, and normal idempotence resumes automatically after the deadline.
-     */
+    // 标记外部Activity启动，触发主任务变换的强制重应用窗口
     public static void noteExternalActivityLaunch() {
         long now = SystemClock.uptimeMillis();
         sExternalLaunchForceFrom = now + EXTERNAL_LAUNCH_FORCE_DELAY_MS;
@@ -914,7 +744,6 @@ public final class TaskResizer {
                 + " forceFrom=" + sExternalLaunchForceFrom
                 + " watchUntil=" + sExternalLaunchWatchUntil);
     }
-
     private static boolean isStableMainTaskCandidate(int taskId, long now) {
         if (sPendingMainTaskId == null || sPendingMainTaskId != taskId) {
             sPendingMainTaskId = taskId;
@@ -933,25 +762,39 @@ public final class TaskResizer {
         }
         return stable;
     }
-
     private static void clearPendingMainTaskCandidate() {
         sPendingMainTaskId = null;
         sPendingMainTaskSince = 0L;
         sPendingMainTaskSamples = 0;
     }
-
     public static boolean isHomeVisibleOnDefaultDisplay(Context context) {
         Integer taskId = getTopVisibleTaskIdOnDisplay(context, 0);
         return taskId != null && isHomeTask(context, taskId);
     }
-
+    /** Restores Home after exit when OneStep had no app in its main area. */
+    public static boolean showHomeOnDefaultDisplay(Context context) {
+        if (context == null) return false;
+        try {
+            Intent home = new Intent(Intent.ACTION_MAIN);
+            home.addCategory(Intent.CATEGORY_HOME);
+            home.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
+                    | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
+            ActivityOptions options = ActivityOptions.makeBasic();
+            options.setLaunchDisplayId(Display.DEFAULT_DISPLAY);
+            context.startActivity(home, options.toBundle());
+            LSPLogger.i("TaskResizer.showHomeOnDefaultDisplay");
+            return true;
+        } catch (Throwable t) {
+            LSPLogger.e("TaskResizer.showHomeOnDefaultDisplay failed", t);
+            return false;
+        }
+    }
     /** Parks the transformed main app on a live display and reveals the launcher. */
     public static boolean parkMainTaskAndShowHome(Context context, int displayId,
             int sidebarWidth, int screenWidth, int topHeight, int screenHeight,
             boolean sidebarOnLeft) {
         Integer taskId = sResizedTaskId;
         if (taskId == null || displayId < 0) return false;
-
         restoreTaskPresentation(taskId);
         sResizedTaskId = null;
         sUsingDefaultDisplayFreeform = false;
@@ -961,15 +804,11 @@ public final class TaskResizer {
                     screenHeight, sidebarOnLeft);
             return false;
         }
-
         try {
             Intent home = new Intent(Intent.ACTION_MAIN);
             home.addCategory(Intent.CATEGORY_HOME);
             home.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
                     | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
-            // After moving the app to a virtual display, HyperOS may use that display as
-            // the launch target unless Home's display is explicit. That re-parents the
-            // parked task back to display 0 a few hundred milliseconds later.
             ActivityOptions options = ActivityOptions.makeBasic();
             options.setLaunchDisplayId(Display.DEFAULT_DISPLAY);
             context.startActivity(home, options.toBundle());
@@ -984,7 +823,6 @@ public final class TaskResizer {
             return false;
         }
     }
-
     /** Brings a live slot task into the main area when the launcher occupies display 0. */
     public static boolean activateTaskFromDisplay(Context context, int taskId, int sourceDisplayId,
             int sidebarWidth, int screenWidth, int topHeight, int screenHeight,
@@ -1002,7 +840,6 @@ public final class TaskResizer {
                 + " sourceDisplay=" + sourceDisplayId);
         return true;
     }
-
     public static boolean bringTaskToFront(Context context, int taskId) {
         try {
             ActivityManager am = (ActivityManager) context
@@ -1016,20 +853,11 @@ public final class TaskResizer {
             return false;
         }
     }
-
     /** Moves a root task between the physical display and a live OneStep display. */
     public static boolean moveRootTaskToDisplay(int taskId, int displayId) {
-        // A task can arrive here through the app-list path, park path, or swap path.
-        // All of them must enter a VirtualDisplay with a neutral leash; otherwise a
-        // main-window scale/rotation is inherited and the slot shows only a corner.
-        // neutralize() — NOT restore(): during a swap the NEW main task is already
-        // transformed and tracked; restore() would clearState() and destroy that.
         LSPLogger.i("TaskResizer.moveRootTaskToDisplay: neutralize taskId=" + taskId
                 + " before displayId=" + displayId);
         TaskSurfaceTransformer.neutralize(taskId);
-
-        // ActivityRelaunchPolicyHooker现在会阻止所有display变化导致的relaunch
-        // 不再需要mirror_switch的Settings.Global异步通知机制
         try {
             Object iatm = getIActivityTaskManager();
             Class<?> iface = getIActivityTaskManagerInterface();
@@ -1048,12 +876,6 @@ public final class TaskResizer {
             return false;
         }
     }
-
-    /**
-     * WMS reparents root tasks asynchronously. Do not apply a main-window leash
-     * transform until the task is actually on its destination display, otherwise
-     * the old main transform can be re-applied to the parked slot task.
-     */
     private static boolean waitForTaskDisplay(int taskId, int displayId) {
         Context context = getCurrentApplicationContext();
         if (context == null) return true;
@@ -1066,21 +888,12 @@ public final class TaskResizer {
             if (lastDisplay >= 0) observed = true;
             SystemClock.sleep(30L);
         } while (SystemClock.uptimeMillis() < deadline);
-        // Some vendor builds hide tasks briefly from getRunningTasks(). Do not
-        // reject the move when no authoritative display id was observable.
         boolean settled = !observed;
         LSPLogger.w("TaskResizer.waitForTaskDisplay: taskId=" + taskId
                 + " expected=" + displayId + " actual=" + lastDisplay
                 + " observed=" + observed + " settled=" + settled);
         return settled;
     }
-
-    /**
-     * HyperOS relaunches an Activity when only its displayId changes. Its own
-     * ActivityRecordImpl has a guarded mirror-switch path that marks virtual-display
-     * configuration changes as handled. Keep that mode active through the asynchronous
-     * transition, then restore the value that existed before OneStep touched it.
-     */
     private static void armMirrorSwitchMode() {
         Context context = getCurrentApplicationContext();
         if (context == null) return;
@@ -1112,7 +925,6 @@ public final class TaskResizer {
             LSPLogger.w("TaskResizer.mirrorSwitch: enable failed", t);
         }
     }
-
     private static Context getCurrentApplicationContext() {
         try {
             Class<?> activityThread = Class.forName("android.app.ActivityThread");
@@ -1125,7 +937,6 @@ public final class TaskResizer {
             return null;
         }
     }
-
     public static boolean removeTask(int taskId) {
         try {
             Object iatm = getIActivityTaskManager();
@@ -1143,18 +954,13 @@ public final class TaskResizer {
             return false;
         }
     }
-
-    /**
-     * Exchanges the physical main task and one live virtual-display task.
-     * Both tasks remain real activities; no bitmap or task snapshot is involved.
-     */
+    // 主任务与槽位任务互换显示，无槽位索引与方向信息
     public static boolean swapMainTaskWithDisplay(Context context, int slotTaskId,
             int slotDisplayId, int sidebarWidth, int screenWidth, int topHeight,
             int screenHeight, boolean sidebarOnLeft) {
         return swapMainTaskWithDisplay(context, slotTaskId, slotDisplayId,
                 sidebarWidth, screenWidth, topHeight, screenHeight, sidebarOnLeft, -1, null);
     }
-
     /** Exchanges the main task with a slot without adding a visual transition. */
     public static boolean swapMainTaskWithDisplay(Context context, int slotTaskId,
             int slotDisplayId, int sidebarWidth, int screenWidth, int topHeight,
@@ -1163,7 +969,6 @@ public final class TaskResizer {
                 sidebarWidth, screenWidth, topHeight, screenHeight, sidebarOnLeft,
                 slotIndex, null);
     }
-
     /** Same exchange with orientation captured before WMS changes the task display. */
     public static boolean swapMainTaskWithDisplay(Context context, int slotTaskId,
             int slotDisplayId, int sidebarWidth, int screenWidth, int topHeight,
@@ -1173,7 +978,6 @@ public final class TaskResizer {
                 sidebarWidth, screenWidth, topHeight, screenHeight, sidebarOnLeft,
                 slotIndex, Boolean.valueOf(slotLandscape));
     }
-
     /** Compact state string included in periodic diagnostics and swap boundaries. */
     public static String getPresentationDebugState() {
         Integer taskId = sResizedTaskId;
@@ -1186,7 +990,6 @@ public final class TaskResizer {
                 + " reapplyUntil=" + sTransformReapplyUntil
                 + " transformer=" + TaskSurfaceTransformer.getDebugState();
     }
-
     private static boolean swapMainTaskWithDisplay(Context context, int slotTaskId,
             int slotDisplayId, int sidebarWidth, int screenWidth, int topHeight,
             int screenHeight, boolean sidebarOnLeft, int slotIndex,
@@ -1194,30 +997,19 @@ public final class TaskResizer {
         Integer currentTaskId = sResizedTaskId;
         if (currentTaskId == null || slotTaskId <= 0 || slotDisplayId < 0) return false;
         if (currentTaskId == slotTaskId) return true;
-
         Boolean slotLandscape = forcedSlotLandscape;
         if (slotLandscape == null) {
             slotLandscape = isLandscapeTask(context, slotTaskId);
         }
-
-        // A rotated main-task leash must be restored before it is reparented to
-        // the slot display. Otherwise the small window inherits the main matrix.
         LSPLogger.i("TaskResizer.swapMainTaskWithDisplay: restore old main task="
                 + currentTaskId + " before display move state="
                 + getPresentationDebugState());
         restoreTaskPresentation(currentTaskId);
-
-        // Keep the sidebar window and its TextureViews untouched.  Move the
-        // selected root to display 0, apply the normal main transform, then park
-        // the former main root on the selected slot display in the same call.
         if (!moveRootTaskToDisplay(slotTaskId, 0)) {
             restoreTransformState(currentTaskId, sidebarWidth, screenWidth, topHeight,
                     screenHeight, sidebarOnLeft);
             return false;
         }
-        // Match the proven no-black-frame ordering: apply the main presentation
-        // immediately after reparenting. Sleeping here leaves the newly attached task
-        // untransformed for several display frames and exposes its blank/starting surface.
         if (!shrinkTaskSurface(context, slotTaskId, sidebarWidth, screenWidth,
                 topHeight, screenHeight, sidebarOnLeft, slotLandscape)) {
             moveRootTaskToDisplay(slotTaskId, slotDisplayId);
@@ -1225,7 +1017,6 @@ public final class TaskResizer {
                     screenHeight, sidebarOnLeft);
             return false;
         }
-
         if (!moveRootTaskToDisplay(currentTaskId, slotDisplayId)) {
             TaskSurfaceTransformer.restore(slotTaskId);
             moveRootTaskToDisplay(slotTaskId, slotDisplayId);
@@ -1243,7 +1034,6 @@ public final class TaskResizer {
                 + " liveDisplay=" + slotDisplayId + " parked=" + currentTaskId);
         return true;
     }
-
     private static void restoreTransformState(int taskId, int sidebarWidth,
             int screenWidth, int topHeight, int screenHeight, boolean sidebarOnLeft) {
         if (placeMainTask(null, taskId, sidebarWidth, screenWidth, topHeight,
@@ -1252,21 +1042,18 @@ public final class TaskResizer {
             armTransformReapply();
         }
     }
-
     /** Applies the OneStep transform, rotating a landscape task into the portrait main area. */
     private static boolean shrinkTaskSurface(Context context, int taskId, int sidebarWidth,
             int screenWidth, int topHeight, int screenHeight, boolean sidebarOnLeft) {
         return shrinkTaskSurface(context, taskId, sidebarWidth, screenWidth, topHeight,
                 screenHeight, sidebarOnLeft, null, false);
     }
-
     private static boolean shrinkTaskSurface(Context context, int taskId, int sidebarWidth,
             int screenWidth, int topHeight, int screenHeight, boolean sidebarOnLeft,
             Boolean forcedLandscape) {
         return shrinkTaskSurface(context, taskId, sidebarWidth, screenWidth, topHeight,
                 screenHeight, sidebarOnLeft, forcedLandscape, false);
     }
-
     private static boolean shrinkTaskSurface(Context context, int taskId, int sidebarWidth,
             int screenWidth, int topHeight, int screenHeight, boolean sidebarOnLeft,
             Boolean forcedLandscape, boolean force) {
@@ -1279,13 +1066,6 @@ public final class TaskResizer {
             return TaskSurfaceTransformer.shrink(taskId, sidebarWidth, screenWidth,
                     topHeight, screenHeight, sidebarOnLeft, force);
         }
-
-        // The physical display is intentionally kept portrait by RotationGuard. WMS therefore
-        // gives a landscape ActivityRecord a horizontal fixed-orientation letterbox (for this
-        // device, roughly 1440x648 at y=169). The task buffer itself is already landscape, but
-        // the parent leash still lives in the physical portrait coordinate space. Rotate that
-        // letterbox into the OneStep main rectangle; omitting this step leaves a wide strip at
-        // the top of the main area and makes the app look portrait/vertically stretched.
         Rect source = getLandscapeSourceBounds(context, taskId, screenWidth, screenHeight);
         int left = sidebarOnLeft ? sidebarWidth : 0;
         int right = sidebarOnLeft ? screenWidth : screenWidth - sidebarWidth;
@@ -1295,14 +1075,10 @@ public final class TaskResizer {
             sLastLandscapeSource = source;
             return true;
         }
-
-        // Keep the task visible if a ROM does not expose setMatrix. This fallback is still
-        // uniform and is preferable to leaving a stale matrix from the previous task.
         sLandscapeTransformedTaskId = -1;
         return TaskSurfaceTransformer.shrink(taskId, sidebarWidth, screenWidth,
                 topHeight, screenHeight, sidebarOnLeft, force);
     }
-
     private static Rect getLandscapeSourceBounds(Context context, int taskId,
             int screenWidth, int screenHeight) {
         Rect fixedBounds = context == null ? null
@@ -1312,14 +1088,8 @@ public final class TaskResizer {
                 && fixedBounds.right <= screenWidth && fixedBounds.bottom <= screenHeight) {
             return fixedBounds;
         }
-
-        // Settings.Global is updated by several system_server callbacks and can briefly lose
-        // this task's entry while another task publishes its bounds. Derive the same WMS
-        // letterbox geometry locally instead of falling back to the virtual display's 3200x1440
-        // coordinate space. This keeps the rotation stable across a display swap.
         return getFixedOrientationContentBounds(context, screenWidth, screenHeight);
     }
-
     private static Rect getFixedOrientationContentBounds(Context context,
             int screenWidth, int screenHeight) {
         float landscapeAspectRatio = screenHeight / (float) screenWidth;
@@ -1339,18 +1109,9 @@ public final class TaskResizer {
         }
         return new Rect(0, topInset, screenWidth, topInset + contentHeight);
     }
-
     private static boolean isLandscapeTask(Context context, int taskId, Rect taskBounds) {
         if (context == null) return false;
-
         if (taskId > 0 && sManualRotationTaskId == taskId) return true;
-
-        // Explicit runtime request is authoritative. Evidence 2026-07-23 00:45:09 /
-        // 00:53:13: Bilibili published orientation=1 (portrait) after fullscreen exit,
-        // but sLandscapeTransformedTaskId still forced rotate90 → main stuck landscape.
-        // Portrait must win over the sticky flag so syncMainTaskTransform sees
-        // orientationChanged (landscape=false vs sticky==taskId) and re-applies shrink.
-        // Do NOT clear sticky here — clearing would hide orientationChanged.
         Integer requestedOrientation = OneStepStateBridge.getTaskRequestedOrientation(
                 context, taskId);
         if (requestedOrientation != null) {
@@ -1363,15 +1124,7 @@ public final class TaskResizer {
                 return false;
             }
         }
-
-        // While the app still has no explicit portrait request, keep the already-applied
-        // rotate90 sticky so park does not create a portrait VirtualDisplay mid-player.
-        // (Root activity manifest is often portrait, e.g. MainActivityV2.)
         if (taskId > 0 && sLandscapeTransformedTaskId == taskId) return true;
-
-        // Manifest orientation is stable across display moves, but only trust an *explicit*
-        // landscape. Portrait in the root activity must not veto a player that was already
-        // transformed as landscape on the main surface.
         try {
             ComponentName component = findTaskComponent(context, taskId);
             if (component != null) {
@@ -1382,10 +1135,8 @@ public final class TaskResizer {
         } catch (Throwable t) {
             LSPLogger.d("TaskResizer.isLandscapeTask: manifest lookup failed: " + t);
         }
-
         if (OneStepStateBridge.isTaskLandscape(context, taskId)) return true;
         if (taskBounds != null && taskBounds.width() > taskBounds.height()) return true;
-
         try {
             Class<?> atmClz = Class.forName("android.app.ActivityTaskManager");
             Method getInstance = atmClz.getDeclaredMethod("getInstance");
@@ -1409,32 +1160,21 @@ public final class TaskResizer {
         } catch (Throwable t) {
             LSPLogger.d("TaskResizer.isLandscapeTask: configuration lookup failed: " + t);
         }
-
         return false;
     }
-
     public static boolean isLandscapeTask(Context context, int taskId) {
         return isLandscapeTask(context, taskId, getTaskBounds(taskId));
     }
-
-    /**
-     * 用户手动切换主任务的旋转状态（强制90度旋转 ↔ 恢复正常竖屏）。
-     *
-     * @return true 切换成功
-     */
+    // 切换主任务的手动旋转状态，在横屏旋转与竖屏缩放间切换
     public static boolean toggleManualRotation(Context context, int taskId,
             int sidebarWidth, int screenWidth, int topHeight, int screenHeight,
             boolean sidebarOnLeft) {
         if (taskId <= 0 || context == null) return false;
-
         boolean manualRotationActive = sManualRotationTaskId != taskId;
         sManualRotationTaskId = manualRotationActive ? taskId : -1;
         LSPLogger.i("TaskResizer.toggleManualRotation: taskId=" + taskId
                 + " manualRotationActive=" + manualRotationActive);
-
-        // 应用对应的变换
         if (manualRotationActive) {
-            // 强制旋转：使用rotate90变换
             Rect source = getLandscapeSourceBounds(context, taskId, screenWidth, screenHeight);
             int left = sidebarOnLeft ? sidebarWidth : 0;
             int right = sidebarOnLeft ? screenWidth : screenWidth - sidebarWidth;
@@ -1450,7 +1190,6 @@ public final class TaskResizer {
             }
             return success;
         } else {
-            // 恢复竖屏：使用shrink变换
             sLandscapeTransformedTaskId = -1;
             sLastLandscapeSource = null;
             boolean success = TaskSurfaceTransformer.shrink(taskId, sidebarWidth,
@@ -1459,7 +1198,6 @@ public final class TaskResizer {
             return success;
         }
     }
-
     private static void armTransformReapply() {
         long now = SystemClock.uptimeMillis();
         sLastTransformReapply = now;
@@ -1467,11 +1205,9 @@ public final class TaskResizer {
                 sExternalLaunchWatchUntil);
         sOrientationProbeUntil = now + 8000L;
     }
-
     public static Integer findTaskIdForPackage(Context context, String packageName) {
         return findTaskIdForPackage(context, packageName, -1);
     }
-
     public static Integer findTaskIdForPackage(Context context, String packageName,
             int displayId) {
         if (packageName == null) return null;
@@ -1496,7 +1232,6 @@ public final class TaskResizer {
         }
         return null;
     }
-
     private static int readTaskDisplayId(Object task) {
         try {
             java.lang.reflect.Field field = task.getClass().getField("displayId");
@@ -1511,7 +1246,6 @@ public final class TaskResizer {
             }
         }
     }
-
     public static int findTaskDisplayId(Context context, int taskId) {
         try {
             ActivityManager am = (ActivityManager) context
@@ -1528,7 +1262,6 @@ public final class TaskResizer {
         }
         return -1;
     }
-
     private static int findRootTaskId(Context context, int taskId) {
         try {
             ActivityManager am = (ActivityManager) context
@@ -1556,7 +1289,6 @@ public final class TaskResizer {
         }
         return taskId;
     }
-
     public static ComponentName findTaskComponent(Context context, int taskId) {
         try {
             ActivityManager am = (ActivityManager) context
@@ -1575,7 +1307,6 @@ public final class TaskResizer {
         }
         return null;
     }
-
     private static Integer getTopVisibleTaskIdOnDisplay(Context context, int displayId) {
         try {
             Class<?> atmClz = Class.forName("android.app.ActivityTaskManager");
@@ -1601,7 +1332,6 @@ public final class TaskResizer {
         } catch (Throwable t) {
             LSPLogger.w("TaskResizer.getTopVisibleTaskIdOnDisplay: ATM failed: " + t);
         }
-
         try {
             ActivityManager am = (ActivityManager) context
                     .getSystemService(Context.ACTIVITY_SERVICE);
@@ -1616,14 +1346,6 @@ public final class TaskResizer {
         }
         return null;
     }
-
-    // ======================================================================
-    // IActivityTaskManager / IWindowManager 反射调用
-    // ======================================================================
-
-    /**
-     * 拿 IActivityTaskManager 接口实例(通过 ActivityTaskManager.getService())。
-     */
     private static Object getIActivityTaskManager() {
         try {
             Class<?> atmClz = Class.forName("android.app.ActivityTaskManager");
@@ -1635,10 +1357,6 @@ public final class TaskResizer {
             return null;
         }
     }
-
-    /**
-     * 拿 IWindowManager 接口实例(通过 WindowManagerGlobal.getWindowManagerService())。
-     */
     private static Object getIWindowManager() {
         try {
             Class<?> wmgClz = Class.forName("android.view.WindowManagerGlobal");
@@ -1650,12 +1368,6 @@ public final class TaskResizer {
             return null;
         }
     }
-
-    /**
-     * 拿 IActivityTaskManager 接口类(用于反射方法)。
-     * iatm 实例的 getClass() 返回 Stub$Proxy,无法用 getDeclaredMethod,
-     * 必须用接口类。
-     */
     private static Class<?> getIActivityTaskManagerInterface() {
         try {
             return Class.forName("android.app.IActivityTaskManager");
@@ -1664,7 +1376,6 @@ public final class TaskResizer {
             return null;
         }
     }
-
     private static Class<?> getIWindowManagerInterface() {
         try {
             return Class.forName("android.view.IWindowManager");
@@ -1673,10 +1384,6 @@ public final class TaskResizer {
             return null;
         }
     }
-
-    /**
-     * IActivityTaskManager.resizeTask(int taskId, Rect bounds, int resizeMode)
-     */
     private static boolean resizeTask(int taskId, Rect bounds, int resizeMode) {
         try {
             Object iatm = getIActivityTaskManager();
@@ -1693,10 +1400,6 @@ public final class TaskResizer {
             return false;
         }
     }
-
-    /**
-     * IActivityTaskManager.setTaskResizeable(int taskId, int resizeMode)
-     */
     private static boolean setTaskResizeable(int taskId, int resizeMode) {
         try {
             Object iatm = getIActivityTaskManager();
@@ -1713,18 +1416,6 @@ public final class TaskResizer {
             return false;
         }
     }
-
-    /**
-     * 通过 MIUI 自有的 IMiuiFreeformModeControl 接口把全屏 app 切到 freeform。
-     *
-     * 路径:
-     *   1. IActivityTaskManager.getMiuiFreeFormManagerService() 拿 IBinder
-     *   2. miui.app.IMiuiFreeformModeControl.Stub.asInterface(binder) 拿 proxy
-     *   3. proxy.freeformFullscreenTask(taskId)
-     *
-     * @param taskId 目标 task
-     * @return true 调用成功
-     */
     private static boolean tryMiuiEnterFreeform(int taskId) {
         LSPLogger.i("TaskResizer.tryMiuiEnterFreeform: taskId=" + taskId);
         Object control = getMiuiFreeformModeControl();
@@ -1734,8 +1425,6 @@ public final class TaskResizer {
         }
         try {
             Class<?> ifc = Class.forName("miui.app.IMiuiFreeformModeControl");
-            // HyperOS exposes several similarly named methods. Only keep the
-            // first request whose observable WMS state becomes FREEFORM.
             String[] entryMethods = {
                     "fromFullToFreeform",
                     "freeformFullscreenTask"
@@ -1765,10 +1454,6 @@ public final class TaskResizer {
             return false;
         }
     }
-
-    /**
-     * 通过 MIUI IMiuiFreeformModeControl.exitFreeformTask(taskId, animate) 退出 freeform。
-     */
     private static boolean tryMiuiExitFreeformTask(int taskId) {
         LSPLogger.i("TaskResizer.tryMiuiExitFreeformTask: taskId=" + taskId);
         Object control = getMiuiFreeformModeControl();
@@ -1785,7 +1470,6 @@ public final class TaskResizer {
             return true;
         } catch (Throwable t) {
             LSPLogger.e("TaskResizer.tryMiuiExitFreeformTask: failed: " + t);
-            // 兜底: freeformFullscreenTask 把 freeform task 恢复到全屏
             try {
                 Class<?> ifc = Class.forName("miui.app.IMiuiFreeformModeControl");
                 Method m = ifc.getMethod("freeformFullscreenTask", int.class);
@@ -1799,14 +1483,6 @@ public final class TaskResizer {
             }
         }
     }
-
-    /**
-     * 拿 IMiuiFreeformModeControl 的 server 端 proxy。
-     *
-     * 路径:
-     *   IActivityTaskManager.getMiuiFreeFormManagerService() 返回 IBinder
-     *   miui.app.IMiuiFreeformModeControl.Stub.asInterface(binder) 返回 proxy
-     */
     private static Object sMiuiFreeformControl = null;
     private static Object getMiuiFreeformModeControl() {
         if (sMiuiFreeformControl != null) return sMiuiFreeformControl;
@@ -1822,11 +1498,8 @@ public final class TaskResizer {
             Object binder = getMfs.invoke(iatm);
             LSPLogger.i("TaskResizer.getMiuiFreeformModeControl: binder=" + binder);
             if (binder == null) return null;
-
-            // miui.app.IMiuiFreeformModeControl.Stub.asInterface(IBinder)
             Class<?> ifc = Class.forName("miui.app.IMiuiFreeformModeControl");
             Class<?> stubClz = null;
-            // 找 Stub 内部类
             for (Class<?> inner : ifc.getDeclaredClasses()) {
                 if ("Stub".equals(inner.getSimpleName())) {
                     stubClz = inner;
@@ -1849,20 +1522,6 @@ public final class TaskResizer {
             return null;
         }
     }
-
-    /**
-     * 切换 windowing mode。
-     *
-     * HyperOS / Android 16 上 IATM/ATM 都移除了 setTaskWindowingMode!
-     * 只能用 IWindowManager.setWindowingMode(int displayId, int mode) 切换整个 display 的 windowing mode。
-     * 这会让 display 上所有 task 都进入 freeform 模式,然后 resizeTask 才能生效。
-     *
-     * 进入 OneStep 时:display 切到 freeform,resizeTask 缩小当前 task
-     * 退出 OneStep 时:resizeTask 恢复 bounds,display 切回 fullscreen
-     *
-     * @param displayId 通常为 0(默认 display)
-     * @param windowingMode 1=fullscreen, 5=freeform
-     */
     private static boolean setDisplayWindowingMode(int displayId, int windowingMode) {
         LSPLogger.i("TaskResizer.setDisplayWindowingMode: displayId=" + displayId
                 + " mode=" + windowingMode);
@@ -1885,21 +1544,12 @@ public final class TaskResizer {
             return false;
         }
     }
-
-    /**
-     * 切换 task 的 windowing mode (HyperOS 上已不可用,保留接口但内部调用 display 模式切换)。
-     * 调用者应改为 setDisplayWindowingMode。
-     */
     private static boolean setTaskWindowingMode(int taskId, int windowingMode,
                                                  boolean freezeTaskBounds) {
         LSPLogger.w("TaskResizer.setTaskWindowingMode: HyperOS removed this API, "
                 + "falling back to setDisplayWindowingMode(0, " + windowingMode + ")");
         return setDisplayWindowingMode(0, windowingMode);
     }
-
-    /**
-     * dump ActivityTaskManager 类上所有 windowing/task 相关的静态/实例方法。
-     */
     private static void dumpAtmWindowingMethods(Class<?> atmClz) {
         try {
             Method[] all = atmClz.getDeclaredMethods();
@@ -1936,11 +1586,6 @@ public final class TaskResizer {
             LSPLogger.d("TaskResizer.dumpAtmWindowingMethods: threw: " + t);
         }
     }
-
-    /**
-     * dump 接口上所有 windowing/task/root 相关的方法名,辅助诊断。
-     * 每个方法单独输出一条日志,避免 LSPLogger 多行截断。
-     */
     private static void dumpWindowingMethods(String tag, Class<?> clz) {
         try {
             Method[] all;
@@ -1952,7 +1597,6 @@ public final class TaskResizer {
                 return;
             }
             int matched = 0;
-            // 第一遍: 计数
             for (Method m : all) {
                 String name = m.getName().toLowerCase();
                 if (name.contains("windowing") || name.contains("windowmode")
@@ -1964,7 +1608,6 @@ public final class TaskResizer {
             }
             LSPLogger.d("TaskResizer.dumpWindowingMethods: " + tag
                     + " total=" + all.length + " matched=" + matched);
-            // 第二遍: 每个方法单独输出
             for (Method m : all) {
                 String name = m.getName().toLowerCase();
                 if (name.contains("windowing") || name.contains("windowmode")
@@ -1986,10 +1629,6 @@ public final class TaskResizer {
             LSPLogger.d("TaskResizer.dumpWindowingMethods: " + tag + " threw: " + t);
         }
     }
-
-    /**
-     * IActivityTaskManager.getTaskBounds(int taskId) 返回 Rect
-     */
     private static Rect getTaskBounds(int taskId) {
         try {
             Object iatm = getIActivityTaskManager();
@@ -2006,10 +1645,6 @@ public final class TaskResizer {
         }
         return null;
     }
-
-    /**
-     * 通过 RunningTaskInfo 拿 task 的 windowingMode 字段值。
-     */
     private static int getTaskWindowingMode(int taskId) {
         try {
             Class<?> atmClz = Class.forName("android.app.ActivityTaskManager");
@@ -2023,7 +1658,6 @@ public final class TaskResizer {
             for (Object taskInfo : tasks) {
                 Integer id = readIntField(taskInfo, "taskId");
                 if (id == null || id != taskId) continue;
-                // 拿 configuration.windowConfiguration.windowingMode
                 Object config = readObjectField(taskInfo, "configuration");
                 if (config != null) {
                     Object windowConfig = readObjectField(config, "windowConfiguration");
@@ -2032,7 +1666,6 @@ public final class TaskResizer {
                         if (mode != null) return mode;
                     }
                 }
-                // 兜底:直接读 windowingMode 字段
                 Integer mode = readIntField(taskInfo, "windowingMode");
                 if (mode != null) return mode;
                 break;
@@ -2042,10 +1675,6 @@ public final class TaskResizer {
         }
         return 0;
     }
-
-    /**
-     * IActivityTaskManager.getTaskResizeableForFreeform(int taskId) 返回 int
-     */
     private static int getTaskResizeable(int taskId) {
         try {
             Object iatm = getIActivityTaskManager();
@@ -2062,14 +1691,6 @@ public final class TaskResizer {
         }
         return 0;
     }
-
-    // ======================================================================
-    // 反射辅助
-    // ======================================================================
-
-    /**
-     * 读取对象上的 int 字段值(沿继承链查找)。
-     */
     private static Integer readIntField(Object obj, String fieldName) {
         if (obj == null) return null;
         Class<?> clz = obj.getClass();
@@ -2086,10 +1707,6 @@ public final class TaskResizer {
         }
         return null;
     }
-
-    /**
-     * 读取对象上的 Object 字段(沿继承链查找)。
-     */
     private static Object readObjectField(Object obj, String fieldName) {
         if (obj == null) return null;
         Class<?> clz = obj.getClass();
@@ -2106,16 +1723,8 @@ public final class TaskResizer {
         }
         return null;
     }
-
-    /**
-     * 获取当前前台 task id。
-     *
-     * HyperOS 上 ActivityTaskManager.getInstance().getTasks(1) 可能返回当前进程
-     * 最近活跃的 task(例如 ModuleConfigActivity),而不是 display 上真正的前台 task。
-     * 因此遍历所有 tasks,过滤出 visible=true 且非 home/system 的第一个。
-     */
-    private static Integer getForegroundTaskId(Context context) {
-        // 优先反射 ActivityTaskManager.getInstance().getTasks(int),遍历找 visible=true
+    /** Returns the current default-display app task, excluding Launcher/SystemUI. */
+    public static Integer getForegroundTaskId(Context context) {
         try {
             Class<?> atmClz = Class.forName("android.app.ActivityTaskManager");
             Method getInstance = atmClz.getDeclaredMethod("getInstance");
@@ -2125,7 +1734,6 @@ public final class TaskResizer {
                 Method getTasks = atmClz.getMethod("getTasks", int.class);
                 List<?> tasks = (List<?>) getTasks.invoke(atmInstance, 20);
                 if (tasks != null && !tasks.isEmpty()) {
-                    // 1. 优先返回 visible=true 且非 home/launcher/systemui 的 task
                     Integer firstVisible = null;
                     Integer firstNonHome = null;
                     StringBuilder dump = new StringBuilder();
@@ -2145,9 +1753,8 @@ public final class TaskResizer {
                             String pkgLower = topAct.toLowerCase();
                             if (pkgLower.contains("launcher") || pkgLower.contains("systemui")
                                     || pkgLower.contains("miui.home")
-                                    || pkgLower.contains("com.android.settings")
                                     || pkgLower.contains("smartisanos.sidebar")) {
-                                continue; // 跳过 home/systemui/sidebar 自己
+                                continue;
                             }
                         }
                         if (firstNonHome == null) firstNonHome = id;
@@ -2156,22 +1763,19 @@ public final class TaskResizer {
                         }
                     }
                     LSPLogger.d("TaskResizer.getForegroundTaskId: tasks=\n" + dump);
-                    // 只能操作真正可见的 task。桌面、SystemUI 或模块配置页在前台时，
-                    // firstNonHome 往往指向最近使用的后台 app；拿它兜底会静默缩错窗口。
-                    Integer result = firstVisible;
+                    Integer result = firstVisible != null ? firstVisible : firstNonHome;
                     if (result != null) {
                         LSPLogger.d("TaskResizer.getForegroundTaskId: id=" + result
-                                + " (firstVisible=" + firstVisible + " firstNonHome=" + firstNonHome + ")");
+                                + " (firstVisible=" + firstVisible + " firstNonHome="
+                                + firstNonHome + ")");
                         return result;
                     }
-                    LSPLogger.w("TaskResizer.getForegroundTaskId: no eligible visible task; "
-                            + "refusing background fallback=" + firstNonHome);
+                    LSPLogger.w("TaskResizer.getForegroundTaskId: no eligible task");
                 }
             }
         } catch (Throwable t) {
             LSPLogger.d("TaskResizer.getForegroundTaskId: ATM.getTasks() failed: " + t);
         }
-        // 兜底:ActivityManager.getRunningTasks(1)
         try {
             ActivityManager am = (ActivityManager) context
                     .getSystemService(Context.ACTIVITY_SERVICE);
@@ -2186,7 +1790,6 @@ public final class TaskResizer {
             return null;
         }
     }
-
     /** 读取 RunningTaskInfo.topActivity 的包名 */
     private static String readTopActivityPkg(Object taskInfo) {
         if (taskInfo == null) return null;
@@ -2199,7 +1802,6 @@ public final class TaskResizer {
         }
         return null;
     }
-
     /** 读取对象上的 boolean 字段值(沿继承链查找) */
     private static Boolean readBoolField(Object obj, String fieldName) {
         if (obj == null) return null;
@@ -2217,10 +1819,6 @@ public final class TaskResizer {
         }
         return null;
     }
-
-    /**
-     * 判断 taskId 是否是 home / launcher / system task。
-     */
     private static boolean isHomeOrSystemTask(Context context, int taskId) {
         try {
             ActivityManager am = (ActivityManager) context
@@ -2234,7 +1832,7 @@ public final class TaskResizer {
                 String pkg = t.topActivity.getPackageName();
                 if (pkg == null) continue;
                 if (pkg.contains("launcher") || pkg.contains("systemui")
-                        || pkg.contains("miui.home") || pkg.contains("com.android.settings")) {
+                        || pkg.contains("miui.home")) {
                     return true;
                 }
             }
@@ -2243,7 +1841,6 @@ public final class TaskResizer {
         }
         return false;
     }
-
     private static boolean isHomeTask(Context context, int taskId) {
         ComponentName component = findTaskComponent(context, taskId);
         if (component == null || component.getPackageName() == null) return false;

@@ -1,5 +1,4 @@
 package com.hyper.onestep.view;
-
 import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
@@ -10,7 +9,6 @@ import android.widget.FrameLayout;
 import android.widget.AbsListView;
 import android.widget.ListView;
 import android.widget.TextView;
-
 import com.hyper.onestep.R;
 import com.hyper.onestep.SidebarController;
 import com.hyper.onestep.util.IEmpty;
@@ -25,39 +23,32 @@ import com.hyper.onestep.util.anim.AnimTimeLine;
 import com.hyper.onestep.util.anim.Vector3f;
 import com.hyper.onestep.view.ContentView.ContentType;
 import com.hyper.onestep.util.ListScrollMemory;
-
+// 最近照片分组视图容器
 public class RecentPhotoViewGroup extends RoundCornerFrameLayout implements IEmpty, ContentView.ISubView {
     private static final LOG log = LOG.getInstance(RecentPhotoViewGroup.class);
-
     private ContentView mContentView;
     private View mContainer;
     private TextView mTitle;
     private View mClear;
     private RecentPhotoAdapter mAdapter;
     private ListView mListView;
-
     private EmptyView mEmptyView;
     private boolean mIsEmpty = true;
     private Context mContext;
-
     public RecentPhotoViewGroup(Context context) {
         this(context, null);
     }
-
     public RecentPhotoViewGroup(Context context, AttributeSet attrs) {
         super(context, attrs, 0);
         mContext = context;
     }
-
     public RecentPhotoViewGroup(Context context, AttributeSet attrs, int defStyleAttr) {
         this(context, attrs, defStyleAttr, 0);
     }
-
     public RecentPhotoViewGroup(Context context, AttributeSet attrs, int defStyleAttr, int defStyleRes) {
         super(context, attrs, defStyleAttr, defStyleRes);
         mContext = context;
     }
-
     @Override
     protected void onFinishInflate() {
         super.onFinishInflate();
@@ -66,14 +57,12 @@ public class RecentPhotoViewGroup extends RoundCornerFrameLayout implements IEmp
             mEmptyView.setImageView(R.drawable.photo_blank);
             mEmptyView.setText(R.string.photo_empty_text);
             mEmptyView.setHint(R.string.photo_empty_hint);
-
             mEmptyView.setButton(R.string.open_gallery, R.drawable.photo_blank_button, new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
                     Utils.openGallery(v.getContext());
                 }
             });
-
             mContainer = findViewById(R.id.photo_container);
             mTitle = (TextView)findViewById(R.id.title);
             mClear = findViewById(R.id.clear);
@@ -88,7 +77,6 @@ public class RecentPhotoViewGroup extends RoundCornerFrameLayout implements IEmp
                     mAdapter.setPreviewLoadingEnabled(renderPreviews);
                     updateVisiblePreviewWork(renderPreviews);
                 }
-
                 @Override
                 public void onScroll(AbsListView view, int firstVisibleItem,
                         int visibleItemCount, int totalItemCount) {
@@ -101,13 +89,11 @@ public class RecentPhotoViewGroup extends RoundCornerFrameLayout implements IEmp
                     mListView.setSelection(0);
                 }
             });
-
             updateUI();
         } catch (Throwable t) {
             com.hyper.onestep.lsp.LSPLogger.e("RecentPhotoViewGroup.onFinishInflate failed", t);
         }
     }
-
     private ClearListener mClearListener = new ClearListener(new Runnable() {
         @Override
         public void run() {
@@ -120,9 +106,7 @@ public class RecentPhotoViewGroup extends RoundCornerFrameLayout implements IEmp
             timeLine.setAnimListener(new AnimListener() {
                 @Override
                 public void onStart() {
-
                 }
-
                 @Override
                 public void onComplete(int type) {
                     mListView.setTranslationX(0);
@@ -138,11 +122,9 @@ public class RecentPhotoViewGroup extends RoundCornerFrameLayout implements IEmp
             mContentView.setCurrent(ContentType.NONE);
         }
     }, R.string.title_confirm_delete_history_photo);
-
     public void setContentView(ContentView cv){
         mContentView = cv;
     }
-
     @Override
     public void setEmpty(boolean isEmpty) {
         if (mIsEmpty != isEmpty) {
@@ -156,11 +138,9 @@ public class RecentPhotoViewGroup extends RoundCornerFrameLayout implements IEmp
             }
         }
     }
-
     public void show(boolean anim) {
         Tracker.onClick(Tracker.EVENT_TOPBAR, "type", "0");
         RecentPhotoManager.getInstance(mContext).refresh();
-        // Resume where the user last scrolled instead of snapping back to the newest photos.
         mListView.requestLayout();
         ListScrollMemory.restore(mContext, "photo", mListView);
         setVisibility(View.VISIBLE);
@@ -194,7 +174,6 @@ public class RecentPhotoViewGroup extends RoundCornerFrameLayout implements IEmp
                 public void onStart() {
                     AnimStatusManager.getInstance().setStatus(AnimStatusManager.ON_RECENT_PHOTO_LIST_ANIM, true);
                 }
-
                 @Override
                 public void onComplete(int type) {
                     AnimStatusManager.getInstance().setStatus(AnimStatusManager.ON_RECENT_PHOTO_LIST_ANIM, false);
@@ -204,7 +183,6 @@ public class RecentPhotoViewGroup extends RoundCornerFrameLayout implements IEmp
             timeLine.start();
         }
     }
-
     public void dismiss(boolean anim) {
         ListScrollMemory.save(mContext, "photo", mListView);
         mClearListener.dismiss();
@@ -227,7 +205,6 @@ public class RecentPhotoViewGroup extends RoundCornerFrameLayout implements IEmp
                 public void onStart() {
                     AnimStatusManager.getInstance().setStatus(AnimStatusManager.ON_RECENT_PHOTO_LIST_ANIM, true);
                 }
-
                 @Override
                 public void onComplete(int type) {
                     AnimStatusManager.getInstance().setStatus(AnimStatusManager.ON_RECENT_PHOTO_LIST_ANIM, false);
@@ -242,11 +219,9 @@ public class RecentPhotoViewGroup extends RoundCornerFrameLayout implements IEmp
             setVisibility(View.GONE);
         }
     }
-
     private void updateUI(){
         mTitle.setText(R.string.title_photo);
     }
-
     private void updateVisiblePreviewWork(boolean resume) {
         for (int rowIndex = 0; rowIndex < mListView.getChildCount(); rowIndex++) {
             View row = mListView.getChildAt(rowIndex);
@@ -266,7 +241,6 @@ public class RecentPhotoViewGroup extends RoundCornerFrameLayout implements IEmp
             }
         }
     }
-
     @Override
     public void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);

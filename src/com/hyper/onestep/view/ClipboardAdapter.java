@@ -1,11 +1,9 @@
 package com.hyper.onestep.view;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
 import android.content.Context;
 import android.content.CopyHistoryItem;
 import android.os.Handler;
@@ -13,25 +11,20 @@ import android.os.Looper;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.BaseAdapter;
-
 import com.hyper.onestep.util.IEmpty;
 import com.hyper.onestep.util.LOG;
 import com.hyper.onestep.util.RecentClipManager;
 import com.hyper.onestep.util.Utils;
-
+// 剪贴板历史列表适配器，按时间区间分组展示
 public class ClipboardAdapter extends BaseAdapter{
     private static LOG log = LOG.getInstance(ClipboardAdapter.class);
-
     private static final int[] sNeedExpandNumber = new int[] { 15, 15, 30, 30,
         60 };
-
     private Context mContext;
     private RecentClipManager mClipManager;
-
     private List<CopyHistoryItem> mCopyHistoryItemList = new ArrayList<CopyHistoryItem>();
     private boolean[] mExpand = new boolean[Utils.Interval.DAY_INTERVAL.length];
     private Map<Integer, List<CopyHistoryItem>> mIntervals = new HashMap<Integer, List<CopyHistoryItem>>();
-
     private Handler mHandler;
     private IEmpty mEmpty;
     private final ClipboardItemView.OnDeleteListener mDeleteListener =
@@ -43,7 +36,6 @@ public class ClipboardAdapter extends BaseAdapter{
             return removed;
         }
     };
-
     public ClipboardAdapter(Context context, IEmpty empty){
         mContext = context;
         mEmpty = empty;
@@ -63,12 +55,10 @@ public class ClipboardAdapter extends BaseAdapter{
         updateDataList();
         notifyEmpty();
     }
-
     public void shrink() {
         Arrays.fill(mExpand, false);
         notifyDataSetChanged();
     }
-
     private void updateDataList() {
         mCopyHistoryItemList = mClipManager.getCopyList();
         mIntervals.clear();
@@ -85,7 +75,6 @@ public class ClipboardAdapter extends BaseAdapter{
         }
         notifyDataSetChanged();
     }
-
     private int getIntervalCount(int i) {
         List<CopyHistoryItem> list = mIntervals.get(i);
         if(list != null) {
@@ -98,19 +87,16 @@ public class ClipboardAdapter extends BaseAdapter{
         }
         return 0;
     }
-
     private void notifyEmpty() {
         if (mEmpty != null) {
             mEmpty.setEmpty(getCount() == 0);
         }
     }
-
     @Override
     public void notifyDataSetChanged() {
         notifyEmpty();
         super.notifyDataSetChanged();
     }
-
     @Override
     public int getCount() {
         int total = 0;
@@ -119,7 +105,6 @@ public class ClipboardAdapter extends BaseAdapter{
         }
         return total;
     }
-
     @Override
     public Object getItem(int position) {
         int offset = 0;
@@ -133,12 +118,10 @@ public class ClipboardAdapter extends BaseAdapter{
         }
         return null;
     }
-
     @Override
     public long getItemId(int position) {
         return position;
     }
-
     @Override
     public View getView(int position, View convertView, ViewGroup parent) {
         if (convertView == null) {
@@ -146,7 +129,6 @@ public class ClipboardAdapter extends BaseAdapter{
         }
         ClipboardItemView civ = (ClipboardItemView) convertView;
         civ.reset();
-
         int now = 0;
         int our_interval = 0;
         int interval_line = 0;
@@ -161,7 +143,6 @@ public class ClipboardAdapter extends BaseAdapter{
         if(interval_line == 0) {
             civ.showDate(Utils.Interval.LABEL_INTERVAL[our_interval]);
         }
-
         List<CopyHistoryItem> intervalInfos = mIntervals.get(our_interval);
         if(interval_line == sNeedExpandNumber[our_interval] - 1 && !mExpand[our_interval] && interval_line != intervalInfos.size() - 1) {
             civ.showMoreTag(new showMoreListener(our_interval, civ, intervalInfos.get(interval_line)));
@@ -170,7 +151,6 @@ public class ClipboardAdapter extends BaseAdapter{
         }
         return civ;
     }
-
     class showMoreListener implements View.OnClickListener {
         private int mInterval;
         private ClipboardItemView mView;
@@ -180,7 +160,6 @@ public class ClipboardAdapter extends BaseAdapter{
             mView = view;
             mItem = item;
         }
-
         @Override
         public void onClick(View v) {
             mView.reset();
@@ -190,4 +169,3 @@ public class ClipboardAdapter extends BaseAdapter{
         }
     }
 }
-

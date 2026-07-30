@@ -1,18 +1,15 @@
 package com.hyper.onestep.util;
-
 import java.io.File;
 import java.lang.ref.SoftReference;
-
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.media.ThumbnailUtils;
 import android.text.TextUtils;
 import android.util.LruCache;
 import android.util.Size;
-
+// 位图缓存，基于 LruCache + SoftReference
 public class BitmapCache {
     private static final LOG log = LOG.getInstance(BitmapCache.class);
-
     private int mSize = 0;
     private LruCache<String, SoftReference<Bitmap>> mImageCache = new LruCache<String, SoftReference<Bitmap>>(100) {
         @Override
@@ -20,18 +17,15 @@ public class BitmapCache {
             super.entryRemoved(evicted, key, oldValue, newValue);
         }
     };
-
     public BitmapCache(int size) {
         if (size <= 0) {
             size = 1;
         }
         mSize = size;
     }
-
     public int getTargetSize() {
         return mSize;
     }
-
     public Bitmap getBitmapDirectly(String filepath){
         synchronized (mImageCache) {
             SoftReference<Bitmap> softBp = mImageCache.get(filepath);
@@ -41,7 +35,6 @@ public class BitmapCache {
         }
         return null;
     }
-
     public Bitmap getBitmap(String filepath, String mimeType) {
         Bitmap ret = getBitmapDirectly(filepath);
         if (ret != null) {
@@ -61,7 +54,6 @@ public class BitmapCache {
         addBitmapToMemoryCache(filepath, bitmap);
         return bitmap;
     }
-
     private Bitmap decodeImage(String filepath) {
         BitmapFactory.Options boundOptions = new BitmapFactory.Options();
         boundOptions.inJustDecodeBounds = true;
@@ -72,7 +64,6 @@ public class BitmapCache {
         options.inPreferredConfig = Bitmap.Config.RGB_565;
         return BitmapFactory.decodeFile(filepath, options);
     }
-
     private Bitmap createVideoThumbnail(String filepath) {
         try {
             return ThumbnailUtils.createVideoThumbnail(
@@ -82,12 +73,10 @@ public class BitmapCache {
             return null;
         }
     }
-
     private static boolean isVideo(String mimeType) {
         return !TextUtils.isEmpty(mimeType)
                 && mimeType.toLowerCase().startsWith("video/");
     }
-
     public void clearCache() {
         synchronized (mImageCache) {
             if (mImageCache != null) {
@@ -97,7 +86,6 @@ public class BitmapCache {
             }
         }
     }
-
     public void addBitmapToMemoryCache(String key, Bitmap bitmap) {
         if (key != null && bitmap != null) {
             synchronized (mImageCache) {

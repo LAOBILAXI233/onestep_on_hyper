@@ -1,10 +1,7 @@
 package com.hyper.onestep.util;
-
 import java.util.ArrayList;
 import java.util.List;
-
 import com.hyper.onestep.R;
-
 import android.content.ActivityNotFoundException;
 import android.content.ClipDescription;
 import android.content.ComponentName;
@@ -19,16 +16,14 @@ import android.net.Uri;
 import android.provider.BaseColumns;
 import android.text.TextUtils;
 import android.view.DragEvent;
-
+// 邮件联系人项，封装邮件分享意图
 public class MailContact extends ContactItem {
     public static final String PKG_NAME = "com.android.contacts";
     private static final ComponentName COMP_NAME = new ComponentName("com.android.email","com.android.mail.compose.ComposeActivity");
-
     private String mMailAddress;
     public MailContact(Context context, CharSequence displayName, String mailAddress) {
         this(context, BitmapUtils.getDefaultContactAvatar(context), displayName, mailAddress);
     }
-
     public MailContact(Context context, Bitmap avatar, CharSequence displayName, String mailAddress) {
         super(context, avatar, displayName);
         if (TextUtils.isEmpty(mailAddress)) {
@@ -36,16 +31,13 @@ public class MailContact extends ContactItem {
         }
         mMailAddress = mailAddress;
     }
-
     public String getAddress(){
         return mMailAddress;
     }
-
     @Override
     public boolean acceptDragEvent(Context context, DragEvent event) {
         return event.getClipDescription().getMimeTypeCount() > 0;
     }
-
     @Override
     public boolean handleDragEvent(Context context, DragEvent event) {
         Tracker.dragSuccess(4, PKG_NAME);
@@ -53,13 +45,11 @@ public class MailContact extends ContactItem {
         if(sret){
             return true;
         }
-
         if (event.getClipData().getItemCount() <= 0
                 || event.getClipDescription().getMimeTypeCount() <= 0
                 || event.getClipDescription().getMimeTypeCount() != event.getClipData().getItemCount()) {
             return false;
         }
-
         String mimeType = MimeUtils.getCommonMimeType(event);
         Intent intent = new Intent();
         intent.setData(Uri.parse("mailto:" + mMailAddress));
@@ -77,7 +67,6 @@ public class MailContact extends ContactItem {
                 intent.putExtra(Intent.EXTRA_STREAM, event.getClipData().getItemAt(0).getUri());
             }
         }
-
         try {
             mContext.startActivity(intent);
             return true;
@@ -86,7 +75,6 @@ public class MailContact extends ContactItem {
         }
         return false;
     }
-
     @Override
     public boolean openUI(Context context) {
         Tracker.onClick(Tracker.EVENT_CLICK_CONTACTS, "contacts_type", "3");
@@ -94,7 +82,6 @@ public class MailContact extends ContactItem {
         intent.setData(Uri.parse("mailto:" + mMailAddress));
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         intent.setComponent(COMP_NAME);
-
         try {
             mContext.startActivity(intent);
             return true;
@@ -103,28 +90,22 @@ public class MailContact extends ContactItem {
         }
         return false;
     }
-
     @Override
     public void save() {
         MailDatabaseHelper.getInstance(mContext).update(this);
     }
-
-
     @Override
     public void deleteFromDatabase() {
         MailDatabaseHelper.getInstance(mContext).remove(this);
     }
-
     @Override
     public int getTypeIcon() {
         return R.drawable.contact_icon_mail;
     }
-
     @Override
     public String getPackageName() {
         return PKG_NAME;
     }
-
     @Override
     public boolean sameContact(ContactItem ci) {
         if (ci == null || !(ci instanceof MailContact)) {
@@ -133,11 +114,9 @@ public class MailContact extends ContactItem {
         MailContact mc = (MailContact) ci;
         return mMailAddress.equals(mc.mMailAddress);
     }
-
     public static List<ContactItem> getContacts(Context context){
         return MailDatabaseHelper.getInstance(context).getContacts();
     }
-
     private static final class MailDatabaseHelper extends SQLiteOpenHelper{
         private volatile static MailDatabaseHelper sInstance;
         public synchronized static MailDatabaseHelper getInstance(Context context){
@@ -150,16 +129,13 @@ public class MailContact extends ContactItem {
             }
             return sInstance;
         }
-
         private static final String DB_NAME = "mail_contacts";
         private static final int DB_VERSION = 1;
-
         private Context mContext;
         private MailDatabaseHelper(Context context) {
             super(context, DB_NAME, null, DB_VERSION);
             mContext = context;
         }
-
         @Override
         public void onCreate(SQLiteDatabase db) {
             db.execSQL("CREATE TABLE " + TABLE_CONTACTS + " (_id INTEGER PRIMARY KEY AUTOINCREMENT,"
@@ -168,12 +144,9 @@ public class MailContact extends ContactItem {
                     + "display_name TEXT,"
                     + "weight INTEGER);");
         }
-
         @Override
         public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-            //NA
         }
-
         public int getId(MailContact contact) {
             Cursor cursor = null;
             try {
@@ -192,24 +165,20 @@ public class MailContact extends ContactItem {
             }
             return 0;
         }
-
         public void update(MailContact contact) {
             int id = getId(contact);
-            // insert
             ContentValues cv = new ContentValues();
             cv.put(ContactColumns.MAIL_ADDRESS, contact.mMailAddress);
             cv.put(ContactColumns.AVATAR, BitmapUtils.Drawable2Bytes(contact.getAvatar()));
             cv.put(ContactColumns.DISPLAY_NAME, contact.getDisplayName().toString());
             cv.put(ContactColumns.WEIGHT, contact.getIndex());
             if (id != 0) {
-                // update database;
                 getWritableDatabase().update(TABLE_CONTACTS, cv,
                         ContactColumns._ID + "=?", new String[] { id + "" });
             } else {
                 getWritableDatabase().insert(TABLE_CONTACTS, null, cv);
             }
         }
-
         public void remove(MailContact contact) {
             int id = getId(contact);
             if (id != 0) {
@@ -217,7 +186,6 @@ public class MailContact extends ContactItem {
                         ContactColumns._ID + "=?", new String[] { id + "" });
             }
         }
-
         public List<ContactItem> getContacts(){
             List<ContactItem> ret = new ArrayList<ContactItem>();
             Cursor cursor = null;
@@ -242,7 +210,6 @@ public class MailContact extends ContactItem {
             }
             return ret;
         }
-
         private static final String TABLE_CONTACTS = "contacts";
         static class ContactColumns implements BaseColumns{
             static final String MAIL_ADDRESS = "mail_address";

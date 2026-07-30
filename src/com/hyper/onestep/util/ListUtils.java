@@ -1,9 +1,8 @@
 package com.hyper.onestep.util;
-
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-
+// 列表去重工具类
 public class ListUtils {
     public static <T> List<T> getDistinctList (List<T> list, Comparator<? super T> comparator) {
         if(list == null || list.size() <= 1){

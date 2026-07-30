@@ -1,5 +1,4 @@
 package com.hyper.onestep.lsp;
-
 import android.animation.ValueAnimator;
 import android.app.Activity;
 import android.content.ActivityNotFoundException;
@@ -28,30 +27,21 @@ import android.widget.SeekBar;
 import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
-
 import com.hyper.onestep.R;
-
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-
-/** Module configuration screen. Layouts and tokens live in res/ (Miuix-style skin borrowed
- * from SukiSU-Ultra); this class only inflates pages and wires up the existing logic, so the
- * LSP APK still needs no extra UI runtime. */
+// OneStep 模块配置界面
 public class ModuleConfigActivity extends Activity {
-
     private static final int XIAOMI_LARGE_AREA_SENSOR_TYPE = 33171031;
     private static final String GITHUB_REPOSITORY_URL =
             "https://github.com/LAOBILAXI233/onestep_on_hyper";
-
     private static final String ACTION_ENTER_ONE_STEP =
             "com.hyper.onestep.ACTION_ENTER_ONE_STEP";
     private static final String ACTION_EXIT_ONE_STEP =
             "com.hyper.onestep.ACTION_EXIT_ONE_STEP";
     private static final String ACTION_TOGGLE_ONE_STEP =
             "com.hyper.onestep.ACTION_TOGGLE_ONE_STEP";
-
     private static final int PAGE_COUNT = 4;
-
     private int mCurrentPage;
     private int mLastNavPage = -1;
     private ScrollView mScroll;
@@ -60,21 +50,18 @@ public class ModuleConfigActivity extends Activity {
     private TextView mPageSubtitle;
     private final LinearLayout[] mNavItems = new LinearLayout[PAGE_COUNT];
     private final ExecutorService mSettingsExecutor = Executors.newSingleThreadExecutor();
-
+    // 初始化配置界面、加载导航栏并渲染首页
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         LSPLogger.initialize(this);
         LSPLogger.logBoot();
         LSPLogger.i("ModuleConfigActivity.onCreate: savedInstanceState=" + savedInstanceState);
-
         setContentView(R.layout.activity_module_config);
-
         mScroll = findViewById(R.id.miuix_scroll);
         mPageContainer = findViewById(R.id.miuix_page_container);
         mPageTitle = findViewById(R.id.miuix_page_title);
         mPageSubtitle = findViewById(R.id.miuix_page_subtitle);
-
         int[] navIds = {R.id.miuix_nav_control, R.id.miuix_nav_gesture,
                 R.id.miuix_nav_log, R.id.miuix_nav_about};
         for (int i = 0; i < navIds.length; i++) {
@@ -82,26 +69,21 @@ public class ModuleConfigActivity extends Activity {
             mNavItems[i] = findViewById(navIds[i]);
             mNavItems[i].setOnClickListener(v -> renderPage(page));
         }
-
         renderPage(0);
         LSPLogger.d("ModuleConfigActivity.onCreate: miuix settings screen ready");
     }
-
     @Override
     protected void onResume() {
         super.onResume();
-        // 控制页与手势页都展示黑名单数量，从黑名单管理页返回时刷新
         if ((mCurrentPage == 0 || mCurrentPage == 1) && mPageContainer != null) {
             renderPage(mCurrentPage);
         }
     }
-
     @Override
     protected void onDestroy() {
         mSettingsExecutor.shutdown();
         super.onDestroy();
     }
-
     private void renderPage(int page) {
         mCurrentPage = page;
         if (mPageContainer == null) return;
@@ -143,7 +125,6 @@ public class ModuleConfigActivity extends Activity {
             playPageEnter();
         }
     }
-
     /** 分页切换：内容淡入 + 轻微上滑。 */
     private void playPageEnter() {
         float slide = 16f * getResources().getDisplayMetrics().density;
@@ -156,12 +137,10 @@ public class ModuleConfigActivity extends Activity {
                 .setInterpolator(new DecelerateInterpolator())
                 .start();
     }
-
+    // 绑定控制页面的状态卡片、黑名单计数与快捷操作按钮
     private void bindControlPage() {
         TextView statusVersion = findViewById(R.id.miuix_status_version);
         statusVersion.setText("v" + getModuleVersion());
-
-        // 绿卡点击：大对勾弹跳一下，纯彩蛋反馈
         ImageView statusCheck = findViewById(R.id.miuix_status_check);
         findViewById(R.id.miuix_status_card).setOnClickListener(v ->
                 statusCheck.animate()
@@ -174,8 +153,6 @@ public class ModuleConfigActivity extends Activity {
                                 .setInterpolator(new OvershootInterpolator(2.5f))
                                 .start())
                         .start());
-
-        // 黑名单计数：数字从 0 滚动到当前值；点卡片直达管理页
         TextView blacklistCount = findViewById(R.id.miuix_count_blacklist_value);
         int count = GestureSettings.read(this).blacklistedPackages.size();
         if (count > 0) {
@@ -190,8 +167,6 @@ public class ModuleConfigActivity extends Activity {
         }
         findViewById(R.id.miuix_count_blacklist_card).setOnClickListener(v ->
                 startActivity(new Intent(this, GestureBlacklistActivity.class)));
-
-        // 快捷切换卡：图标转一圈 + 发送切换广播
         ImageView toggleIcon = findViewById(R.id.miuix_quick_toggle_icon);
         findViewById(R.id.miuix_quick_toggle).setOnClickListener(v -> {
             toggleIcon.animate()
@@ -201,21 +176,18 @@ public class ModuleConfigActivity extends Activity {
                     .start();
             sendOneStepBroadcast(ACTION_TOGGLE_ONE_STEP);
         });
-
         findViewById(R.id.miuix_action_enter).setOnClickListener(
                 v -> sendOneStepBroadcast(ACTION_ENTER_ONE_STEP));
         findViewById(R.id.miuix_action_exit).setOnClickListener(
                 v -> sendOneStepBroadcast(ACTION_EXIT_ONE_STEP));
     }
-
+    // 绑定手势设置页面的开关、长按时长滑块与黑名单管理
     private void bindGesturePage() {
         GestureSettings.Snapshot settings = GestureSettings.read(this);
-
         TextView readySummary = findViewById(R.id.miuix_gesture_ready_summary);
         readySummary.setText(hasXiaomiLargeAreaClassifier()
                 ? R.string.miuix_gesture_ready_summary_assist
                 : R.string.miuix_gesture_ready_summary_pure);
-
         Switch hapticSwitch = findViewById(R.id.miuix_switch_haptics);
         hapticSwitch.setChecked(settings.dragHapticsEnabled);
         final boolean[] updatingHaptics = {false};
@@ -242,7 +214,6 @@ public class ModuleConfigActivity extends Activity {
                 });
             });
         });
-
         View bigBangCompatGroup = findViewById(R.id.miuix_bigbang_compat_group);
         Switch bigBangSwitch = findViewById(R.id.miuix_switch_bigbang);
         bigBangSwitch.setChecked(settings.bigBangEnabled);
@@ -272,7 +243,6 @@ public class ModuleConfigActivity extends Activity {
                 });
             });
         });
-
         Switch fallbackSwitch = findViewById(R.id.miuix_switch_fallback);
         fallbackSwitch.setChecked(settings.longPressFallbackEnabled);
         final boolean[] updatingSwitch = {false};
@@ -299,7 +269,6 @@ public class ModuleConfigActivity extends Activity {
                 });
             });
         });
-
         Switch twoFingerSwitch = findViewById(R.id.miuix_switch_two_finger);
         twoFingerSwitch.setChecked(settings.twoFingerLongPressEnabled);
         final boolean[] updatingTwoFinger = {false};
@@ -326,15 +295,12 @@ public class ModuleConfigActivity extends Activity {
                 });
             });
         });
-
         TextView durationValue = findViewById(R.id.miuix_duration_value);
         durationValue.setText(settings.longPressDurationMs + " ms");
-
         TextView durationMin = findViewById(R.id.miuix_duration_min);
         durationMin.setText(GestureSettings.MIN_LONG_PRESS_DURATION_MS + " ms");
         TextView durationMax = findViewById(R.id.miuix_duration_max);
         durationMax.setText(GestureSettings.MAX_LONG_PRESS_DURATION_MS + " ms");
-
         SeekBar durationSlider = findViewById(R.id.miuix_duration_slider);
         int steps = (GestureSettings.MAX_LONG_PRESS_DURATION_MS
                 - GestureSettings.MIN_LONG_PRESS_DURATION_MS)
@@ -343,19 +309,16 @@ public class ModuleConfigActivity extends Activity {
         durationSlider.setProgress((settings.longPressDurationMs
                 - GestureSettings.MIN_LONG_PRESS_DURATION_MS)
                 / GestureSettings.LONG_PRESS_DURATION_STEP_MS);
-
         final int[] progressAtTouchStart = {durationSlider.getProgress()};
         durationSlider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
                 durationValue.setText(durationForProgress(progress) + " ms");
             }
-
             @Override
             public void onStartTrackingTouch(SeekBar seekBar) {
                 progressAtTouchStart[0] = seekBar.getProgress();
             }
-
             @Override
             public void onStopTrackingTouch(SeekBar seekBar) {
                 int progress = seekBar.getProgress();
@@ -376,14 +339,12 @@ public class ModuleConfigActivity extends Activity {
                 });
             }
         });
-
         Button manageBlacklist = findViewById(R.id.miuix_manage_blacklist);
         manageBlacklist.setText(getString(R.string.miuix_blacklist_manage_fmt,
                 settings.blacklistedPackages.size()));
         manageBlacklist.setOnClickListener(v -> startActivity(
                 new Intent(this, GestureBlacklistActivity.class)));
     }
-
     private static void setGroupEnabled(View view, boolean enabled) {
         if (view == null) return;
         view.setEnabled(enabled);
@@ -394,7 +355,6 @@ public class ModuleConfigActivity extends Activity {
             setDescendantEnabled(group.getChildAt(i), enabled);
         }
     }
-
     private static void setDescendantEnabled(View view, boolean enabled) {
         view.setEnabled(enabled);
         if (!(view instanceof ViewGroup)) return;
@@ -403,14 +363,12 @@ public class ModuleConfigActivity extends Activity {
             setDescendantEnabled(group.getChildAt(i), enabled);
         }
     }
-
+    // 绑定日志页面的路径、大小、开关与清空按钮
     private void bindLogPage() {
         TextView logPath = findViewById(R.id.miuix_log_path);
         logPath.setText(shortenPath(LSPLogger.getLogFilePath()));
-
         TextView logSize = findViewById(R.id.miuix_log_size);
         logSize.setText(formatBytes(LSPLogger.getLogFileSize()));
-
         Switch loggingSwitch = findViewById(R.id.miuix_switch_logging);
         loggingSwitch.setChecked(LSPLogger.isEnabled());
         final boolean[] updatingSwitch = {false};
@@ -429,7 +387,6 @@ public class ModuleConfigActivity extends Activity {
             Toast.makeText(this, checked ? "诊断日志已开启" : "诊断日志已关闭",
                     Toast.LENGTH_SHORT).show();
         });
-
         findViewById(R.id.miuix_copy_path).setOnClickListener(v -> {
             ClipboardManager clipboard = (ClipboardManager) getSystemService(
                     Context.CLIPBOARD_SERVICE);
@@ -439,20 +396,18 @@ public class ModuleConfigActivity extends Activity {
                 Toast.makeText(this, "日志路径已复制", Toast.LENGTH_SHORT).show();
             }
         });
-
         findViewById(R.id.miuix_clear_log).setOnClickListener(v -> {
             LSPLogger.clear();
             logSize.setText(formatBytes(LSPLogger.getLogFileSize()));
             Toast.makeText(this, "日志已清空", Toast.LENGTH_SHORT).show();
         });
     }
-
+    // 绑定关于页面的版本号与GitHub仓库链接
     private void bindAboutPage() {
         TextView version = findViewById(R.id.miuix_about_version);
         version.setText(getString(R.string.miuix_about_version_fmt, getModuleVersion()));
         findViewById(R.id.miuix_about_github).setOnClickListener(v -> openGitHubRepository());
     }
-
     private void openGitHubRepository() {
         Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(GITHUB_REPOSITORY_URL));
         intent.addCategory(Intent.CATEGORY_BROWSABLE);
@@ -464,7 +419,6 @@ public class ModuleConfigActivity extends Activity {
                     Toast.LENGTH_SHORT).show();
         }
     }
-
     private void updateNavState(boolean animateSelection) {
         int accent = getColor(R.color.miuix_accent);
         int muted = getColor(R.color.miuix_text_secondary);
@@ -476,7 +430,6 @@ public class ModuleConfigActivity extends Activity {
             ImageView icon = (ImageView) item.getChildAt(0);
             icon.setImageTintList(ColorStateList.valueOf(selected ? accent : muted));
             if (selected && animateSelection) {
-                // 选中图标从缩小状态弹出来
                 icon.setScaleX(0.6f);
                 icon.setScaleY(0.6f);
                 icon.animate()
@@ -490,13 +443,11 @@ public class ModuleConfigActivity extends Activity {
             label.setTypeface(Typeface.DEFAULT, selected ? Typeface.BOLD : Typeface.NORMAL);
         }
     }
-
     private int durationForProgress(int progress) {
         return GestureSettings.clampDuration(
                 GestureSettings.MIN_LONG_PRESS_DURATION_MS
                         + progress * GestureSettings.LONG_PRESS_DURATION_STEP_MS);
     }
-
     private boolean hasXiaomiLargeAreaClassifier() {
         try {
             SensorManager manager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
@@ -515,7 +466,6 @@ public class ModuleConfigActivity extends Activity {
         }
         return false;
     }
-
     private void sendOneStepBroadcast(String action) {
         try {
             Intent intent = new Intent(action);
@@ -528,7 +478,6 @@ public class ModuleConfigActivity extends Activity {
             Toast.makeText(this, "操作失败: " + t.getMessage(), Toast.LENGTH_LONG).show();
         }
     }
-
     private String getModuleVersion() {
         try {
             return getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
@@ -536,12 +485,10 @@ public class ModuleConfigActivity extends Activity {
             return "unknown";
         }
     }
-
     private static String shortenPath(String path) {
         if (path == null || path.length() < 38) return path;
         return "..." + path.substring(path.length() - 35);
     }
-
     private static String formatBytes(long bytes) {
         if (bytes < 1024L) return bytes + " B";
         if (bytes < 1024L * 1024L) {

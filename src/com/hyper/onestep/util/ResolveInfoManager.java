@@ -1,5 +1,4 @@
 package com.hyper.onestep.util;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -8,7 +7,6 @@ import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
-
 import android.content.ComponentName;
 import android.content.ContentValues;
 import android.content.Context;
@@ -25,11 +23,10 @@ import android.provider.BaseColumns;
 import android.text.TextUtils;
 import android.util.Pair;
 import android.widget.Toast;
-
 import com.hyper.onestep.R;
 import com.hyper.onestep.lsp.LSPLogger;
 import com.hyper.onestep.util.ResolveInfoGroup.SameGroupComparator;
-
+// 分享目标应用管理器，持久化 ResolveInfo 分组
 public class ResolveInfoManager extends SQLiteOpenHelper {
     private volatile static ResolveInfoManager sInstance;
     public static ResolveInfoManager getInstance(Context context){
@@ -42,15 +39,11 @@ public class ResolveInfoManager extends SQLiteOpenHelper {
         }
         return sInstance;
     }
-
     private static final String DB_NAME ="resolveinfo";
     private static final int DB_VERSION = 1;
-
     private static final List<String> sAutoAddPackageList;
     private static final List<ComponentName> sAutoAddComponentList;
-
     static {
-        // package
         sAutoAddPackageList = new ArrayList<String>();
         sAutoAddPackageList.add("com.sina.weibo");
         sAutoAddPackageList.add("com.smartisanos.notes");
@@ -65,7 +58,6 @@ public class ResolveInfoManager extends SQLiteOpenHelper {
         sAutoAddPackageList.add("com.facebook.katana");
         sAutoAddPackageList.add("com.whatsapp");
         sAutoAddPackageList.add("com.instagram.android");
-        // component
         sAutoAddComponentList = new ArrayList<ComponentName>();
         sAutoAddComponentList.add(new ComponentName("com.tencent.mm", "com.tencent.mm.ui.tools.ShareToTimeLineUI"));
         sAutoAddComponentList.add(new ComponentName("com.tencent.mm", "com.tencent.mm.ui.tools.ShareImgUI"));
@@ -74,15 +66,12 @@ public class ResolveInfoManager extends SQLiteOpenHelper {
         sAutoAddComponentList.add(new ComponentName("com.tencent.mobileqqi", "com.tencent.mobileqq.activity.JumpActivity"));
         sAutoAddComponentList.add(new ComponentName("com.tencent.mobileqqi", "com.tencent.mobileqq.activity.qfileJumpActivity"));
         sAutoAddComponentList.add(new ComponentName("com.twitter.android", "com.twitter.android.composer.ComposerActivity"));
-
-        // check ourself
         for (ComponentName cn : sAutoAddComponentList) {
             if (sAutoAddPackageList.contains(cn.getPackageName())) {
                 throw new IllegalArgumentException("auto-add package contains auto-add component !");
             }
         }
     }
-
     private static final Set<String> sBlackList;
     private static final Set<Pair<String, String>> sBlackCompList;
     static {
@@ -122,24 +111,18 @@ public class ResolveInfoManager extends SQLiteOpenHelper {
         sBlackList.add("com.soundcloud.android");
         sBlackList.add("com.cyberlink.youcammakeup");
         sBlackList.add("com.weheartit");
-
         sBlackCompList = new HashSet<Pair<String, String>>();
         sBlackCompList.add(new Pair<String, String>("com.tencent.mobileqq", "com.tencent.mobileqq.activity.ContactSyncJumpActivity"));
         sBlackCompList.add(new Pair<String, String>("com.tencent.mm", "com.tencent.mm.plugin.accountsync.ui.ContactsSyncUI"));
     }
-
     public static final String[] ACTIONS = new String[] { Intent.ACTION_SEND,
             Intent.ACTION_SEND_MULTIPLE };
-
     private static final int sMaxNumber = 20;
-
     private Context mContext;
     private List<ResolveInfoGroup> mList = new ArrayList<ResolveInfoGroup>();
     private List<ResolveInfoUpdateListener> mListeners = new ArrayList<ResolveInfoUpdateListener>();
     private Handler mHandler;
-
     private Toast mLimitToast;
-
     private ResolveInfoManager(Context context) {
         super(context, DB_NAME, null, DB_VERSION);
         Context applicationContext = context.getApplicationContext();
@@ -149,16 +132,13 @@ public class ResolveInfoManager extends SQLiteOpenHelper {
         mHandler = new ResolveInfoManagerHandler(thread.getLooper());
         mHandler.obtainMessage(MSG_UPDATE_LIST).sendToTarget();
     }
-
     @Override
     public void onCreate(SQLiteDatabase db) {
         db.execSQL("CREATE TABLE " + TABLE_RESOLVEINFO
                 + " ( _id INTEGER PRIMARY KEY AUTOINCREMENT,"
                 + "packagename TEXT," + "names TEXT, " + "weight INTEGER"
                 + ");");
-
         List<ResolveInfoGroup> rigs = new ArrayList<ResolveInfoGroup>();
-        // pre install part 1, component name
         for (ComponentName cn : sAutoAddComponentList) {
             List<ResolveInfoGroup> list = getAllResolveInfoGroupByPackageName(cn.getPackageName());
             if (list != null) {
@@ -171,21 +151,15 @@ public class ResolveInfoManager extends SQLiteOpenHelper {
                 }
             }
         }
-
-        // pre install part2, package name
         for (String packageName : sAutoAddPackageList) {
             List<ResolveInfoGroup> list = getAllResolveInfoGroupByPackageName(packageName);
             if (list != null) {
                 rigs.addAll(list);
             }
         }
-
-        // update index
         for (int i = 0; i < rigs.size(); ++i) {
             rigs.get(i).setIndex(rigs.size() - 1 - i);
         }
-
-        // add to database
         for (ResolveInfoGroup rig : rigs) {
             ContentValues cv = new ContentValues();
             cv.put(ResolveInfoColumns.PACKAGE_NAME, rig.getPackageName());
@@ -194,12 +168,9 @@ public class ResolveInfoManager extends SQLiteOpenHelper {
             db.insert(TABLE_RESOLVEINFO, null, cv);
         }
     }
-
     @Override
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-        // NA
     }
-
     public void addListener(ResolveInfoUpdateListener listener){
         if (listener == null) {
             return;
@@ -208,17 +179,14 @@ public class ResolveInfoManager extends SQLiteOpenHelper {
             mListeners.add(listener);
         }
     }
-
     public void removeListener(ResolveInfoUpdateListener listener){
         mListeners.remove(listener);
     }
-
     private void notifyUpdate(){
         for(ResolveInfoUpdateListener li : mListeners){
             li.onUpdate();
         }
     }
-
     public void delete(ResolveInfoGroup rig) {
         synchronized (mListeners) {
             for (int i = 0; i < mList.size(); ++i) {
@@ -231,11 +199,9 @@ public class ResolveInfoManager extends SQLiteOpenHelper {
             }
         }
     }
-
     public boolean addResolveInfoGroup(ResolveInfoGroup rig) {
         return addResolveInfoGroupInternal(rig, true);
     }
-
     private boolean addResolveInfoGroupInternal(ResolveInfoGroup rig, boolean showToast) {
         if (rig == null || rig.size() <= 0) {
             return false;
@@ -270,7 +236,6 @@ public class ResolveInfoManager extends SQLiteOpenHelper {
         notifyUpdate();
         return true;
     }
-
     public void updateOrder() {
         synchronized (mList) {
             Collections.sort(mList, new ResolveInfoGroup.IndexComparator());
@@ -278,7 +243,6 @@ public class ResolveInfoManager extends SQLiteOpenHelper {
         notifyUpdate();
         mHandler.obtainMessage(MSG_SAVE_ORDER).sendToTarget();
     }
-
     private void showToastDueToLimit() {
         if (mLimitToast != null) {
             mLimitToast.cancel();
@@ -288,7 +252,6 @@ public class ResolveInfoManager extends SQLiteOpenHelper {
                 Toast.LENGTH_SHORT);
         mLimitToast.show();
     }
-
     private void saveOrderForList(){
         List<ResolveInfoGroup> list = getAddedResolveInfoGroup();
         SQLiteDatabase db = getWritableDatabase();
@@ -314,7 +277,6 @@ public class ResolveInfoManager extends SQLiteOpenHelper {
             }
         }
     }
-
     private int getId(ResolveInfoGroup rig) {
         Cursor cursor = null;
         try {
@@ -337,7 +299,6 @@ public class ResolveInfoManager extends SQLiteOpenHelper {
         }
         return 0;
     }
-
     private void deleteFromDatabase(ResolveInfoGroup rig){
         int id = getId(rig);
         if(id != 0){
@@ -345,7 +306,6 @@ public class ResolveInfoManager extends SQLiteOpenHelper {
                     ResolveInfoColumns._ID + "=?", new String[] { id + "" });
         }
     }
-
     private void saveToDatabase(ResolveInfoGroup rig){
         ContentValues cv = new ContentValues();
         cv.put(ResolveInfoColumns.PACKAGE_NAME, rig.getPackageName());
@@ -353,7 +313,6 @@ public class ResolveInfoManager extends SQLiteOpenHelper {
         cv.put(ResolveInfoColumns.WEIGHT, rig.getIndex());
         getWritableDatabase().insert(TABLE_RESOLVEINFO, null, cv);
     }
-
     private void updateComponentList(){
         List<ResolveInfoGroup> list = new ArrayList<ResolveInfoGroup>();
         Cursor cursor = null;
@@ -380,7 +339,6 @@ public class ResolveInfoManager extends SQLiteOpenHelper {
                 cursor.close();
             }
         }
-
         Collections.sort(list, new ResolveInfoGroup.IndexComparator());
         synchronized (mList) {
             mList.clear();
@@ -388,7 +346,6 @@ public class ResolveInfoManager extends SQLiteOpenHelper {
         }
         notifyUpdate();
     }
-
     public boolean isResolveInfoGroupAdded(ResolveInfoGroup rig) {
         synchronized (mList) {
             for (ResolveInfoGroup addedItem : mList) {
@@ -399,7 +356,6 @@ public class ResolveInfoManager extends SQLiteOpenHelper {
         }
         return false;
     }
-
     public List<ResolveInfoGroup> getAddedResolveInfoGroup() {
         List<ResolveInfoGroup> ret = new ArrayList<ResolveInfoGroup>();
         synchronized (mList) {
@@ -407,7 +363,6 @@ public class ResolveInfoManager extends SQLiteOpenHelper {
         }
         return ret;
     }
-
     public List<ResolveInfoGroup> getUnAddedResolveInfoGroup(){
         List<ResolveInfoGroup> ret = getAllResolveInfoGroupByPackageName(null);
         synchronized (mList) {
@@ -424,7 +379,6 @@ public class ResolveInfoManager extends SQLiteOpenHelper {
         }
         return ret;
     }
-
     public List<ResolveInfoGroup> getAllResolveInfoGroupByPackageName(String pkgName){
         List<ResolveInfo> allri = getAllResolveInfoByPackageName(pkgName);
         if(allri == null || allri.size() <= 0){
@@ -443,25 +397,15 @@ public class ResolveInfoManager extends SQLiteOpenHelper {
         }
         return ret;
     }
-
-    /**
-     * Returns one drop target per installed app for the MIME type currently being
-     * dragged. The original ROM populated this list through its Settings activity;
-     * that activity is unavailable in the LSPosed port, so compatible targets are
-     * discovered on demand while preserving the user's saved targets first.
-     */
     public List<ResolveInfoGroup> getShareTargets(String mimeType) {
         return getShareTargets(mimeType, null);
     }
-
     public List<ResolveInfoGroup> getShareTargets(String mimeType, boolean multiple) {
         return getShareTargets(mimeType, Boolean.valueOf(multiple));
     }
-
     private List<ResolveInfoGroup> getShareTargets(String mimeType, Boolean multiple) {
         List<ResolveInfoGroup> result = new ArrayList<ResolveInfoGroup>();
         if (TextUtils.isEmpty(mimeType)) return result;
-
         Map<String, ResolveInfoGroup> byPackage =
                 new LinkedHashMap<String, ResolveInfoGroup>();
         String[] actions = multiple == null
@@ -508,7 +452,6 @@ public class ResolveInfoManager extends SQLiteOpenHelper {
                 + " resolved=" + resolvedCount + " apps=" + result.size());
         return result;
     }
-
     public List<ResolveInfo> getAllResolveInfoByPackageName(String packageName) {
         List<ResolveInfo> ret = new ArrayList<ResolveInfo>();
         for (String action : ACTIONS) {
@@ -519,11 +462,9 @@ public class ResolveInfoManager extends SQLiteOpenHelper {
             List<ResolveInfo> infos = mContext.getPackageManager().queryIntentActivities(intent, 0);
             for (ResolveInfo ri : infos) {
                 if (sBlackList.contains(ri.activityInfo.packageName)) {
-                    // NA
                 } else {
                     Pair<String, String> comp = new Pair<String, String>(ri.activityInfo.packageName, ri.activityInfo.name);
                     if (sBlackCompList.contains(comp)) {
-                        // NA
                     } else {
                         ret.add(ri);
                     }
@@ -533,7 +474,6 @@ public class ResolveInfoManager extends SQLiteOpenHelper {
         ListUtils.getDistinctList(ret, new MyComparator());
         return ret;
     }
-
     public void onPackageRemoved(String packageName){
         synchronized (mList) {
             for (int i = 0; i < mList.size(); ++i) {
@@ -546,14 +486,11 @@ public class ResolveInfoManager extends SQLiteOpenHelper {
         }
         notifyUpdate();
     }
-
     public void onPackageAdded(String packageName) {
         List<ResolveInfoGroup> rigList = getAllResolveInfoGroupByPackageName(packageName);
         if (rigList == null) {
-            // no needed resolveinfo
             return;
         }
-        // see component list first
         boolean addComponent = false;
         for (int i = 0; i < sAutoAddComponentList.size(); ++i) {
             ComponentName cn = sAutoAddComponentList.get(i);
@@ -567,14 +504,12 @@ public class ResolveInfoManager extends SQLiteOpenHelper {
                 }
             }
         }
-
         if (!addComponent && sAutoAddPackageList.contains(packageName)) {
             for (ResolveInfoGroup rig : rigList) {
                 addResolveInfoGroupInternal(rig, false);
             }
         }
     }
-
     public void onPackageUpdate(String packageName) {
         if (!TextUtils.isEmpty(packageName)) {
             boolean changed = false;
@@ -596,7 +531,6 @@ public class ResolveInfoManager extends SQLiteOpenHelper {
             }
         }
     }
-
     public static class MyComparator implements Comparator<ResolveInfo> {
         public final int compare(ResolveInfo a, ResolveInfo b) {
             String pkgA = a.activityInfo.packageName;
@@ -622,18 +556,15 @@ public class ResolveInfoManager extends SQLiteOpenHelper {
             }
         }
     }
-
     private static final String TABLE_RESOLVEINFO = "resolveinfo";
     static class ResolveInfoColumns implements BaseColumns{
         static final String PACKAGE_NAME = "packagename";
         static final String COMPONENT_NAMES = "names";
         static final String WEIGHT = "weight";
     }
-
     public interface ResolveInfoUpdateListener{
         void onUpdate();
     }
-
     private static final int MSG_SAVE = 0;
     private static final int MSG_DELETE = 1;
     private static final int MSG_UPDATE_LIST = 2;
@@ -642,7 +573,6 @@ public class ResolveInfoManager extends SQLiteOpenHelper {
         public ResolveInfoManagerHandler(Looper looper) {
             super(looper);
         }
-
         @Override
         public void handleMessage(Message msg) {
             switch (msg.what) {
@@ -661,7 +591,6 @@ public class ResolveInfoManager extends SQLiteOpenHelper {
             }
         }
     }
-
     public void onIconChanged(Set<String> packages){
         synchronized(mList){
             for(ResolveInfoGroup rig : mList){

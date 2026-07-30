@@ -1,5 +1,4 @@
 package com.hyper.onestep.view;
-
 import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
@@ -8,30 +7,23 @@ import android.view.ViewGroup;
 import android.widget.BaseAdapter;
 import android.widget.LinearLayout;
 import android.widget.TextView;
-
 import com.hyper.onestep.util.BookmarkManager;
 import com.hyper.onestep.util.IEmpty;
 import com.hyper.onestep.util.LOG;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-
 import com.hyper.onestep.R;
 import com.hyper.onestep.util.Utils;
-
+// 书签列表适配器
 public class BookmarkAdapter extends BaseAdapter {
-
     private static final LOG log = LOG.getInstance(BookmarkAdapter.class);
-
     private IEmpty mEmpty;
     private Context mContext;
     private BookmarkManager mBookmarkManager;
     private Handler mHandler;
-
     private List<BookmarkManager.BookmarkItem> mBookmarkList;
     private List mList = new ArrayList();
-
     public BookmarkAdapter(Context context, IEmpty empty) {
         mContext = context;
         mEmpty = empty;
@@ -42,7 +34,6 @@ public class BookmarkAdapter extends BaseAdapter {
         mBookmarkManager.addListener(mUpdateListener);
         notifyEmpty();
     }
-
     private BookmarkManager.RecentUpdateListener mUpdateListener = new BookmarkManager.RecentUpdateListener() {
         @Override
         public void onUpdate() {
@@ -56,7 +47,6 @@ public class BookmarkAdapter extends BaseAdapter {
             });
         }
     };
-
     private void updateDataList() {
         if (mBookmarkList == null || mBookmarkList.size() == 0) {
             mList.clear();
@@ -82,34 +72,28 @@ public class BookmarkAdapter extends BaseAdapter {
             mList.addAll(list);
         }
     }
-
     private void notifyEmpty() {
         if (mEmpty != null) {
             mEmpty.setEmpty(getCount() == 0);
         }
     }
-
     @Override
     public void notifyDataSetChanged() {
         notifyEmpty();
         super.notifyDataSetChanged();
     }
-
     @Override
     public int getCount() {
         return mList.size();
     }
-
     @Override
     public Object getItem(int position) {
         return mList.get(position);
     }
-
     @Override
     public long getItemId(int position) {
         return position;
     }
-
     @Override
     public View getView(int position, View convertView, ViewGroup viewGroup) {
         ViewHolder holder;
@@ -124,11 +108,9 @@ public class BookmarkAdapter extends BaseAdapter {
             holder.view = view;
             holder.dateLabel = dateLabel;
             holder.dateContent = dateContent;
-
             holder.itemContent = itemContent;
             holder.title = title;
             holder.url = url;
-
             view.setTag(holder);
         } else {
             holder = (ViewHolder) convertView.getTag();
@@ -141,17 +123,13 @@ public class BookmarkAdapter extends BaseAdapter {
         }
         return holder.view;
     }
-
     private class ViewHolder {
         public View view;
-
         public LinearLayout dateLabel;
         public TextView dateContent;
-
         public LinearLayout itemContent;
         public TextView title;
         public TextView url;
-
         public void showItem(BookmarkManager.BookmarkItem item) {
             if (dateLabel.getVisibility() == View.VISIBLE) {
                 dateLabel.setVisibility(View.GONE);
@@ -162,7 +140,6 @@ public class BookmarkAdapter extends BaseAdapter {
             title.setText(item.title);
             url.setText(item.content_uri);
         }
-
         public void showDate(String date) {
             if (itemContent.getVisibility() == View.VISIBLE) {
                 itemContent.setVisibility(View.GONE);

@@ -1,19 +1,16 @@
 package com.hyper.onestep.util.anim;
-
 import com.hyper.onestep.util.LOG;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import android.util.Pair;
-
+// 动画状态管理器，维护各动画状态的标志位与监听
 public class AnimStatusManager {
     private static final LOG log = LOG.getInstance(AnimStatusManager.class);
     static {
         log.close();
     }
-
     public static final int ON_TOP_VIEW_CLICK         = 0x1 << 0;
     public static final int ON_SIDE_VIEW_ADD_CLICK    = 0x1 << 1;
     public static final int ON_RECENT_PHOTO_LIST_ANIM = 0x1 << 2;
@@ -30,7 +27,6 @@ public class AnimStatusManager {
     public static final int ON_BOOKMARK_ANIM          = 0x1 << 13;
     public static final int SIDEBAR_ITEM_DRAGGING     = 0x1 << 14;
     public static final int STATUS_NUM = 15;
-
     public static final int [] STATUS_ARR = new int[] {
             ON_TOP_VIEW_CLICK,
             ON_SIDE_VIEW_ADD_CLICK,
@@ -47,16 +43,8 @@ public class AnimStatusManager {
             ON_ADD_RIG_ITEM_REMOVE,
             ON_BOOKMARK_ANIM
     };
-
     public static final Map<Integer, String> statusNameMap = new HashMap<Integer, String>();
     static {
-//        Class clazz = AnimStatusManager.class;
-//        Field[] fields = clazz.getFields();
-//        AnimStatusManager obj = new AnimStatusManager();
-//            try {
-//                        && typeName.equals("int")
-//                        && name.startsWith("ON_")) {
-
         statusNameMap.put(ON_TOP_VIEW_CLICK,         "ON_TOP_VIEW_CLICK");
         statusNameMap.put(ON_SIDE_VIEW_ADD_CLICK,    "ON_SIDE_VIEW_ADD_CLICK");
         statusNameMap.put(ON_RECENT_PHOTO_LIST_ANIM, "ON_RECENT_PHOTO_LIST_ANIM");
@@ -76,18 +64,15 @@ public class AnimStatusManager {
             throw new IllegalArgumentException("statusNameMap.size() != STATUS_NUM");
         }
     }
-
     public static AnimStatusManager mManager;
     private volatile int mStatus = 0;
     private List<Pair<AnimFlagStatusChangedListener, Integer>> mFlagListeners = new ArrayList<Pair<AnimFlagStatusChangedListener, Integer>>();
-
     public static AnimStatusManager getInstance() {
         if (mManager == null) {
             mManager = new AnimStatusManager();
         }
         return mManager;
     }
-
     public void dumpStatus() {
         if (!LOG.ENABLE_DEBUG) {
             return;
@@ -100,18 +85,15 @@ public class AnimStatusManager {
             }
         }
     }
-
     public void reset() {
         mStatus = 0;
     }
-
     public void addAnimFlagStatusChangedListener(int flag, AnimFlagStatusChangedListener listener) {
         if(flag == 0 || listener == null) {
             return ;
         }
         mFlagListeners.add(new Pair<AnimFlagStatusChangedListener, Integer>(listener, flag));
     }
-
     public void removeAnimFlagStatusChangedListener(AnimFlagStatusChangedListener listener) {
         for (int i = 0; i < mFlagListeners.size(); ++i) {
             if (mFlagListeners.get(i).first == listener) {
@@ -119,7 +101,6 @@ public class AnimStatusManager {
             }
         }
     }
-
     public void setStatus(int status, boolean value) {
         if (getStatus(status) == value) {
             return;
@@ -134,7 +115,6 @@ public class AnimStatusManager {
         } else {
             mStatus &= ~status;
         }
-
         for (int i = 0; i < mFlagListeners.size(); ++i) {
             int careFlag = mFlagListeners.get(i).second;
             if ((oldValue & careFlag) != (mStatus & careFlag)) {
@@ -142,15 +122,12 @@ public class AnimStatusManager {
             }
         }
     }
-
     public int getStatus() {
         return mStatus;
     }
-
     public boolean getStatus(int status) {
         return (mStatus & status) == status;
     }
-
     public static final int SHOW_CONTENT_FLAG = ON_TOP_VIEW_CLICK
             | ON_SIDE_VIEW_ADD_CLICK
             | ON_RECENT_PHOTO_LIST_ANIM
@@ -165,32 +142,25 @@ public class AnimStatusManager {
             | ON_SIDE_VIEW_EXIT
             | ON_ADD_RIG_ITEM_REMOVE
             | ON_BOOKMARK_ANIM;
-
     public boolean canShowContentView() {
         return (mStatus & SHOW_CONTENT_FLAG) == 0;
     }
-
     public static final int ENTER_ANIM_FLAG = ON_TOP_VIEW_ENTER
             | ON_SIDE_VIEW_ENTER;
     public static final int EXIT_ANIM_FLAG = ON_TOP_VIEW_EXIT
             | ON_SIDE_VIEW_EXIT;
-
     public boolean isEnterAnimOngoing() {
         return (mStatus & ENTER_ANIM_FLAG) != 0;
     }
-
     public boolean isExitAnimOngoing() {
         return (mStatus & EXIT_ANIM_FLAG) != 0;
     }
-
     public boolean canAddResoleInfoItem() {
         return (mStatus & ON_ADD_RIG_ITEM_REMOVE) == 0;
     }
-
     public boolean canUpdateSidebarList() {
         return (mStatus & SIDEBAR_ITEM_DRAGGING) == 0;
     }
-
     public interface AnimFlagStatusChangedListener {
         void onChanged();
     }

@@ -1,5 +1,4 @@
 package com.hyper.onestep.view;
-
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -7,7 +6,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
 import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
@@ -18,7 +16,6 @@ import android.widget.BaseAdapter;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
-
 import com.hyper.onestep.R;
 import com.hyper.onestep.util.FileInfo;
 import com.hyper.onestep.util.IEmpty;
@@ -26,22 +23,18 @@ import com.hyper.onestep.util.ImageInfo;
 import com.hyper.onestep.util.LOG;
 import com.hyper.onestep.util.RecentFileManager;
 import com.hyper.onestep.util.Utils;
-
+// 最近文件列表适配器，按时间区间分组展示
 public class RecentFileAdapter extends BaseAdapter {
     private static final LOG log = LOG.getInstance(RecentFileAdapter.class);
-
     private static final int[] sNeedExpandNumber = new int[] { 15, 15, 30, 30,
             60 };
-
     private Context mContext;
     private RecentFileManager mFileManager;
     private List<FileInfo> mFileInfoList = new ArrayList<FileInfo>();
     private boolean[] mExpand = new boolean[Utils.Interval.DAY_INTERVAL.length];
     private Map<Integer, List<FileInfo>> mIntervals = new HashMap<Integer, List<FileInfo>>();
-
     private Handler mHandler;
     private IEmpty mEmpty;
-
     public RecentFileAdapter(Context context, IEmpty empty) {
         mContext = context;
         mEmpty = empty;
@@ -61,7 +54,6 @@ public class RecentFileAdapter extends BaseAdapter {
         updateDataList();
         notifyEmpty();
     }
-
     private void updateDataList() {
         mFileInfoList = mFileManager.getFileList();
         Collections.sort(mFileInfoList);
@@ -79,19 +71,16 @@ public class RecentFileAdapter extends BaseAdapter {
         }
         notifyDataSetChanged();
     }
-
     private void notifyEmpty() {
         if (mEmpty != null) {
             mEmpty.setEmpty(getCount() == 0);
         }
     }
-
     @Override
     public void notifyDataSetChanged() {
         notifyEmpty();
         super.notifyDataSetChanged();
     }
-
     @Override
     public int getCount() {
         int total = 0;
@@ -100,22 +89,18 @@ public class RecentFileAdapter extends BaseAdapter {
         }
         return total;
     }
-
     @Override
     public Object getItem(int position) {
         return position;
     }
-
     @Override
     public long getItemId(int position) {
         return position;
     }
-
     public void shrink() {
         Arrays.fill(mExpand, false);
         notifyDataSetChanged();
     }
-
     private int getIntervalCount(int i) {
         List<FileInfo> list = mIntervals.get(i);
         if(list != null) {
@@ -128,7 +113,6 @@ public class RecentFileAdapter extends BaseAdapter {
         }
         return 0;
     }
-
     @Override
     public View getView(int position, View convertView, ViewGroup parent) {
         if (convertView == null) {
@@ -136,7 +120,6 @@ public class RecentFileAdapter extends BaseAdapter {
         }
         RecentFileItemView rfiv = (RecentFileItemView) convertView;
         rfiv.reset();
-
         int now = 0;
         int our_interval = 0;
         int interval_line = 0;
@@ -151,7 +134,6 @@ public class RecentFileAdapter extends BaseAdapter {
         if(interval_line == 0) {
             rfiv.showDate(Utils.Interval.LABEL_INTERVAL[our_interval]);
         }
-
         List<FileInfo> intervalInfos = mIntervals.get(our_interval);
         if(interval_line == sNeedExpandNumber[our_interval] - 1 && !mExpand[our_interval] && interval_line != intervalInfos.size() - 1) {
             rfiv.showMoreTag(new showMoreListener(our_interval, rfiv, intervalInfos.get(interval_line)));
@@ -160,7 +142,6 @@ public class RecentFileAdapter extends BaseAdapter {
         }
         return rfiv;
     }
-
     class showMoreListener implements View.OnClickListener {
         private int mInterval;
         private RecentFileItemView mView;
@@ -170,7 +151,6 @@ public class RecentFileAdapter extends BaseAdapter {
             mView = view;
             mInfo = fileInfo;
         }
-
         @Override
         public void onClick(View v) {
             mView.reset();

@@ -1,9 +1,7 @@
 package com.hyper.onestep.util;
-
 import java.util.ArrayList;
 import java.io.File;
 import java.util.List;
-
 import android.graphics.Bitmap;
 import android.graphics.ImageDecoder;
 import android.graphics.drawable.Drawable;
@@ -11,10 +9,9 @@ import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Looper;
 import android.os.Message;
-
+// 图片异步加载器，多线程解码并缓存
 public final class ImageLoader {
     private static final LOG log = LOG.getInstance(ImageLoader.class);
-
     private static final int THREAD_NUM = 2;
     private static final int MSG_IMAGE_LOAD = 1;
     private BitmapCache mCache;
@@ -29,18 +26,10 @@ public final class ImageLoader {
             mHandlers.add(new ImageHandler(handlerthread.getLooper()));
         }
     }
-
     public void loadImage(String filepath, String mimeType, Callback callback) {
         if (filepath == null || callback == null) {
             return;
         }
-        /**
-        Bitmap cur = mCache.getBitmapDirectly(filepath);
-        if(cur != null){
-            callback.onLoadComplete(filepath, cur);
-            return;
-        }
-        **/
         ThreadVerify.verify(true);
         LoadItem item = new LoadItem();
         item.filePath = filepath;
@@ -50,12 +39,10 @@ public final class ImageLoader {
         Message msg = handler.obtainMessage(MSG_IMAGE_LOAD, item);
         handler.sendMessage(msg);
     }
-
     private final class ImageHandler extends Handler {
         public ImageHandler(Looper looper) {
             super(looper);
         }
-
         @Override
         public void handleMessage(Message msg) {
             switch (msg.what) {
@@ -74,7 +61,6 @@ public final class ImageLoader {
             }
         }
     }
-
     private Drawable decodeAnimatedImage(String filePath) {
         try {
             ImageDecoder.Source source = ImageDecoder.createSource(new File(filePath));
@@ -88,24 +74,20 @@ public final class ImageLoader {
             return null;
         }
     }
-
     private static boolean isAnimatedImage(String filePath, String mimeType) {
         return "image/gif".equalsIgnoreCase(mimeType)
                 || (filePath != null && filePath.toLowerCase().endsWith(".gif"));
     }
-
     private final class LoadItem {
         String filePath;
         String mimeType;
         Callback callback;
     }
-
     public interface Callback {
         boolean valid();
         void onLoadComplete(String filePath, Bitmap bitmap);
         void onLoadDrawableComplete(String filePath, Drawable drawable);
     }
-
     public void clearCache() {
         mCache.clearCache();
     }

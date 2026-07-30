@@ -1,36 +1,28 @@
 package com.hyper.onestep.lsp;
-
 import android.content.ContentResolver;
 import android.content.Context;
 import android.provider.Settings;
-
 import java.lang.reflect.Method;
-
 /** Keeps the OneStep shell in its portrait geometry while a task requests landscape. */
 public final class RotationGuard {
     private static final int DEFAULT_DISPLAY = 0;
     private static final int ROTATION_0 = 0;
     private static final int FIXED_TO_USER_ROTATION_DEFAULT = 0;
     private static final int FIXED_TO_USER_ROTATION_ENABLED = 2;
-
     private static boolean sLocked;
     private static int sOriginalAccelerometer = -1;
     private static int sOriginalUserRotation = -1;
-
     private RotationGuard() {}
-
+    // 锁定OneStep外壳为竖屏方向并记录原始旋转设置
     public static synchronized void lockPortrait(Context context) {
         if (sLocked) return;
         sLocked = true;
         captureSettings(context);
-
         Object windowManager = getWindowManagerService();
         if (windowManager == null) {
             LSPLogger.w("RotationGuard.lockPortrait: IWindowManager unavailable");
             return;
         }
-
-        // Freeze the logical display before the task can deliver another orientation request.
         putSystemSetting(context, Settings.System.ACCELEROMETER_ROTATION, 0);
         putSystemSetting(context, Settings.System.USER_ROTATION, ROTATION_0);
         boolean ignored = invoke(windowManager, "setIgnoreOrientationRequest",
@@ -43,10 +35,9 @@ public final class RotationGuard {
                 + " originalAccel=" + sOriginalAccelerometer
                 + " originalUserRotation=" + sOriginalUserRotation);
     }
-
+    // 解除竖屏锁定并恢复原始加速度与用户旋转设置
     public static synchronized void unlock(Context context) {
         if (!sLocked) return;
-
         Object windowManager = getWindowManagerService();
         try {
             if (windowManager != null) {
@@ -55,7 +46,6 @@ public final class RotationGuard {
                 invoke(windowManager, "setFixedToUserRotation",
                         DEFAULT_DISPLAY, FIXED_TO_USER_ROTATION_DEFAULT);
             }
-
             restoreSettings(context);
             if (windowManager != null) {
                 if (sOriginalAccelerometer == 1) {
@@ -67,7 +57,6 @@ public final class RotationGuard {
             LSPLogger.i("RotationGuard.unlock: restored accel="
                     + sOriginalAccelerometer + " userRotation=" + sOriginalUserRotation);
         } catch (Throwable t) {
-            // Orientation cleanup must never take down SystemUI during OneStep exit.
             LSPLogger.e("RotationGuard.unlock failed", t);
         } finally {
             sLocked = false;
@@ -75,7 +64,6 @@ public final class RotationGuard {
             sOriginalUserRotation = -1;
         }
     }
-
     private static void captureSettings(Context context) {
         if (context == null) return;
         try {
@@ -88,7 +76,6 @@ public final class RotationGuard {
             LSPLogger.w("RotationGuard.captureSettings failed", t);
         }
     }
-
     private static void restoreSettings(Context context) {
         if (context == null) return;
         if (sOriginalAccelerometer >= 0) {
@@ -99,7 +86,6 @@ public final class RotationGuard {
             putSystemSetting(context, Settings.System.USER_ROTATION, sOriginalUserRotation);
         }
     }
-
     private static void putSystemSetting(Context context, String name, int value) {
         if (context == null) return;
         try {
@@ -108,7 +94,6 @@ public final class RotationGuard {
             LSPLogger.w("RotationGuard.putSystemSetting failed: " + name, t);
         }
     }
-
     private static Object getWindowManagerService() {
         try {
             Class<?> global = Class.forName("android.view.WindowManagerGlobal");
@@ -120,7 +105,6 @@ public final class RotationGuard {
             return null;
         }
     }
-
     private static boolean invoke(Object target, String name, Object... args) {
         try {
             Class<?> iface = Class.forName("android.view.IWindowManager");
@@ -137,7 +121,6 @@ public final class RotationGuard {
             return false;
         }
     }
-
     private static Method findMethod(Class<?> type, String name, Object[] args) {
         for (Method method : type.getDeclaredMethods()) {
             if (!name.equals(method.getName())
@@ -156,7 +139,6 @@ public final class RotationGuard {
         }
         return null;
     }
-
     private static boolean accepts(Class<?> parameterType, Object value) {
         if (!parameterType.isPrimitive()) {
             return value == null || parameterType.isAssignableFrom(value.getClass());

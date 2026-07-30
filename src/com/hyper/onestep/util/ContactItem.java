@@ -1,43 +1,32 @@
 package com.hyper.onestep.util;
-
 import java.util.ArrayList;
 import java.util.List;
-
 import com.hyper.onestep.PendingDragEventTask;
-
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.view.DragEvent;
-
+// 联系人条目抽象基类，定义分享与持久化接口
 public abstract class ContactItem extends SidebarItem {
     protected Context mContext;
     protected Drawable mAvatar;
     protected Bitmap mAvatarWithGray;
     protected CharSequence mDisplayName;
-
     public ContactItem(Context context, Bitmap avatar, CharSequence displayName) {
         mContext = context;
         mAvatar = new BitmapDrawable(context.getResources(), avatar);
         mDisplayName = displayName;
     }
-
     public Drawable getAvatar() {
         return mAvatar;
     }
-
     public CharSequence getDisplayName() {
         return mDisplayName;
     }
-
     public final void delete(){
         ContactManager.getInstance(mContext).remove(this);
     }
-
-    /**
-     * this method can only be called by ContactManger. don't invoke it in other place!
-     * */
     public abstract void deleteFromDatabase();
     public abstract void save();
     public abstract int getTypeIcon();
@@ -51,7 +40,6 @@ public abstract class ContactItem extends SidebarItem {
         all.addAll(MailContact.getContacts(context));
         return all;
     }
-
     @Override
     public boolean handleDragEvent(Context context, DragEvent event) {
         if(PendingDragEventTask.tryPending(mContext, event, this)){

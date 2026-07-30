@@ -1,5 +1,4 @@
 package com.hyper.onestep.view;
-
 import android.content.Context;
 import android.content.res.Configuration;
 import android.content.res.TypedArray;
@@ -11,50 +10,39 @@ import android.view.View;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.TextView;
-
 import com.hyper.onestep.R;
 import com.hyper.onestep.util.anim.Anim;
 import com.hyper.onestep.util.anim.AnimListener;
 import com.hyper.onestep.util.anim.AnimTimeLine;
 import com.hyper.onestep.util.anim.Vector3f;
-
+// 顶部条目视图（图标+文字），支持压暗态
 public class TopItemView extends FrameLayout implements ITopItem {
-
     private static final int ANIM_DURA = 300;
-
     private View mContentGroup;
     private TextView mTextView;
     private ImageView mIcon;
     private View mBackDimView;
     private View mTopDimView;
     private boolean mDim = false;
-
     private int mTextResId, mIconResId, mIconDimResId;
-
     private int mIconContentPaddingTop = 0;
     private Context mContext;
-
     public TopItemView(Context context) {
         this(context, null);
     }
-
     public TopItemView(Context context, AttributeSet attrs) {
         this(context, attrs, 0);
     }
-
     public TopItemView(Context context, AttributeSet attrs, int defStyleAttr) {
         this(context, attrs, defStyleAttr, 0);
     }
-
     public TopItemView(Context context, AttributeSet attrs, int defStyleAttr,
             int defStyleRes) {
         super(context, attrs, defStyleAttr, defStyleRes);
         mContext = context;
-
         TypedArray ta = context.obtainStyledAttributes(attrs, R.styleable.TopItemView);
         mIconContentPaddingTop = ta.getDimensionPixelSize(R.styleable.TopItemView_icon_content_paddingTop, 0);
     }
-
     @Override
     protected void onFinishInflate() {
         super.onFinishInflate();
@@ -64,18 +52,15 @@ public class TopItemView extends FrameLayout implements ITopItem {
         mBackDimView = findViewById(R.id.back_dim_view);
         mTopDimView = findViewById(R.id.top_dim_view);
     }
-
     public void setText(int resId) {
         mTextResId = resId;
         mTextView.setText(mTextResId);
     }
-
     public void setIconBackground(int resId, int dimResId) {
         mIconResId = resId;
         mIconDimResId = dimResId;
         mIcon.setBackgroundResource(mIconResId);
     }
-
     public AnimTimeLine dim(){
         Anim anim = new Anim(mTopDimView, Anim.TRANSPARENT, ANIM_DURA, Anim.CUBIC_OUT, new Vector3f(), new Vector3f(0, 0, 1));
         AnimTimeLine timeLine = new AnimTimeLine();
@@ -95,12 +80,10 @@ public class TopItemView extends FrameLayout implements ITopItem {
         });
         return timeLine;
     }
-
     public AnimTimeLine highlight() {
         AnimTimeLine timeLine = new AnimTimeLine();
         Anim scaleAnim = new Anim(mContentGroup, Anim.SCALE, ANIM_DURA, Anim.CUBIC_OUT, new Vector3f(1, 1), new Vector3f(1.05f, 1.05f));
         Anim alphaAnim = new Anim(mBackDimView, Anim.TRANSPARENT, ANIM_DURA, Anim.CUBIC_OUT, new Vector3f(), new Vector3f(0, 0, 1));
-
         timeLine.addAnim(scaleAnim);
         timeLine.addAnim(alphaAnim);
         timeLine.setAnimListener(new AnimListener() {
@@ -117,7 +100,6 @@ public class TopItemView extends FrameLayout implements ITopItem {
         });
         return timeLine;
     }
-
     public AnimTimeLine resume() {
         AnimTimeLine timeLine = new AnimTimeLine();
         if (mBackDimView.getVisibility() != View.GONE) {
@@ -133,7 +115,6 @@ public class TopItemView extends FrameLayout implements ITopItem {
                     mDim = false;
                     updateView();
                 }
-
                 @Override
                 public void onComplete(int type) {
                     mContentGroup.setScaleX(1);
@@ -161,35 +142,24 @@ public class TopItemView extends FrameLayout implements ITopItem {
         }
         return timeLine;
     }
-
     public void setIconContentPaddingTop(int padding){
         mIconContentPaddingTop = padding;
     }
-
-    /**
-     * should ensure pass the corrent formatted bitmap
-     */
     public void setIconContent(Bitmap bitmap){
         Matrix matrix = mIcon.getMatrix();
         matrix.postTranslate((mIcon.getWidth() - bitmap.getWidth()) / 2, mIconContentPaddingTop);
         mIcon.setImageMatrix(matrix);
         mIcon.setImageBitmap(bitmap);
     }
-
-    /**
-     * should ensure pass the corrent formatted bitmap
-     */
     public void setIconContent(Drawable drawable){
         Matrix matrix = mIcon.getMatrix();
         matrix.postTranslate((mIcon.getWidth() - drawable.getIntrinsicWidth()) / 2, mIconContentPaddingTop);
         mIcon.setImageMatrix(matrix);
         mIcon.setImageDrawable(drawable);
     }
-
     public void resetIconContent(){
         mIcon.setImageDrawable(null);
     }
-
     private void updateView() {
         if (mTextResId != 0) {
             mTextView.setText(mTextResId);
@@ -202,7 +172,6 @@ public class TopItemView extends FrameLayout implements ITopItem {
             mTextView.setTextColor(mContext.getResources().getColor(R.color.topbar_text_dim_color));
         }
     }
-
     @Override
     public void onConfigurationChanged(Configuration newConfig) {
         updateView();

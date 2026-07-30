@@ -1,5 +1,4 @@
 package com.hyper.onestep.view;
-
 import android.app.ActivityManager;
 import android.content.Context;
 import android.content.Intent;
@@ -16,7 +15,6 @@ import android.widget.AdapterView;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
-
 import com.hyper.onestep.R;
 import com.hyper.onestep.SidebarController;
 import com.hyper.onestep.SidebarMode;
@@ -38,22 +36,18 @@ import com.hyper.onestep.util.anim.AnimListener;
 import com.hyper.onestep.util.anim.AnimStatusManager;
 import com.hyper.onestep.util.anim.AnimTimeLine;
 import com.hyper.onestep.util.anim.Vector3f;
-
 import java.util.ArrayList;
 import java.util.List;
-
+// 侧边栏主面板视图，承载列表与拖拽逻辑
 public class SideView extends RelativeLayout {
     private static final LOG log = LOG.getInstance(SideView.class);
     private static final long DRAG_TASK_RECALL_HOVER_MS = 1500L;
     private static final long DRAG_TASK_RECALL_PRESS_MS = 90L;
-
     private View mExitAndAdd;
     private View mLeftShadow, mRightShadow;
     private ImageView mExit, mSetting;
-
     private SidebarListView mOngoingList, mContactList, mAppList;
     private SidebarListView mOngoingListFake, mContactListFake, mShareList;
-
     private OngoingAdapter mOngoingAdapter;
     private AppListAdapter mAppAdapter;
     private ResolveInfoListAdapter mResolveAdapter;
@@ -70,42 +64,32 @@ public class SideView extends RelativeLayout {
             showDragTaskSwitcher();
         }
     };
-
     private ContactListAdapter mContactAdapter;
-
     private Context mContext;
     private SidebarListView mDraggedListView;
-
     private LinearLayout mSideViewContentDragged;
-
     private DimSpaceView mDimView;
-
     public SideView(Context context) {
         this(context, null);
     }
-
     public SideView(Context context, AttributeSet attrs) {
         this(context, attrs, 0);
     }
-
     public SideView(Context context, AttributeSet attrs, int defStyleAttr) {
         this(context, attrs, defStyleAttr, 0);
     }
-
     public SideView(Context context, AttributeSet attrs, int defStyleAttr,
             int defStyleRes) {
         super(context, attrs, defStyleAttr, defStyleRes);
         mContext = context;
     }
-
     public void setDraggedList(SidebarListView listview) {
         mDraggedListView = listview;
     }
-
     public SidebarListView getDraggedListView() {
         return mDraggedListView;
     }
-
+    // 视图加载完成：初始化所有列表、适配器与点击监听
     @Override
     protected void onFinishInflate() {
         super.onFinishInflate();
@@ -125,11 +109,9 @@ public class SideView extends RelativeLayout {
                 if (asm.isEnterAnimOngoing() || asm.isExitAnimOngoing()) {
                     return;
                 }
-                // LSP 版：替代原 mOneStepManager.resetWindow()
                 SidebarController.getInstance(mContext).exitOneStepMode();
             }
         });
-
         mSetting = (ImageView) findViewById(R.id.setting);
         mSetting.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -138,23 +120,15 @@ public class SideView extends RelativeLayout {
                 Intent intent = new Intent(Intent.ACTION_MAIN);
                 intent.addCategory(Intent.CATEGORY_LAUNCHER);
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                intent.setPackage(mContext.getPackageName());// ourself
+                intent.setPackage(mContext.getPackageName());
                 mContext.startActivity(intent);
                 Tracker.onClick(Tracker.EVENT_SET);
             }
         });
-
         mSideViewContentDragged = (LinearLayout) findViewById(R.id.side_view_dragged);
         mLegacySidebarLists = findViewById(R.id.legacy_sidebar_lists);
         mTaskSwitcher = (TaskSwitcherView) findViewById(R.id.task_switcher);
         mDragTaskRecall = findViewById(R.id.drag_task_recall);
-
-        // LSP 适配：以下每个 adapter/manager 初始化都用 try-catch 包裹，
-        // 单个失败不影响其他 view 初始化，避免整个 SideView inflate 失败
-        // 原因：部分 adapter 内部调用 OngoingManager / ActivityManagerNative 等
-        // 在 Android 16/HyperOS 上可能失败的 API
-
-//        //ongoing
         try {
             mOngoingList = (SidebarListView) findViewById(R.id.ongoinglist);
             mOngoingList.setSideView(this);
@@ -162,7 +136,6 @@ public class SideView extends RelativeLayout {
         } catch (Throwable t) {
             LSPLogger.e("SideView.onFinishInflate: ongoing list init failed", t);
         }
-
         try {
             mOngoingListFake = (SidebarListView) findViewById(R.id.ongoinglist_fake);
             mOngoingListFake.setSideView(this);
@@ -170,8 +143,6 @@ public class SideView extends RelativeLayout {
         } catch (Throwable t) {
             LSPLogger.e("SideView.onFinishInflate: ongoing fake list init failed", t);
         }
-
-        //contact
         try {
             mContactList = (SidebarListView) findViewById(R.id.contactlist);
             mContactList.setSideView(this);
@@ -183,7 +154,6 @@ public class SideView extends RelativeLayout {
         } catch (Throwable t) {
             LSPLogger.e("SideView.onFinishInflate: contact list init failed", t);
         }
-
         try {
             mContactListFake = (SidebarListView) findViewById(R.id.contactlist_fake);
             mContactListFake.setSideView(this);
@@ -192,7 +162,6 @@ public class SideView extends RelativeLayout {
         } catch (Throwable t) {
             LSPLogger.e("SideView.onFinishInflate: contact fake list init failed", t);
         }
-
         try {
             mAppList = (SidebarListView) findViewById(R.id.applist);
             mAppList.setSideView(this);
@@ -202,7 +171,6 @@ public class SideView extends RelativeLayout {
         } catch (Throwable t) {
             LSPLogger.e("SideView.onFinishInflate: app list init failed", t);
         }
-
         try {
             mShareList = (SidebarListView) findViewById(R.id.sharelist);
             mShareList.setSideView(this);
@@ -210,17 +178,13 @@ public class SideView extends RelativeLayout {
         } catch (Throwable t) {
             LSPLogger.e("SideView.onFinishInflate: share list init failed", t);
         }
-
         try {
             mScrollViewNormal = (DragScrollView) findViewById(R.id.sideview_scroll_list_normal);
             mScrollViewDragged = (DragScrollView) findViewById(R.id.sideview_scroll_list_dragged);
-
             Utils.setAlwaysCanAcceptDragForAll(mSideViewContentDragged, true);
             mScrollViewDragged.setOnDragListener(new View.OnDragListener() {
                 @Override
                 public boolean onDrag(View v, DragEvent event) {
-                    //this is necessary, if the parent of mSideViewContentDragged return false, the sideview
-                    //will not dispatch event to mSideViewContentDragged ...
                     return true;
                 }
             });
@@ -228,8 +192,6 @@ public class SideView extends RelativeLayout {
             vg.setOnDragListener(new View.OnDragListener() {
                 @Override
                 public boolean onDrag(View v, DragEvent event) {
-                    //this is necessary, if the parent of mSideViewContentDragged return false, the sideview
-                    //will not dispatch event to mSideViewContentDragged ...
                     return true;
                 }
             });
@@ -237,22 +199,18 @@ public class SideView extends RelativeLayout {
             LSPLogger.e("SideView.onFinishInflate: scroll view init failed", t);
         }
     }
-
     public void notifyDataSetChanged() {
         if (mAppAdapter != null) mAppAdapter.notifyDataSetChanged();
         if (mResolveAdapter != null) mResolveAdapter.notifyDataSetChanged();
     }
-
+    // 根据状态切换为拖拽起始或结束的视觉表现
     public void requestStatus(SidebarStatus status) {
         if(status == SidebarStatus.NORMAL) {
-            //show mSideViewContentNormal
             onDragEnd(null);
         } else {
-            //show mSideViewContentDragged
             onDragStart(null);
         }
     }
-
     public View getShadowLineView() {
         if (mLeftShadow != null) {
             if (mLeftShadow.getVisibility() == VISIBLE) {
@@ -266,13 +224,12 @@ public class SideView extends RelativeLayout {
         }
         return null;
     }
-
+    // 布局完成后刷新列表分割线显示
     @Override
     protected void onLayout(boolean changed, int l, int t, int r, int b) {
         super.onLayout(changed, l, t, r, b);
         refreshDivider();
     }
-
     private void refreshDivider() {
         int now = 0;
         if (mOngoingList != null) {
@@ -286,7 +243,6 @@ public class SideView extends RelativeLayout {
         if (mAppList != null) {
             mAppList.setNeedFootView(now > 0);
         }
-
         now = 0;
         if (mOngoingListFake != null) {
             mOngoingListFake.setNeedFootView(now > 0);
@@ -300,9 +256,7 @@ public class SideView extends RelativeLayout {
             mShareList.setNeedFootView(now > 0);
         }
     }
-
     private AnimTimeLine mSwitchContentAnim;
-
     private void onDragStart(final DragEvent event) {
         try {
             onDragStartInternal(event);
@@ -310,7 +264,6 @@ public class SideView extends RelativeLayout {
             LSPLogger.e("SideView.onDragStart failed", t);
         }
     }
-
     private void onDragStartInternal(final DragEvent event) {
         if (event != null) {
             setContentDragUi(true);
@@ -342,7 +295,6 @@ public class SideView extends RelativeLayout {
                 mSwitchContentAnim.addAnim(alpha);
             }
         }
-
         if (event != null) {
             if (mOngoingListFake != null) mOngoingListFake.onDragStart(event);
             if (mContactListFake != null) mContactListFake.onDragStart(event);
@@ -357,7 +309,6 @@ public class SideView extends RelativeLayout {
             public void onStart() {
                 mScrollViewDragged.setVisibility(VISIBLE);
             }
-
             @Override
             public void onComplete(int type) {
                 if (mSwitchContentAnim != null) {
@@ -377,7 +328,6 @@ public class SideView extends RelativeLayout {
         });
         mSwitchContentAnim.start();
     }
-
     private void onDragEnd(DragEvent event) {
         try {
             onDragEndInternal(event);
@@ -386,7 +336,6 @@ public class SideView extends RelativeLayout {
             setContentDragUi(false);
         }
     }
-
     private void onDragEndInternal(DragEvent event) {
         if (mSwitchContentAnim != null) {
             mSwitchContentAnim.cancel();
@@ -418,7 +367,6 @@ public class SideView extends RelativeLayout {
             timeLine.setDelay(time / 4);
             mSwitchContentAnim.addTimeLine(timeLine);
         }
-
         Anim outAnim = new Anim(mScrollViewDragged, Anim.MOVE, time, Anim.CUBIC_OUT, new Vector3f(), new Vector3f(outTo, 0));
         mSwitchContentAnim.addAnim(outAnim);
         mSwitchContentAnim.setAnimListener(new AnimListener() {
@@ -426,7 +374,6 @@ public class SideView extends RelativeLayout {
             public void onStart() {
                 mScrollViewNormal.setVisibility(VISIBLE);
             }
-
             @Override
             public void onComplete(int type) {
                 if (mSwitchContentAnim != null) {
@@ -437,11 +384,9 @@ public class SideView extends RelativeLayout {
                         view.setScaleX(1);
                         view.setScaleY(1);
                     }
-
                     if (mOngoingListFake != null) mOngoingListFake.onDragEnd();
                     if (mContactListFake != null) mContactListFake.onDragEnd();
                     if (mShareList != null) mShareList.onDragEnd();
-
                     mScrollViewNormal.setVisibility(VISIBLE);
                     mScrollViewDragged.setTranslationX(0);
                     mScrollViewDragged.setVisibility(GONE);
@@ -453,7 +398,6 @@ public class SideView extends RelativeLayout {
         });
         mSwitchContentAnim.start();
     }
-
     private void setContentDragUi(boolean dragging) {
         mContentDragActive = dragging;
         cancelDragTaskRecallHover();
@@ -491,7 +435,6 @@ public class SideView extends RelativeLayout {
         }
         LSPLogger.i("SideView.setContentDragUi: dragging=" + dragging);
     }
-
     private void updateDragTaskRecallHover(DragEvent event) {
         if (!mContentDragActive || mDragTaskSwitcherExpanded
                 || mDragTaskRecall == null || event == null) {
@@ -503,13 +446,8 @@ public class SideView extends RelativeLayout {
             cancelDragTaskRecallHover();
             return;
         }
-
         mDragTaskRecallHovered = true;
         mDragTaskRecall.setActivated(true);
-        // Drag hover does not drive View's pressed state automatically.  The icon already has
-        // a dedicated pressed drawable, so explicitly enter that state and add a short
-        // "sink then charge" motion: immediate tactile feedback followed by a gentle grow
-        // during the 1.5 s recall dwell.
         mDragTaskRecall.setPressed(true);
         mDragTaskRecall.animate().cancel();
         mDragTaskRecall.animate()
@@ -539,7 +477,6 @@ public class SideView extends RelativeLayout {
         LSPLogger.i("SideView: drag task recall armed delay="
                 + DRAG_TASK_RECALL_HOVER_MS);
     }
-
     private void cancelDragTaskRecallHover() {
         mDragTaskRecallHovered = false;
         if (mDragTaskRecall == null) return;
@@ -552,7 +489,6 @@ public class SideView extends RelativeLayout {
         mDragTaskRecall.setActivated(false);
         FloatText.getInstance(mContext).hide();
     }
-
     private void showDragTaskSwitcher() {
         if (!mContentDragActive || !mDragTaskRecallHovered
                 || mTaskSwitcher == null) {
@@ -568,7 +504,6 @@ public class SideView extends RelativeLayout {
         mDragTaskRecall.setAlpha(1f);
         mDragTaskRecall.setActivated(false);
         FloatText.getInstance(mContext).hide();
-
         if (mLegacySidebarLists != null) {
             mLegacySidebarLists.setVisibility(GONE);
         }
@@ -581,7 +516,6 @@ public class SideView extends RelativeLayout {
         DragHapticFeedback.perform(mDragTaskRecall, HapticFeedbackConstants.LONG_PRESS);
         LSPLogger.i("SideView: drag task switcher expanded after hover");
     }
-
     private boolean isDragEventInside(DragEvent event, View target) {
         if (target.getVisibility() != VISIBLE || target.getWidth() <= 0
                 || target.getHeight() <= 0) {
@@ -598,23 +532,19 @@ public class SideView extends RelativeLayout {
                 && rawY >= targetLocation[1]
                 && rawY < targetLocation[1] + target.getHeight();
     }
-
     private float dragRawX(DragEvent event) {
         int[] location = new int[2];
         getLocationOnScreen(location);
         return location[0] + event.getX();
     }
-
     private float dragRawY(DragEvent event) {
         int[] location = new int[2];
         getLocationOnScreen(location);
         return location[1] + event.getY();
     }
-
+    // 拖拽事件分发：处理内容拖拽与任务召回的悬停判定
     @Override
     public boolean dispatchDragEvent(DragEvent event) {
-        // OneStep 3.0 app drags are handled directly by the three task slots.
-        // Do not switch the legacy share/contact drag UI for this MIME type.
         if (TaskSwitcherView.isTaskDrag(event)) {
             return super.dispatchDragEvent(event);
         }
@@ -649,7 +579,6 @@ public class SideView extends RelativeLayout {
         }
         return super.dispatchDragEvent(event);
     }
-
     private void updateUIBySidebarMode() {
         if (SidebarController.getInstance(mContext).getSidebarMode() == SidebarMode.MODE_LEFT) {
             mExit.setImageResource(R.drawable.exit_icon_left);
@@ -663,14 +592,12 @@ public class SideView extends RelativeLayout {
             mRightShadow.setVisibility(View.VISIBLE);
         }
     }
-
+    // 侧边栏模式变更回调：更新 UI 与分享列表
     public void onSidebarModeChanged(){
         updateUIBySidebarMode();
         if (mResolveAdapter != null) mResolveAdapter.notifyDataSetChanged();
     }
-
     private AdapterView.OnItemClickListener mAppItemOnClickListener = new AdapterView.OnItemClickListener() {
-
         @Override
         public void onItemClick(AdapterView<?> adapterView, View view, int position, long id) {
             Object obj = adapterView.getAdapter().getItem(position);
@@ -681,7 +608,6 @@ public class SideView extends RelativeLayout {
                 Tracker.onClick(Tracker.EVENT_CLICK_APP, "package", ai.getPackageName());
             } else {
                 if (position < mAppList.getHeaderViewsCount()) {
-                    //this is divider
                     return;
                 }
                 log.info("launch previous app!");
@@ -691,9 +617,7 @@ public class SideView extends RelativeLayout {
             }
         }
     };
-
     private AdapterView.OnItemClickListener mContactItemOnClickListener = new AdapterView.OnItemClickListener() {
-
         @Override
         public void onItemClick(AdapterView<?> adapterView, View view, int position, long id) {
             if (view == null || view.getTag() == null) {
@@ -707,7 +631,7 @@ public class SideView extends RelativeLayout {
             }
         }
     };
-
+    // 拖拽对象移动时同步滚动列表与拖拽视图
     public void dragObjectMove(MotionEvent event, long eventTime) {
         if (mScrollViewNormal.getVisibility() == View.VISIBLE) {
             mScrollViewNormal.scrollByMotionEvent(event);
@@ -716,7 +640,6 @@ public class SideView extends RelativeLayout {
         }
         mDraggedListView.dragObjectMove((int)(event.getRawX()), (int)(event.getRawY()));
     }
-
     private void restoreListItemView(SidebarListView listView) {
         if (listView != null) {
             try {
@@ -737,12 +660,12 @@ public class SideView extends RelativeLayout {
             }
         }
     }
-
+    // 还原联系人与应用列表项的缩放状态
     public void restoreView() {
         restoreListItemView(mContactList);
         restoreListItemView(mAppList);
     }
-
+    // 设置侧边栏可用状态并切换暗化遮罩动画
     public void setEnabled(boolean enabled) {
         super.setEnabled(enabled);
         if (enabled) {
@@ -751,7 +674,7 @@ public class SideView extends RelativeLayout {
             mDimView.dim().start();
         }
     }
-
+    // 上报联系人/应用/分享项数量到 Tracker 统计
     public void reportToTracker() {
         int countWechat = 0;
         int countDingDing = 0;

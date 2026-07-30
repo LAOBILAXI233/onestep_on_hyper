@@ -1,5 +1,4 @@
 package com.hyper.onestep.view;
-
 import android.content.Context;
 import android.text.TextUtils;
 import android.view.Gravity;
@@ -9,17 +8,14 @@ import android.view.View.MeasureSpec;
 import android.view.ViewGroup.LayoutParams;
 import android.widget.PopupWindow;
 import android.widget.TextView;
-
 import com.hyper.onestep.R;
 import com.hyper.onestep.SidebarController;
 import com.hyper.onestep.SidebarMode;
 import com.hyper.onestep.util.LOG;
-
+// 拖拽时显示的浮动提示文本
 public class FloatText {
     private static final LOG log = LOG.getInstance(FloatText.class);
-
     private volatile static FloatText sInstance;
-
     public static FloatText getInstance(Context context) {
         if (sInstance == null) {
             synchronized (FloatText.class) {
@@ -30,14 +26,12 @@ public class FloatText {
         }
         return sInstance;
     }
-
     private Context mContext;
     private View mFloatView;
     private TextView mText;
     private PopupWindow mPopupWindow;
     private int mPaddingWithSidebar;
     private boolean mStarted;
-
     private FloatText(Context context) {
         mContext = context;
         mFloatView = LayoutInflater.from(context).inflate(R.layout.float_text_layout, null);
@@ -51,11 +45,9 @@ public class FloatText {
         mPopupWindow.setAttachedInDecor(false);
         mPaddingWithSidebar = mContext.getResources().getDimensionPixelSize(R.dimen.float_text_padding_with_sidebar);
     }
-
     public void start() {
         start(null);
     }
-
     /** Keep one non-touchable popup attached for the whole drag session. */
     public void start(View anchor) {
         dismissPopup();
@@ -66,13 +58,11 @@ public class FloatText {
             attachPopup(anchor);
         }
     }
-
     public void end() {
         mStarted = false;
         mText.setVisibility(View.INVISIBLE);
         dismissPopup();
     }
-
     public void show(View view, CharSequence text) {
         if (!mStarted || view == null || TextUtils.isEmpty(text)) {
             hide();
@@ -81,7 +71,6 @@ public class FloatText {
         if (!mPopupWindow.isShowing() && !attachPopup(view)) {
             return;
         }
-
         mText.setText(text);
         int spec = MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED);
         mText.measure(spec, spec);
@@ -93,7 +82,6 @@ public class FloatText {
         int[] popupLocation = new int[2];
         view.getLocationOnScreen(viewLocation);
         mFloatView.getLocationOnScreen(popupLocation);
-
         int x;
         int y = viewLocation[1] - popupLocation[1]
                 + (viewHeight - textHeight) / 2;
@@ -104,7 +92,6 @@ public class FloatText {
             x = viewLocation[0] - popupLocation[0]
                     - textWidth - mPaddingWithSidebar;
         }
-
         int popupWidth = mFloatView.getWidth();
         int popupHeight = mFloatView.getHeight();
         if (popupWidth <= 0 || popupHeight <= 0) {
@@ -117,11 +104,9 @@ public class FloatText {
         mText.setY(y);
         mText.setVisibility(View.VISIBLE);
     }
-
     public void hide() {
         mText.setVisibility(View.INVISIBLE);
     }
-
     private boolean attachPopup(View anchor) {
         if (mPopupWindow.isShowing()) return true;
         if (anchor == null) return false;
@@ -135,7 +120,6 @@ public class FloatText {
             return false;
         }
     }
-
     private void dismissPopup() {
         if (mPopupWindow.isShowing()) {
             try {
@@ -145,7 +129,6 @@ public class FloatText {
             }
         }
     }
-
     private static int clamp(int value, int min, int max) {
         return Math.max(min, Math.min(value, Math.max(min, max)));
     }

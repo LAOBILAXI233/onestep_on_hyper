@@ -1,12 +1,10 @@
 package com.hyper.onestep.view;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
 import com.hyper.onestep.R;
 import com.hyper.onestep.util.DataManager.RecentUpdateListener;
 import com.hyper.onestep.util.IEmpty;
@@ -15,7 +13,6 @@ import com.hyper.onestep.util.ImageLoader;
 import com.hyper.onestep.util.LOG;
 import com.hyper.onestep.util.RecentPhotoManager;
 import com.hyper.onestep.util.Utils;
-
 import android.content.Context;
 import android.content.res.Resources;
 import android.os.Handler;
@@ -27,26 +24,21 @@ import android.view.ViewGroup;
 import android.widget.BaseAdapter;
 import android.widget.LinearLayout;
 import android.widget.TextView;
-
-
+// 最近照片列表适配器，按时间区间分组展示
 public class RecentPhotoAdapter extends BaseAdapter {
     private static final LOG log = LOG.getInstance(RecentPhotoAdapter.class);
-
     private static final int[] sNeedExpandNumber = new int[] { 30, 30, 60, 60,
             60 };
-
     private Context mContext;
     private RecentPhotoManager mPhotoManager;
     private List<ImageInfo> mImageInfoList = new ArrayList<ImageInfo>();
     private boolean[] mExpand = new boolean[Utils.Interval.DAY_INTERVAL.length];
     private Map<Integer, List<ImageInfo>> mIntervals = new HashMap<Integer, List<ImageInfo>>();
     private int mFirstInterval;
-
     private ImageLoader mImageLoader;
     private Handler mHandler;
     private IEmpty mEmpty;
     private boolean mPreviewLoadingEnabled = true;
-
     public RecentPhotoAdapter(Context context, IEmpty empty) {
         mContext = context;
         mEmpty = empty;
@@ -71,16 +63,13 @@ public class RecentPhotoAdapter extends BaseAdapter {
         });
         notifyEmpty();
     }
-
     public void shrink() {
         Arrays.fill(mExpand, false);
         notifyDataSetChanged();
     }
-
     public void setPreviewLoadingEnabled(boolean enabled) {
         mPreviewLoadingEnabled = enabled;
     }
-
     private void updateDataList() {
         mIntervals.clear();
         mFirstInterval = Integer.MAX_VALUE;
@@ -97,19 +86,16 @@ public class RecentPhotoAdapter extends BaseAdapter {
             list.add(info);
         }
     }
-
     private void notifyEmpty() {
         if (mEmpty != null) {
             mEmpty.setEmpty(getCount() == 0);
         }
     }
-
     @Override
     public void notifyDataSetChanged() {
         notifyEmpty();
         super.notifyDataSetChanged();
     }
-
     @Override
     public int getCount() {
         int total = 0;
@@ -118,17 +104,14 @@ public class RecentPhotoAdapter extends BaseAdapter {
         }
         return total;
     }
-
     @Override
     public Object getItem(int position) {
         return position;
     }
-
     @Override
     public long getItemId(int position) {
         return position;
     }
-
     @Override
     public View getView(int position, View convertView, ViewGroup parent) {
         View view = convertView;
@@ -145,7 +128,6 @@ public class RecentPhotoAdapter extends BaseAdapter {
             vh = (ViewHolder) view.getTag();
         }
         vh.reset();
-
         int now = 0;
         int our_interval = 0;
         int interval_line = 0;
@@ -158,11 +140,9 @@ public class RecentPhotoAdapter extends BaseAdapter {
             now += getIntervalCount(i);
         }
         if(interval_line == 0) {
-            // show date
             vh.dateView.setText(Utils.Interval.LABEL_INTERVAL[our_interval]);
             vh.dateView.setVisibility(View.VISIBLE);
         }
-
         List<ImageInfo> intervalInfos = mIntervals.get(our_interval);
         boolean expand = mExpand[our_interval];
         int startIndex = interval_line * 3;
@@ -171,13 +151,11 @@ public class RecentPhotoAdapter extends BaseAdapter {
             startIndex -= 1;
             needExpandNumber -- ;
         }
-
         int starti = 0;
         if(position == 0) {
             vh.subView[0].showOpenGallery();
             starti ++ ;
         }
-
         int size = intervalInfos.size();
         if (!expand) {
             size = Math.min(needExpandNumber, intervalInfos.size());
@@ -187,31 +165,25 @@ public class RecentPhotoAdapter extends BaseAdapter {
             if(index < size) {
                 if(interval_line * 3 + i == sNeedExpandNumber[our_interval] - 1) {
                     if(intervalInfos.size() > needExpandNumber && !expand) {
-                        // show expand button;
                         vh.subView[i].showMorePhoto(new showMoreListener(our_interval, vh.subView[i], intervalInfos.get(index)));
                         continue;
                     }
                 }
-                // set Image
                 vh.subView[i].setImageLoader(mImageLoader);
                 vh.subView[i].showPhoto(intervalInfos.get(index), mPreviewLoadingEnabled);
             } else {
-                // NA;
             }
         }
         return view;
     }
-
     public void clearCache() {
         if (mImageLoader != null) {
             mImageLoader.clearCache();
         }
     }
-
     private int getIntervalCount(int i) {
         List<ImageInfo> list = mIntervals.get(i);
         if(list != null) {
-            // consider expand later ..
             int line = (list.size() + (i == mFirstInterval ? 1 : 0) + 2) / 3;
             if(mExpand[i]) {
                 return line;
@@ -221,7 +193,6 @@ public class RecentPhotoAdapter extends BaseAdapter {
         }
         return 0;
     }
-
     class ViewHolder {
         public TextView dateView;
         public PhotoLineSubView[] subView;
@@ -235,7 +206,6 @@ public class RecentPhotoAdapter extends BaseAdapter {
             }
         }
     }
-
     class showMoreListener implements View.OnClickListener {
         private int mInterval;
         private PhotoLineSubView mView;
@@ -245,7 +215,6 @@ public class RecentPhotoAdapter extends BaseAdapter {
             mView = view;
             mInfo = imageinfo;
         }
-
         @Override
         public void onClick(View v) {
             mExpand[mInterval] = true;

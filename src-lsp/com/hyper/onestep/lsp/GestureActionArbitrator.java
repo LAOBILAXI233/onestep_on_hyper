@@ -1,5 +1,4 @@
 package com.hyper.onestep.lsp;
-
 /** Resolves the mutually exclusive action produced when a tracked gesture ends. */
 final class GestureActionArbitrator {
     enum Action {
@@ -7,9 +6,8 @@ final class GestureActionArbitrator {
         ENTER_ONE_STEP,
         OPEN_BIG_BANG
     }
-
     private GestureActionArbitrator() {}
-
+    // 根据滑动结果与静止大屏按压状态裁决最终触发的动作
     static Action decide(GestureIntentClassifier.Outcome swipeOutcome,
             boolean stationaryLargePress) {
         if (swipeOutcome == GestureIntentClassifier.Outcome.SWIPE_LEFT

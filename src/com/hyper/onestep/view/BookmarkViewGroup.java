@@ -1,5 +1,4 @@
 package com.hyper.onestep.view;
-
 import android.content.Context;
 import android.content.Intent;
 import android.content.res.Configuration;
@@ -9,12 +8,10 @@ import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ListView;
 import android.widget.TextView;
-
 import com.hyper.onestep.SidebarController;
 import com.hyper.onestep.util.BookmarkManager;
 import com.hyper.onestep.util.IEmpty;
 import com.hyper.onestep.util.LOG;
-
 import com.hyper.onestep.R;
 import com.hyper.onestep.util.Utils;
 import com.hyper.onestep.util.anim.Anim;
@@ -22,47 +19,36 @@ import com.hyper.onestep.util.anim.AnimListener;
 import com.hyper.onestep.util.anim.AnimStatusManager;
 import com.hyper.onestep.util.anim.AnimTimeLine;
 import com.hyper.onestep.util.anim.Vector3f;
-
 import java.util.ArrayList;
 import java.util.List;
-
+// 书签分组视图容器
 public class BookmarkViewGroup extends RoundCornerFrameLayout implements IEmpty, ContentView.ISubView  {
     private static final LOG log = LOG.getInstance(BookmarkViewGroup.class);
-
     private Context mContext;
-
     public BookmarkViewGroup(Context context) {
         this(context, null);
     }
-
     public BookmarkViewGroup(Context context, AttributeSet attrs) {
         this(context, attrs, 0);
     }
-
     public BookmarkViewGroup(Context context, AttributeSet attrs, int defStyleAttr) {
         this(context, attrs, defStyleAttr, 0);
     }
-
     public BookmarkViewGroup(Context context, AttributeSet attrs, int defStyleAttr, int defStyleRes) {
         super(context, attrs, defStyleAttr, defStyleRes);
         mContext = context;
     }
-
     private ContentView mContentView;
-
     private EmptyView mEmptyView;
     private View mContainer;
     private ListView mRecentBookmarkList;
     private TextView mTitle;
     private View mClearList;
     private BookmarkAdapter mBookmarkAdapter;
-
     private boolean mIsEmpty = true;
-
     public void setContentView(ContentView cv){
         mContentView = cv;
     }
-
     @Override
     protected void onFinishInflate() {
         super.onFinishInflate();
@@ -71,7 +57,6 @@ public class BookmarkViewGroup extends RoundCornerFrameLayout implements IEmpty,
             mEmptyView.setImageView(R.drawable.bookmark_blank);
             mEmptyView.setText(R.string.bookmark_empty_text);
             mEmptyView.setHint(R.string.bookmark_empty_hint);
-
             mContainer = findViewById(R.id.bookmark_container);
             mTitle = (TextView) findViewById(R.id.title);
             mClearList = findViewById(R.id.clear);
@@ -79,13 +64,11 @@ public class BookmarkViewGroup extends RoundCornerFrameLayout implements IEmpty,
             mBookmarkAdapter = new BookmarkAdapter(mContext, this);
             mRecentBookmarkList.setAdapter(mBookmarkAdapter);
             mRecentBookmarkList.setOnItemClickListener(mBookmarkItemClicked);
-
             mClearList.setOnClickListener(mClearListener);
         } catch (Throwable t) {
             com.hyper.onestep.lsp.LSPLogger.e("BookmarkViewGroup.onFinishInflate failed", t);
         }
     }
-
     private ClearListener mClearListener = new ClearListener(new Runnable() {
         @Override
         public void run() {
@@ -98,9 +81,7 @@ public class BookmarkViewGroup extends RoundCornerFrameLayout implements IEmpty,
             timeLine.setAnimListener(new AnimListener() {
                 @Override
                 public void onStart() {
-
                 }
-
                 @Override
                 public void onComplete(int type) {
                     mRecentBookmarkList.setTranslationX(0);
@@ -114,7 +95,6 @@ public class BookmarkViewGroup extends RoundCornerFrameLayout implements IEmpty,
             mContentView.setCurrent(ContentView.ContentType.NONE);
         }
     }, R.string.title_confirm_delete_bookmark);
-
     @Override
     public void setEmpty(boolean isEmpty) {
         if (mIsEmpty != isEmpty) {
@@ -128,7 +108,6 @@ public class BookmarkViewGroup extends RoundCornerFrameLayout implements IEmpty,
             }
         }
     }
-
     @Override
     public void show(boolean anim) {
         setVisibility(VISIBLE);
@@ -163,7 +142,6 @@ public class BookmarkViewGroup extends RoundCornerFrameLayout implements IEmpty,
                 public void onStart() {
                     AnimStatusManager.getInstance().setStatus(AnimStatusManager.ON_BOOKMARK_ANIM, true);
                 }
-
                 @Override
                 public void onComplete(int type) {
                     AnimStatusManager.getInstance().setStatus(AnimStatusManager.ON_BOOKMARK_ANIM, false);
@@ -174,7 +152,6 @@ public class BookmarkViewGroup extends RoundCornerFrameLayout implements IEmpty,
             timeLine.start();
         }
     }
-
     @Override
     public void dismiss(boolean anim) {
         if (anim) {
@@ -196,7 +173,6 @@ public class BookmarkViewGroup extends RoundCornerFrameLayout implements IEmpty,
                 public void onStart() {
                     AnimStatusManager.getInstance().setStatus(AnimStatusManager.ON_BOOKMARK_ANIM, true);
                 }
-
                 @Override
                 public void onComplete(int type) {
                     AnimStatusManager.getInstance().setStatus(AnimStatusManager.ON_BOOKMARK_ANIM, false);
@@ -210,7 +186,6 @@ public class BookmarkViewGroup extends RoundCornerFrameLayout implements IEmpty,
             setVisibility(View.GONE);
         }
     }
-
     public AdapterView.OnItemClickListener mBookmarkItemClicked = new AdapterView.OnItemClickListener() {
         @Override
         public void onItemClick(AdapterView<?> adapterView, View view, int position, long id) {
@@ -228,7 +203,6 @@ public class BookmarkViewGroup extends RoundCornerFrameLayout implements IEmpty,
                                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                                 intent.setData(uri);
                                 mContext.startActivity(intent);
-
                                 Utils.resumeSidebar(mContext);
                             } catch (Exception e) {
                                 e.printStackTrace();
@@ -239,11 +213,9 @@ public class BookmarkViewGroup extends RoundCornerFrameLayout implements IEmpty,
             }
         }
     };
-
     private void updateUI() {
         mTitle.setText(R.string.title_bookmark);
     }
-
     @Override
     public void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);

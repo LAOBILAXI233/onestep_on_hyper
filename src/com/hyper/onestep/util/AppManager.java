@@ -1,12 +1,9 @@
 package com.hyper.onestep.util;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
-
 import com.hyper.onestep.R;
-
 import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
@@ -22,10 +19,9 @@ import android.provider.BaseColumns;
 import android.text.TextUtils;
 import android.util.Log;
 import android.widget.Toast;
-
+// 侧边栏应用管理器，维护已添加应用列表
 public class AppManager extends DataManager {
     private volatile static AppManager sInstance;
-
     public static AppManager getInstance(Context context) {
         if (sInstance == null) {
             synchronized (AppManager.class) {
@@ -36,10 +32,8 @@ public class AppManager extends DataManager {
         }
         return sInstance;
     }
-
     private static final List<String> sAutoAddPackageList;
     static {
-        // package
         sAutoAddPackageList = new ArrayList<String>();
         sAutoAddPackageList.add("com.tencent.mm");
         sAutoAddPackageList.add("com.sina.weibo");
@@ -74,16 +68,12 @@ public class AppManager extends DataManager {
         sAutoAddPackageList.add("com.android.browser");
         sAutoAddPackageList.add("com.android.vending");
     }
-
     private static final int sMaxNumber = 20;
-
     private Context mContext;
     private Handler mHandler;
     private List<AppItem> mAddedAppItems = new ArrayList<AppItem>();
     private AppDatabase mDatabase;
-
     private Toast mLimitToast;
-
     private AppManager(Context context) {
         mContext = context;
         mDatabase = new AppDatabase(mContext);
@@ -92,11 +82,9 @@ public class AppManager extends DataManager {
         mHandler = new AppManagerHandler(thread.getLooper());
         mHandler.obtainMessage(MSG_INIT_LIST).sendToTarget();
     }
-
     public boolean addAppItem(AppItem item) {
         return addAppItemInternal(item, true);
     }
-
     private boolean addAppItemInternal(AppItem item, boolean showToast) {
         synchronized (mAddedAppItems) {
             if (mAddedAppItems.size() >= sMaxNumber) {
@@ -128,7 +116,6 @@ public class AppManager extends DataManager {
         notifyListener();
         return true;
     }
-
     public void removeAppItem(AppItem item) {
         synchronized (mAddedAppItems) {
             for (int i = 0; i < mAddedAppItems.size(); ++i) {
@@ -141,7 +128,6 @@ public class AppManager extends DataManager {
             }
         }
     }
-
     public boolean isAppItemAdded(AppItem ai) {
         synchronized (mAddedAppItems) {
             for (AppItem addedItem : mAddedAppItems) {
@@ -152,7 +138,6 @@ public class AppManager extends DataManager {
         }
         return false;
     }
-
     public List<AppItem> getAddedAppItem() {
         List<AppItem> ret = new ArrayList<AppItem>();
         synchronized (mAddedAppItems) {
@@ -160,7 +145,6 @@ public class AppManager extends DataManager {
         }
         return ret;
     }
-
     public List<AppItem> getUnAddedAppItem() {
         List<ResolveInfo> allInfos = Utils.getAllAppsInfo(mContext);
         List<AppItem> list = new ArrayList<AppItem>();
@@ -168,7 +152,6 @@ public class AppManager extends DataManager {
             for (ResolveInfo ri : allInfos) {
                 if (mContext.getPackageName().equals(
                         ri.activityInfo.packageName)) {
-                    // pass sidebar ourself
                     continue;
                 }
                 AppItem item = new AppItem(mContext, ri);
@@ -186,7 +169,6 @@ public class AppManager extends DataManager {
         }
         return list;
     }
-
     public void updateOrder() {
         synchronized (mAddedAppItems) {
             Collections.sort(mAddedAppItems, new AppItem.IndexComparator());
@@ -194,7 +176,6 @@ public class AppManager extends DataManager {
         notifyListener();
         mHandler.obtainMessage(MSG_SAVE_ORDER).sendToTarget();
     }
-
     public void onPackageRemoved(String packageName){
         synchronized (mAddedAppItems) {
             for (int i = 0; i < mAddedAppItems.size(); ++i) {
@@ -207,13 +188,11 @@ public class AppManager extends DataManager {
         }
         notifyListener();
     }
-
     public void onPackageAdded(String packageName) {
         if (sAutoAddPackageList.contains(packageName)) {
             addPackage(packageName);
         }
     }
-
     public void onPackageUpdate(String packageName) {
         if(!TextUtils.isEmpty(packageName)) {
             boolean changed = false;
@@ -231,13 +210,11 @@ public class AppManager extends DataManager {
                 }
             }
             if(changed) {
-                // we remove the old one, now add the new one ..
                 addPackage(packageName);
                 notifyListener();
             }
         }
     }
-
     public void onIconChanged(Set<String> packages) {
         synchronized (mAddedAppItems) {
             for (AppItem ai : mAddedAppItems) {
@@ -248,7 +225,6 @@ public class AppManager extends DataManager {
         }
         notifyListener();
     }
-
     private void showToastDueToLimit() {
         if (mLimitToast != null) {
             mLimitToast.cancel();
@@ -258,7 +234,6 @@ public class AppManager extends DataManager {
                 Toast.LENGTH_SHORT);
         mLimitToast.show();
     }
-
     private void initList() {
         List<AppItem> list = mDatabase.getAddedAppItem();
         synchronized(mAddedAppItems) {
@@ -267,7 +242,6 @@ public class AppManager extends DataManager {
         }
         notifyListener();
     }
-
     private void addPackage(String packageName) {
         Intent intent = new Intent(Intent.ACTION_MAIN);
         intent.addCategory(Intent.CATEGORY_LAUNCHER);
@@ -279,17 +253,14 @@ public class AppManager extends DataManager {
             }
         }
     }
-
     private static final int MSG_INIT_LIST = 0;
     private static final int MSG_SAVE = 1;
     private static final int MSG_DELETE = 2;
     private static final int MSG_SAVE_ORDER = 3;
-
     private class AppManagerHandler extends Handler {
         public AppManagerHandler(Looper looper) {
             super(looper);
         }
-
         @Override
         public void handleMessage(Message msg) {
             switch (msg.what) {
@@ -308,30 +279,24 @@ public class AppManager extends DataManager {
             }
         }
     }
-
     private final class AppDatabase extends SQLiteOpenHelper {
         private static final int DB_VERSION = 1;
         private static final String DB_NAME = "apps";
-
-        //tables
         private static final String TABLE_APPS = "apps";
         class AppsColumns implements BaseColumns{
             static final String PACKAGE_NAME = "packagename";
             static final String COMPONENT_NAME = "componentname";
             static final String WEIGHT = "weight";
         }
-
         public AppDatabase(Context context) {
             super(context, DB_NAME, null, DB_VERSION);
         }
-
         @Override
         public void onCreate(SQLiteDatabase db) {
             db.execSQL("CREATE TABLE " + TABLE_APPS
                     + " ( _id INTEGER PRIMARY KEY AUTOINCREMENT,"
                     + "packagename TEXT," + "componentname TEXT, " + "weight INTEGER"
                     + ");");
-            // pre install package
             List<AppItem> appList = new ArrayList<AppItem>();
             for (String packageName : sAutoAddPackageList) {
                 Intent intent = new Intent(Intent.ACTION_MAIN);
@@ -355,12 +320,9 @@ public class AppManager extends DataManager {
                 db.insert(TABLE_APPS, null, cv);
             }
         }
-
         @Override
         public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-            // NA
         }
-
         public List<AppItem> getAddedAppItem() {
             List<AppItem> list = new ArrayList<AppItem>();
             Cursor cursor = null;
@@ -390,7 +352,6 @@ public class AppManager extends DataManager {
             Collections.sort(list, new AppItem.IndexComparator());
             return list;
         }
-
         private int getId(AppItem item) {
             Cursor cursor = null;
             try {
@@ -411,14 +372,12 @@ public class AppManager extends DataManager {
             }
             return 0;
         }
-
         public void deleteFromDatabase(AppItem item) {
             int id = getId(item);
             if (id != 0) {
                 getWritableDatabase().delete(TABLE_APPS, AppsColumns._ID + "=?", new String[] { id + "" });
             }
         }
-
         public void saveToDatabase(AppItem item) {
             ContentValues cv = new ContentValues();
             cv.put(AppsColumns.PACKAGE_NAME, item.getPackageName());
@@ -426,7 +385,6 @@ public class AppManager extends DataManager {
             cv.put(AppsColumns.WEIGHT, item.getIndex());
             getWritableDatabase().insert(TABLE_APPS, null, cv);
         }
-
         public void saveOrderForList(List<AppItem> list) {
             SQLiteDatabase db = getWritableDatabase();
             db.beginTransaction();

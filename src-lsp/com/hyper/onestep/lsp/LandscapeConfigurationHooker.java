@@ -1,41 +1,23 @@
 package com.hyper.onestep.lsp;
-
 import android.content.Context;
 import android.content.res.Configuration;
 import android.graphics.Rect;
-
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
-
 import io.github.libxposed.api.XposedInterface;
-
-/**
- * Keeps a rotated main-area Activity's resource scale equivalent to the landscape display.
- *
- * WMS lays a landscape Activity out in a 1440x648 fixed-orientation letterbox while the
- * physical display stays portrait. The equivalent full landscape virtual display is
- * 3200x1440 at 600dpi (853x384dp); OneStep's main area is only 2400x1080, so its leash is
- * subsequently enlarged by 1.667 to fill that area. To keep the same logical layout as the
- * known-good virtual-display preview, render the 1440x648 source at 270dpi (853x384dp), not
- * at 360dpi. 360dpi preserves full-display physical control pixels and makes the reduced
- * main-area layout appear oversized.
- */
+// 为顶层横屏 Activity 计算并应用 OneStep 横屏配置
 public final class LandscapeConfigurationHooker implements XposedInterface.Hooker {
     private static volatile String sLastTrace;
-
     @Override
     public Object intercept(XposedInterface.Chain chain) throws Throwable {
         Object result = chain.proceed();
         Object activityRecord = chain.getThisObject();
         if (!RequestedOrientationHooker.isTopActivityRecord(activityRecord)) return result;
-
         Context context = RequestedOrientationHooker.findContext(activityRecord);
         OneStepStateBridge.State state = OneStepStateBridge.read(context);
         if (!state.canTransform() || findDisplayId(activityRecord) != 0) return result;
-
         int requestedOrientation = findRequestedOrientation(activityRecord);
         if (!RequestedOrientationHooker.isLandscape(requestedOrientation)) return result;
-
         String trace = RequestedOrientationHooker.describeActivityRecord(activityRecord)
                 + " requested=" + requestedOrientation
                 + " state=" + state.screenWidth + "x" + state.screenHeight;
@@ -43,7 +25,6 @@ public final class LandscapeConfigurationHooker implements XposedInterface.Hooke
             sLastTrace = trace;
             LSPLogger.i("LandscapeConfigurationHooker.resolve: " + trace);
         }
-
         Object parentArg = chain.getArg(0);
         if (!(parentArg instanceof Configuration)) return result;
         Configuration parent = (Configuration) parentArg;
@@ -54,18 +35,15 @@ public final class LandscapeConfigurationHooker implements XposedInterface.Hooke
         if (physicalDensity <= 0 || state.screenWidth <= 0 || state.screenHeight <= 0) {
             return result;
         }
-
         Object value = RequestedOrientationHooker.readField(
                 activityRecord, "mResolvedOverrideConfiguration");
         if (!(value instanceof Configuration)) return result;
         Configuration resolved = (Configuration) value;
-
         Integer taskId = RequestedOrientationHooker.findTaskId(activityRecord);
         Rect source = OneStepStateBridge.getTaskFixedLetterboxBounds(context,
                 taskId == null ? -1 : taskId);
         ConfigurationGeometry geometry = applyLandscapeConfiguration(resolved, state,
                 physicalDensity, source, "resolve");
-
         if (geometry.changed) {
             LSPLogger.i("LandscapeConfigurationHooker: taskId="
                     + taskId
@@ -76,15 +54,6 @@ public final class LandscapeConfigurationHooker implements XposedInterface.Hooke
         }
         return result;
     }
-
-    /**
-     * Applies the configuration that the rotated task actually needs in the OneStep main area.
-     * The target is tied to the full landscape virtual-display logical size. A 1440x648
-     * source at 270dpi is 853x384dp, exactly what Bilibili receives on display 2. The later
-     * 1.667 leash transform then shrinks that full-display layout into the 75% OneStep main
-     * area. Using 600/1.667=360dpi instead keeps full-display physical pixels and is the
-     * source of the oversized controls.
-     */
     static ConfigurationGeometry applyLandscapeConfiguration(Configuration configuration,
             OneStepStateBridge.State state, int physicalDensity, Rect preferredSource,
             String phase) {
@@ -93,7 +62,6 @@ public final class LandscapeConfigurationHooker implements XposedInterface.Hooke
                 || state.screenHeight <= state.topHeight) {
             return ConfigurationGeometry.invalid();
         }
-
         Rect source = preferredSource == null ? null : new Rect(preferredSource);
         if (source == null || source.width() <= 0 || source.height() <= 0
                 || source.right > state.screenWidth || source.bottom > state.screenHeight) {
@@ -109,11 +77,6 @@ public final class LandscapeConfigurationHooker implements XposedInterface.Hooke
         if (!(scale > 0f) || Float.isNaN(scale) || Float.isInfinite(scale)) {
             return ConfigurationGeometry.invalid();
         }
-
-        // source.width maps to the full landscape long edge (screenHeight) and source.height
-        // maps to the full landscape short edge (screenWidth). This is the layout scale used
-        // by the good virtual-display preview; `scale` above is only the leash scale into the
-        // reduced OneStep main area.
         float referenceScale = Math.min(
                 state.screenHeight / (float) source.width(),
                 state.screenWidth / (float) source.height());
@@ -130,7 +93,6 @@ public final class LandscapeConfigurationHooker implements XposedInterface.Hooke
                 || configuration.screenHeightDp != targetHeightDp
                 || configuration.smallestScreenWidthDp != targetSmallestDp
                 || configuration.orientation != Configuration.ORIENTATION_LANDSCAPE;
-
         configuration.densityDpi = targetDensity;
         configuration.screenWidthDp = targetWidthDp;
         configuration.screenHeightDp = targetHeightDp;
@@ -155,7 +117,6 @@ public final class LandscapeConfigurationHooker implements XposedInterface.Hooke
         return new ConfigurationGeometry(true, changed, targetDensity, targetWidthDp,
                 targetHeightDp, source, scale, referenceScale);
     }
-
     static int physicalDensity(Context context, Configuration configuration) {
         int density = 0;
         if (context != null) {
@@ -167,7 +128,6 @@ public final class LandscapeConfigurationHooker implements XposedInterface.Hooke
         if (density <= 0 && configuration != null) density = configuration.densityDpi;
         return density;
     }
-
     static final class ConfigurationGeometry {
         final boolean valid;
         final boolean changed;
@@ -177,7 +137,6 @@ public final class LandscapeConfigurationHooker implements XposedInterface.Hooke
         final Rect source;
         final float scale;
         final float referenceScale;
-
         ConfigurationGeometry(boolean valid, boolean changed, int targetDensity,
                 int targetWidthDp, int targetHeightDp, Rect source, float scale,
                 float referenceScale) {
@@ -190,12 +149,10 @@ public final class LandscapeConfigurationHooker implements XposedInterface.Hooke
             this.scale = scale;
             this.referenceScale = referenceScale;
         }
-
         static ConfigurationGeometry invalid() {
             return new ConfigurationGeometry(false, false, 0, 0, 0, null, 0f, 0f);
         }
     }
-
     private static int findDisplayId(Object activityRecord) {
         try {
             Object value = findMethod(activityRecord.getClass(), "getDisplayId")
@@ -206,7 +163,6 @@ public final class LandscapeConfigurationHooker implements XposedInterface.Hooke
             return -1;
         }
     }
-
     private static int findRequestedOrientation(Object activityRecord) {
         try {
             Object value = findMethod(activityRecord.getClass(), "getRequestedOrientation")
@@ -218,7 +174,6 @@ public final class LandscapeConfigurationHooker implements XposedInterface.Hooke
             return android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
         }
     }
-
     private static Method findMethod(Class<?> type, String name)
             throws NoSuchMethodException {
         Class<?> current = type;
@@ -233,14 +188,12 @@ public final class LandscapeConfigurationHooker implements XposedInterface.Hooke
         }
         throw new NoSuchMethodException(type.getName() + "#" + name + "()");
     }
-
     private static void writeCompatDp(Configuration configuration, String name, int value) {
         try {
             Field field = configuration.getClass().getDeclaredField(name);
             field.setAccessible(true);
             field.setInt(configuration, value);
         } catch (NoSuchFieldException ignored) {
-            // Android 16 removed these legacy compat fields on some builds.
         } catch (Throwable t) {
             LSPLogger.d("LandscapeConfigurationHooker.writeCompatDp: " + name + " " + t);
         }

@@ -1,5 +1,4 @@
 package com.hyper.onestep.view;
-
 import com.hyper.onestep.R;
 import com.hyper.onestep.SidebarController;
 import com.hyper.onestep.util.IEmpty;
@@ -13,48 +12,39 @@ import com.hyper.onestep.util.anim.AnimTimeLine;
 import com.hyper.onestep.util.anim.Vector3f;
 import com.hyper.onestep.view.ContentView.ContentType;
 import com.hyper.onestep.util.ListScrollMemory;
-
 import android.content.Context;
 import android.content.res.Configuration;
 import android.util.AttributeSet;
 import android.view.View;
 import android.widget.ListView;
 import android.widget.TextView;
-
+// 最近文件分组视图容器
 public class RecentFileViewGroup extends RoundCornerFrameLayout implements IEmpty, ContentView.ISubView {
     private static final LOG log = LOG.getInstance(RecentFileViewGroup.class);
-
     private ContentView mContentView;
-
     private EmptyView mEmptyView;
     private View mContainer;
     private ListView mRecentFileList;
     private TextView mTitle;
     private View mClearFile;
     private RecentFileAdapter mRecentFileAdapter;
-
     private boolean mIsEmpty = true;
     private Context mContext;
-
     public RecentFileViewGroup(Context context) {
         this(context, null);
     }
-
     public RecentFileViewGroup(Context context, AttributeSet attrs) {
         this(context, attrs, 0);
     }
-
     public RecentFileViewGroup(Context context, AttributeSet attrs,
             int defStyleAttr) {
         this(context, attrs, defStyleAttr, 0);
     }
-
     public RecentFileViewGroup(Context context, AttributeSet attrs,
             int defStyleAttr, int defStyleRes) {
         super(context, attrs, defStyleAttr, defStyleRes);
         mContext = context;
     }
-
     @Override
     protected void onFinishInflate() {
         super.onFinishInflate();
@@ -63,14 +53,12 @@ public class RecentFileViewGroup extends RoundCornerFrameLayout implements IEmpt
             mEmptyView.setImageView(R.drawable.file_blank);
             mEmptyView.setText(R.string.file_empty_text);
             mEmptyView.setHint(R.string.file_empty_hint);
-
             mContainer = findViewById(R.id.file_container);
             mTitle = (TextView) findViewById(R.id.title);
             mClearFile = findViewById(R.id.clear);
             mRecentFileList = (ListView)findViewById(R.id.recentfile_listview);
             mRecentFileAdapter = new RecentFileAdapter(mContext, this);
             mRecentFileList.setAdapter(mRecentFileAdapter);
-
             mClearFile.setOnClickListener(mClearListener);
             findViewById(R.id.scroll_to_top).setOnClickListener(new View.OnClickListener() {
                 @Override
@@ -78,13 +66,11 @@ public class RecentFileViewGroup extends RoundCornerFrameLayout implements IEmpt
                     mRecentFileList.setSelection(0);
                 }
             });
-
             updateUI();
         } catch (Throwable t) {
             com.hyper.onestep.lsp.LSPLogger.e("RecentFileViewGroup.onFinishInflate failed", t);
         }
     }
-
     private ClearListener mClearListener = new ClearListener(new Runnable() {
         @Override
         public void run() {
@@ -97,9 +83,7 @@ public class RecentFileViewGroup extends RoundCornerFrameLayout implements IEmpt
             timeLine.setAnimListener(new AnimListener() {
                 @Override
                 public void onStart() {
-
                 }
-
                 @Override
                 public void onComplete(int type) {
                     mRecentFileList.setTranslationX(0);
@@ -114,11 +98,9 @@ public class RecentFileViewGroup extends RoundCornerFrameLayout implements IEmpt
             mContentView.setCurrent(ContentType.NONE);
         }
     }, R.string.title_confirm_delete_history_file);
-
     public void setContentView(ContentView cv){
         mContentView = cv;
     }
-
     @Override
     public void setEmpty(boolean isEmpty) {
         if (mIsEmpty != isEmpty) {
@@ -132,11 +114,9 @@ public class RecentFileViewGroup extends RoundCornerFrameLayout implements IEmpt
             }
         }
     }
-
     public void show(boolean anim) {
         Tracker.onClick(Tracker.EVENT_TOPBAR, "type", "1");
         RecentFileManager.getInstance(mContext).startSearchFile();
-        // Resume where the user last scrolled instead of snapping back to the top.
         mRecentFileList.requestLayout();
         ListScrollMemory.restore(mContext, "file", mRecentFileList);
         post(new Runnable() {
@@ -145,7 +125,6 @@ public class RecentFileViewGroup extends RoundCornerFrameLayout implements IEmpt
                 RecentFileManager.getInstance(mContext).refresh();
             }
         });
-
         setVisibility(VISIBLE);
         if (anim) {
             int time = 180;
@@ -177,7 +156,6 @@ public class RecentFileViewGroup extends RoundCornerFrameLayout implements IEmpt
                 public void onStart() {
                     AnimStatusManager.getInstance().setStatus(AnimStatusManager.ON_FILE_LIST_ANIM, true);
                 }
-
                 @Override
                 public void onComplete(int type) {
                     AnimStatusManager.getInstance().setStatus(AnimStatusManager.ON_FILE_LIST_ANIM, false);
@@ -187,7 +165,6 @@ public class RecentFileViewGroup extends RoundCornerFrameLayout implements IEmpt
             timeLine.start();
         }
     }
-
     public void dismiss(boolean anim) {
         ListScrollMemory.save(mContext, "file", mRecentFileList);
         mClearListener.dismiss();
@@ -210,7 +187,6 @@ public class RecentFileViewGroup extends RoundCornerFrameLayout implements IEmpt
                 public void onStart() {
                     AnimStatusManager.getInstance().setStatus(AnimStatusManager.ON_FILE_LIST_ANIM, true);
                 }
-
                 @Override
                 public void onComplete(int type) {
                     AnimStatusManager.getInstance().setStatus(AnimStatusManager.ON_FILE_LIST_ANIM, false);
@@ -225,11 +201,9 @@ public class RecentFileViewGroup extends RoundCornerFrameLayout implements IEmpt
             setVisibility(View.GONE);
         }
     }
-
     private void updateUI(){
         mTitle.setText(R.string.title_file);
     }
-
     @Override
     public void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);

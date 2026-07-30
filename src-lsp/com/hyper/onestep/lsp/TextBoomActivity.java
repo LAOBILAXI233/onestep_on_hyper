@@ -1,5 +1,4 @@
 package com.hyper.onestep.lsp;
-
 import android.app.Activity;
 import android.content.ClipData;
 import android.content.ClipboardManager;
@@ -20,20 +19,15 @@ import android.widget.ImageView;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
-
 import com.hyper.onestep.R;
-
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-
 /** Modern local TextBoom surface for extracted text and images. */
 public final class TextBoomActivity extends Activity implements TextBoomChipLayout.Listener {
     private static final int MAX_INPUT_CHARS = 40_000;
-
     private final ExecutorService mImageExecutor = Executors.newSingleThreadExecutor();
-
     private View mRoot;
     private View mCard;
     private ScrollView mScrollView;
@@ -42,12 +36,10 @@ public final class TextBoomActivity extends Activity implements TextBoomChipLayo
     private ImageButton mCopyButton;
     private ImageButton mShareButton;
     private TextView mSelectionStatus;
-
     private String mSourceText = "";
     private String mSelectedText = "";
     private Uri mImageUri;
     private String mImageMimeType;
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -57,18 +49,15 @@ public final class TextBoomActivity extends Activity implements TextBoomChipLayo
         bindActions();
         readInput(getIntent());
     }
-
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
         readInput(intent);
     }
-
     private void bindViews() {
         mRoot = findViewById(R.id.text_boom_root);
         mCard = findViewById(R.id.text_boom_card);
-        // Tapping the dimmed area outside the card dismisses, like the original overlay.
         mRoot.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -84,10 +73,8 @@ public final class TextBoomActivity extends Activity implements TextBoomChipLayo
         mChipLayout.setListener(this);
         mChipLayout.setScrollHost(mScrollView);
     }
-
     private void applySystemBarInsets() {
         final int peek = getResources().getDimensionPixelSize(R.dimen.text_boom_top_peek);
-        // The card floats above the nav bar and leaves a peek of the dimmed app below the status bar.
         mCard.setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener() {
             @Override
             public WindowInsets onApplyWindowInsets(View view, WindowInsets windowInsets) {
@@ -102,7 +89,6 @@ public final class TextBoomActivity extends Activity implements TextBoomChipLayo
         });
         mCard.requestApplyInsets();
     }
-
     private void bindActions() {
         ImageButton close = findViewById(R.id.text_boom_close);
         close.setTooltipText(getString(R.string.text_boom_close));
@@ -112,7 +98,6 @@ public final class TextBoomActivity extends Activity implements TextBoomChipLayo
                 finish();
             }
         });
-
         mCopyButton.setTooltipText(getString(R.string.text_boom_copy));
         mCopyButton.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -120,7 +105,6 @@ public final class TextBoomActivity extends Activity implements TextBoomChipLayo
                 copySelection();
             }
         });
-
         mShareButton.setTooltipText(getString(R.string.text_boom_share));
         mShareButton.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -128,7 +112,6 @@ public final class TextBoomActivity extends Activity implements TextBoomChipLayo
                 shareSelection();
             }
         });
-
         mImageView.setOnLongClickListener(new View.OnLongClickListener() {
             @Override
             public boolean onLongClick(View view) {
@@ -139,14 +122,12 @@ public final class TextBoomActivity extends Activity implements TextBoomChipLayo
             }
         });
     }
-
     private void readInput(Intent intent) {
         CharSequence input = intent == null ? null : intent.getCharSequenceExtra(Intent.EXTRA_TEXT);
         mSourceText = sanitizeText(input);
         mSelectedText = "";
         mImageUri = readContentImageUri(intent);
         mImageMimeType = resolveImageMimeType(mImageUri);
-
         boolean hasText = !TextUtils.isEmpty(mSourceText.trim());
         boolean hasImage = mImageUri != null;
         if (!hasText && !hasImage) {
@@ -154,11 +135,9 @@ public final class TextBoomActivity extends Activity implements TextBoomChipLayo
             finish();
             return;
         }
-
         if (hasText) {
             List<TextBoomTokenizer.Token> tokens = TextBoomTokenizer.tokenize(mSourceText);
             mChipLayout.setVisibility(tokens.isEmpty() ? View.GONE : View.VISIBLE);
-            // Radiate the entrance animation out of the point the user actually touched.
             mChipLayout.setBoomOrigin(intent.getIntExtra(TextBoomContract.EXTRA_TOUCH_X, -1),
                     intent.getIntExtra(TextBoomContract.EXTRA_TOUCH_Y, -1));
             mChipLayout.setText(mSourceText, tokens);
@@ -168,7 +147,6 @@ public final class TextBoomActivity extends Activity implements TextBoomChipLayo
             mChipLayout.setVisibility(View.GONE);
             mChipLayout.setText("", null);
         }
-
         if (hasImage) {
             mImageView.setVisibility(View.VISIBLE);
             mImageView.setImageDrawable(null);
@@ -179,7 +157,6 @@ public final class TextBoomActivity extends Activity implements TextBoomChipLayo
         }
         updateActions(mChipLayout.getSelectedCount());
     }
-
     private String sanitizeText(CharSequence input) {
         if (input == null) return "";
         String text = input.toString();
@@ -188,7 +165,6 @@ public final class TextBoomActivity extends Activity implements TextBoomChipLayo
         if (Character.isHighSurrogate(text.charAt(end - 1))) end--;
         return text.substring(0, end);
     }
-
     private Uri readContentImageUri(Intent intent) {
         if (intent == null) return null;
         Uri uri = intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri.class);
@@ -197,7 +173,6 @@ public final class TextBoomActivity extends Activity implements TextBoomChipLayo
         }
         return uri != null && "content".equals(uri.getScheme()) ? uri : null;
     }
-
     private String resolveImageMimeType(Uri uri) {
         if (uri == null) return null;
         try {
@@ -208,7 +183,6 @@ public final class TextBoomActivity extends Activity implements TextBoomChipLayo
         }
         return "image/*";
     }
-
     private void loadImagePreview(final Uri uri) {
         final int targetWidth = getResources().getDisplayMetrics().widthPixels;
         final int targetHeight = getResources().getDimensionPixelSize(R.dimen.text_boom_image_height);
@@ -255,18 +229,15 @@ public final class TextBoomActivity extends Activity implements TextBoomChipLayo
             }
         });
     }
-
     @Override
     public void onSelectionChanged(int selectedCount, String selectedText) {
         mSelectedText = selectedText == null ? "" : selectedText;
         if (mCopyButton != null) updateActions(selectedCount);
     }
-
     @Override
     public boolean onTextDragRequested(View anchor, String selectedText) {
         return DragHelper.dragTextFromModuleProcess(anchor, this, selectedText);
     }
-
     private void updateActions(int selectedCount) {
         boolean hasSelection = !TextUtils.isEmpty(mSelectedText);
         mCopyButton.setVisibility(TextUtils.isEmpty(mSourceText) ? View.GONE : View.VISIBLE);
@@ -281,23 +252,19 @@ public final class TextBoomActivity extends Activity implements TextBoomChipLayo
             mSelectionStatus.setText(R.string.text_boom_no_selection);
         }
     }
-
     private void setButtonEnabled(View button, boolean enabled) {
         button.setEnabled(enabled);
         button.setAlpha(enabled ? 1f : 0.35f);
     }
-
     private void copySelection() {
         if (TextUtils.isEmpty(mSelectedText)) return;
         ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
         clipboard.setPrimaryClip(ClipData.newPlainText("TextBoom", mSelectedText));
         Toast.makeText(this, R.string.text_boom_copied, Toast.LENGTH_SHORT).show();
     }
-
     private void shareSelection() {
         boolean hasText = !TextUtils.isEmpty(mSelectedText);
         if (!hasText && mImageUri == null) return;
-
         Intent send = new Intent(Intent.ACTION_SEND);
         if (mImageUri != null) {
             send.setType(TextUtils.isEmpty(mImageMimeType) ? "image/*" : mImageMimeType);
@@ -312,7 +279,6 @@ public final class TextBoomActivity extends Activity implements TextBoomChipLayo
         }
         startActivity(Intent.createChooser(send, getString(R.string.text_boom_share)));
     }
-
     @Override
     protected void onDestroy() {
         mImageExecutor.shutdownNow();

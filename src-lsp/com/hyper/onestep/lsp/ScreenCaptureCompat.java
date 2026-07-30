@@ -1,36 +1,24 @@
 package com.hyper.onestep.lsp;
-
 import android.graphics.Bitmap;
 import android.hardware.HardwareBuffer;
 import android.view.Display;
-
 import java.lang.reflect.Method;
-
 /** Captures a display from code injected into {@code system_server}. */
 public final class ScreenCaptureCompat {
     private static final String LOCAL_SERVICES = "com.android.server.LocalServices";
     private static final String DISPLAY_MANAGER_INTERNAL =
             "android.hardware.display.DisplayManagerInternal";
-
     private ScreenCaptureCompat() {}
-
+    // 截取默认显示并返回可独立持有的Bitmap副本
     public static Bitmap captureDefaultDisplay(ClassLoader systemServerClassLoader) {
         return captureDisplay(systemServerClassLoader, Display.DEFAULT_DISPLAY);
     }
-
-    /**
-     * Returns an independent software bitmap, or {@code null} when capture is unavailable.
-     *
-     * <p>The returned screenshot respects the platform's secure-layer policy. The hardware
-     * buffer obtained from SurfaceFlinger is copied before it is closed, so callers may pass the
-     * result to another Binder service without retaining native display resources.</p>
-     */
+    // 通过DisplayManagerInternal截取指定显示并返回Bitmap副本
     public static Bitmap captureDisplay(ClassLoader systemServerClassLoader, int displayId) {
         if (systemServerClassLoader == null) {
             LSPLogger.w("ScreenCaptureCompat: system_server ClassLoader is null");
             return null;
         }
-
         Object screenshot = null;
         HardwareBuffer hardwareBuffer = null;
         Bitmap wrappedBitmap = null;
@@ -39,7 +27,6 @@ public final class ScreenCaptureCompat {
                     LOCAL_SERVICES, false, systemServerClassLoader);
             Class<?> displayManagerInternalClass = Class.forName(
                     DISPLAY_MANAGER_INTERNAL, false, systemServerClassLoader);
-
             Method getService = localServicesClass.getDeclaredMethod("getService", Class.class);
             getService.setAccessible(true);
             Object displayManager = getService.invoke(null, displayManagerInternalClass);
@@ -47,14 +34,12 @@ public final class ScreenCaptureCompat {
                 LSPLogger.w("ScreenCaptureCompat: DisplayManagerInternal is unavailable");
                 return null;
             }
-
             Method capture = findCaptureMethod(displayManagerInternalClass);
             screenshot = capture.invoke(displayManager, displayId);
             if (screenshot == null) {
                 LSPLogger.w("ScreenCaptureCompat: capture returned null for display=" + displayId);
                 return null;
             }
-
             Method asBitmap = screenshot.getClass().getDeclaredMethod("asBitmap");
             asBitmap.setAccessible(true);
             Object bitmapValue = asBitmap.invoke(screenshot);
@@ -63,7 +48,6 @@ public final class ScreenCaptureCompat {
                 return null;
             }
             wrappedBitmap = (Bitmap) bitmapValue;
-
             Method getHardwareBuffer = screenshot.getClass().getDeclaredMethod(
                     "getHardwareBuffer");
             getHardwareBuffer.setAccessible(true);
@@ -71,7 +55,6 @@ public final class ScreenCaptureCompat {
             if (bufferValue instanceof HardwareBuffer) {
                 hardwareBuffer = (HardwareBuffer) bufferValue;
             }
-
             Bitmap copy = wrappedBitmap.copy(Bitmap.Config.ARGB_8888, false);
             if (copy == null) {
                 LSPLogger.w("ScreenCaptureCompat: hardware Bitmap copy returned null");
@@ -98,7 +81,6 @@ public final class ScreenCaptureCompat {
             }
         }
     }
-
     private static Method findCaptureMethod(Class<?> displayManagerInternalClass)
             throws NoSuchMethodException {
         try {

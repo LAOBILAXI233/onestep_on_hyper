@@ -1,5 +1,4 @@
 package com.hyper.onestep.util;
-
 import android.content.ClipData;
 import android.graphics.Bitmap;
 import android.os.IBinder;
@@ -7,23 +6,14 @@ import android.os.IInterface;
 import android.view.DragEvent;
 import android.view.Display;
 import android.view.View;
-
 import com.hyper.onestep.lsp.LSPLogger;
-
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-
-/**
- * Reflection bridge for HyperOS' cross-display drag implementation.
- *
- * <p>The framework class lives in {@code miui-framework.jar}, so keeping the dependency behind
- * reflection lets the module remain loadable on non-Xiaomi builds.</p>
- */
+// MIUI/HyperOS 镜像拖拽桥接，反射调用 MirrorManager
 public final class MiuiMirrorDragBridge {
     public static final int DEFAULT_DRAG_FLAGS = View.DRAG_FLAG_GLOBAL
             | View.DRAG_FLAG_GLOBAL_URI_READ;
-
     private static final String CLASS_NAME = "com.xiaomi.mirror.MirrorManager";
     private static final String MIRROR_SERVICE_NAME = "miui.mirror_service";
     private static final String MIRROR_SERVICE_INTERFACE =
@@ -32,28 +22,18 @@ public final class MiuiMirrorDragBridge {
     private static final String IWINDOW_CLASS_NAME = "android.view.IWindow";
     private static final Object API_LOCK = new Object();
     private static final Object DRAG_LOCK = new Object();
-
     private static volatile Api sApi;
     private static volatile DirectApi sDirectApi;
-
     private MiuiMirrorDragBridge() {
     }
-
     /** Returns whether the HyperOS mirror drag API can be resolved in this process. */
     public static boolean isAvailable() {
         return getApi() != null;
     }
-
     /** Starts a mirror drag with the URI read permission expected by share targets. */
     public static IBinder start(ClipData data, int sourceDisplayId) {
         return start(data, DEFAULT_DRAG_FLAGS, sourceDisplayId);
     }
-
-    /**
-     * Starts a mirror drag originating on {@code sourceDisplayId}. The caller owns the returned
-     * token until a drop has been injected successfully; call {@link #cancel(IBinder)} on an
-     * abandoned sequence.
-     */
     public static IBinder start(ClipData data, int flags, int sourceDisplayId) {
         if (data == null || data.getItemCount() == 0) {
             LSPLogger.w("MiuiMirrorDragBridge.start: empty ClipData");
@@ -64,7 +44,6 @@ public final class MiuiMirrorDragBridge {
                     + sourceDisplayId);
             return null;
         }
-
         Api api = getApi();
         if (api == null) {
             return null;
@@ -90,14 +69,12 @@ public final class MiuiMirrorDragBridge {
             return null;
         }
     }
-
     /** Starts a mirror drag through IMirrorService using the anchor's real IWindow. */
     public static IBinder start(View anchor, ClipData data, int flags) {
         if (data == null || data.getItemCount() == 0) {
             LSPLogger.w("MiuiMirrorDragBridge.startDirect: empty ClipData");
             return null;
         }
-
         AnchorInfo anchorInfo = resolveAnchor(anchor);
         if (anchorInfo == null) {
             return null;
@@ -106,7 +83,6 @@ public final class MiuiMirrorDragBridge {
         if (api == null) {
             return null;
         }
-
         try {
             Object result = api.performDrag.invoke(api.service, anchorInfo.window, flags,
                     anchorInfo.sourceDisplayId, data, null);
@@ -135,20 +111,15 @@ public final class MiuiMirrorDragBridge {
             return null;
         }
     }
-
     public static boolean injectStarted(int displayId, float x, float y) {
-        // HyperOS maps action 5 to broadcastDragStarted() for the destination display.
         return inject(DragEvent.ACTION_DRAG_ENTERED, displayId, x, y);
     }
-
     public static boolean injectLocation(int displayId, float x, float y) {
         return inject(DragEvent.ACTION_DRAG_LOCATION, displayId, x, y);
     }
-
     public static boolean injectDrop(int displayId, float x, float y) {
         return inject(DragEvent.ACTION_DROP, displayId, x, y);
     }
-
     /** Injects one supported mirror drag action into the target display. */
     public static boolean inject(int action, int displayId, float x, float y) {
         if (!isSupportedAction(action) || displayId < 0 || !isFinite(x) || !isFinite(y)) {
@@ -156,7 +127,6 @@ public final class MiuiMirrorDragBridge {
                     + " displayId=" + displayId + " x=" + x + " y=" + y);
             return false;
         }
-
         Api api = getApi();
         if (api == null) {
             return false;
@@ -173,15 +143,9 @@ public final class MiuiMirrorDragBridge {
             return false;
         }
     }
-
-    /**
-     * Starts a mirror drag and immediately delivers ENTERED, LOCATION and DROP at one point.
-     * Any failure before DROP automatically cancels the framework token.
-     */
     public static IBinder startAndDrop(ClipData data, int displayId, float x, float y) {
         return startAndDrop(data, DEFAULT_DRAG_FLAGS, displayId, x, y);
     }
-
     public static IBinder startAndDrop(ClipData data, int flags, int displayId,
             float x, float y) {
         if (!isFinite(x) || !isFinite(y)) {
@@ -189,16 +153,11 @@ public final class MiuiMirrorDragBridge {
                     + x + " y=" + y);
             return null;
         }
-
         synchronized (DRAG_LOCK) {
             IBinder token = start(data, flags, Display.DEFAULT_DISPLAY);
             return deliverDrop(token, displayId, x, y);
         }
     }
-
-    /**
-     * Starts from the anchor window's display, then injects the drop into {@code targetDisplayId}.
-     */
     public static IBinder startAndDrop(View anchor, ClipData data, int flags,
             int targetDisplayId, float x, float y) {
         if (!isFinite(x) || !isFinite(y)) {
@@ -206,18 +165,15 @@ public final class MiuiMirrorDragBridge {
                     + x + " y=" + y);
             return null;
         }
-
         synchronized (DRAG_LOCK) {
             IBinder token = start(anchor, data, flags);
             return deliverDrop(token, targetDisplayId, x, y);
         }
     }
-
     private static IBinder deliverDrop(IBinder token, int targetDisplayId, float x, float y) {
         if (token == null) {
             return null;
         }
-
         boolean dropped = false;
         try {
             if (!injectStarted(targetDisplayId, x, y)
@@ -235,7 +191,6 @@ public final class MiuiMirrorDragBridge {
             }
         }
     }
-
     /** Cancels an incomplete mirror drag. A successful DROP must not be cancelled here. */
     public static boolean cancel(IBinder token) {
         if (token == null) {
@@ -256,7 +211,6 @@ public final class MiuiMirrorDragBridge {
             return false;
         }
     }
-
     private static Api getApi() {
         Api api = sApi;
         if (api != null) {
@@ -274,7 +228,6 @@ public final class MiuiMirrorDragBridge {
                 if (manager == null) {
                     throw new IllegalStateException("MirrorManager.get() returned null");
                 }
-
                 Method start = accessible(managerClass.getDeclaredMethod("startMirrorDrag",
                         ClipData.class, int.class, int.class));
                 Method inject = accessible(managerClass.getDeclaredMethod("injectDragEvent",
@@ -293,7 +246,6 @@ public final class MiuiMirrorDragBridge {
             }
         }
     }
-
     private static DirectApi getDirectApi() {
         DirectApi api = sDirectApi;
         if (api != null && api.binder.isBinderAlive()) {
@@ -315,7 +267,6 @@ public final class MiuiMirrorDragBridge {
                             + MIRROR_SERVICE_NAME);
                 }
                 IBinder binder = (IBinder) binderResult;
-
                 Class<?> stubClass = Class.forName(MIRROR_SERVICE_STUB);
                 Method asInterface = accessible(stubClass.getDeclaredMethod(
                         "asInterface", IBinder.class));
@@ -323,7 +274,6 @@ public final class MiuiMirrorDragBridge {
                 if (service == null) {
                     throw new IllegalStateException("IMirrorService.Stub.asInterface returned null");
                 }
-
                 Class<?> serviceInterface = Class.forName(MIRROR_SERVICE_INTERFACE);
                 Class<?> iWindowClass = Class.forName(IWINDOW_CLASS_NAME);
                 Method performDrag = accessible(serviceInterface.getDeclaredMethod("performDrag",
@@ -340,7 +290,6 @@ public final class MiuiMirrorDragBridge {
             }
         }
     }
-
     private static AnchorInfo resolveAnchor(View anchor) {
         if (anchor == null || !anchor.isAttachedToWindow()) {
             LSPLogger.w("MiuiMirrorDragBridge.resolveAnchor: anchor is null or detached");
@@ -352,7 +301,6 @@ public final class MiuiMirrorDragBridge {
             if (viewRoot == null) {
                 throw new IllegalStateException("anchor has no ViewRootImpl");
             }
-
             Field windowField = accessible(findField(viewRoot.getClass(), "mWindow"));
             Object window = windowField.get(viewRoot);
             Class<?> iWindowClass = Class.forName(IWINDOW_CLASS_NAME);
@@ -360,7 +308,6 @@ public final class MiuiMirrorDragBridge {
                 throw new IllegalStateException("ViewRootImpl.mWindow is not IWindow: "
                         + (window == null ? "null" : window.getClass().getName()));
             }
-
             int viewDisplayId = anchor.getDisplay() == null
                     ? Display.INVALID_DISPLAY : anchor.getDisplay().getDisplayId();
             int rootDisplayId = getRootDisplayId(viewRoot);
@@ -373,7 +320,6 @@ public final class MiuiMirrorDragBridge {
             if (sourceDisplayId < 0) {
                 throw new IllegalStateException("anchor has no valid source display");
             }
-
             IBinder windowBinder = window instanceof IInterface
                     ? ((IInterface) window).asBinder() : null;
             if (windowBinder == null || !windowBinder.isBinderAlive()) {
@@ -390,7 +336,6 @@ public final class MiuiMirrorDragBridge {
             return null;
         }
     }
-
     private static int getRootDisplayId(Object viewRoot) {
         try {
             Field displayField = accessible(findField(viewRoot.getClass(), "mDisplay"));
@@ -403,7 +348,6 @@ public final class MiuiMirrorDragBridge {
             return Display.INVALID_DISPLAY;
         }
     }
-
     private static Field findField(Class<?> type, String name) throws NoSuchFieldException {
         Class<?> current = type;
         while (current != null) {
@@ -415,17 +359,14 @@ public final class MiuiMirrorDragBridge {
         }
         throw new NoSuchFieldException(type.getName() + "." + name);
     }
-
     private static Method accessible(Method method) {
         method.setAccessible(true);
         return method;
     }
-
     private static Field accessible(Field field) {
         field.setAccessible(true);
         return field;
     }
-
     private static void invalidateApi(Api failedApi) {
         synchronized (API_LOCK) {
             if (sApi == failedApi) {
@@ -433,7 +374,6 @@ public final class MiuiMirrorDragBridge {
             }
         }
     }
-
     private static void invalidateDirectApi(DirectApi failedApi) {
         synchronized (API_LOCK) {
             if (sDirectApi == failedApi) {
@@ -441,17 +381,14 @@ public final class MiuiMirrorDragBridge {
             }
         }
     }
-
     private static boolean isSupportedAction(int action) {
         return action == DragEvent.ACTION_DRAG_ENTERED
                 || action == DragEvent.ACTION_DRAG_LOCATION
                 || action == DragEvent.ACTION_DROP;
     }
-
     private static boolean isFinite(float value) {
         return !Float.isNaN(value) && !Float.isInfinite(value);
     }
-
     private static String actionName(int action) {
         switch (action) {
             case DragEvent.ACTION_DRAG_ENTERED:
@@ -464,11 +401,9 @@ public final class MiuiMirrorDragBridge {
                 return String.valueOf(action);
         }
     }
-
     private static void logInvocationFailure(String message, Throwable throwable) {
         LSPLogger.w(message + " causeChain=" + throwableChain(throwable), unwrap(throwable));
     }
-
     private static String throwableChain(Throwable throwable) {
         StringBuilder result = new StringBuilder();
         Throwable current = throwable;
@@ -485,7 +420,6 @@ public final class MiuiMirrorDragBridge {
         }
         return result.toString();
     }
-
     private static Throwable unwrap(Throwable throwable) {
         Throwable current = throwable;
         while (current instanceof InvocationTargetException
@@ -494,13 +428,11 @@ public final class MiuiMirrorDragBridge {
         }
         return current;
     }
-
     private static final class Api {
         final Object manager;
         final Method start;
         final Method inject;
         final Method cancel;
-
         Api(Object manager, Method start, Method inject, Method cancel) {
             this.manager = manager;
             this.start = start;
@@ -508,24 +440,20 @@ public final class MiuiMirrorDragBridge {
             this.cancel = cancel;
         }
     }
-
     private static final class DirectApi {
         final IBinder binder;
         final Object service;
         final Method performDrag;
-
         DirectApi(IBinder binder, Object service, Method performDrag) {
             this.binder = binder;
             this.service = service;
             this.performDrag = performDrag;
         }
     }
-
     private static final class AnchorInfo {
         final Object window;
         final IBinder windowBinder;
         final int sourceDisplayId;
-
         AnchorInfo(Object window, IBinder windowBinder, int sourceDisplayId) {
             this.window = window;
             this.windowBinder = windowBinder;

@@ -1,14 +1,11 @@
 package com.hyper.onestep.util.net;
-
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Message;
-
 import com.hyper.onestep.SidebarApplication;
 import com.hyper.onestep.util.BookmarkManager;
 import com.hyper.onestep.util.LOG;
 import com.hyper.onestep.util.Utils;
-
 import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -16,27 +13,21 @@ import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.List;
-
 import javax.net.ssl.HttpsURLConnection;
-
+// 网络请求处理器，后台拉取书签标题等
 public class NetworkHandler {
     private static final LOG log = LOG.getInstance(NetworkHandler.class);
-
     private static final HandlerThread sWorkerThread = new HandlerThread("NetworkHandler");
-
     static {
         sWorkerThread.start();
     }
-
     public static final int ACTION_LOAD_BOOKMARK_TITLE = 1001;
-
     public static void postTask(int action, List params) {
         Message msg = mWorker.obtainMessage();
         msg.what = action;
         msg.obj = params;
         mWorker.sendMessage(msg);
     }
-
     private static final Handler mWorker = new Handler(sWorkerThread.getLooper()) {
         @Override
         public void handleMessage(Message msg) {
@@ -45,7 +36,6 @@ public class NetworkHandler {
             handleAction(action, params);
         }
     };
-
     private static void handleAction(int action, List params) {
         switch (action) {
             case ACTION_LOAD_BOOKMARK_TITLE : {
@@ -56,7 +46,6 @@ public class NetworkHandler {
                 break;
         }
     }
-
     private static void handleACTION_LOAD_BOOKMARK_TITLE(List params) {
         if (!Utils.isNetworkConnected(SidebarApplication.getInstance())) {
             log.error("isNetworkConnected false, ["+SidebarApplication.getInstance()+"]");
@@ -124,7 +113,6 @@ public class NetworkHandler {
         } catch (IOException e) {
             e.printStackTrace();
         }
-
         String content = new String(baos.toByteArray());
         content = content.trim();
         if (content.length() == 0) {

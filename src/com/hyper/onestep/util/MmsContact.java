@@ -1,10 +1,7 @@
 package com.hyper.onestep.util;
-
 import java.util.ArrayList;
 import java.util.List;
-
 import com.hyper.onestep.R;
-
 import android.content.ActivityNotFoundException;
 import android.content.ClipDescription;
 import android.content.ContentValues;
@@ -18,18 +15,15 @@ import android.net.Uri;
 import android.provider.BaseColumns;
 import android.text.TextUtils;
 import android.view.DragEvent;
-
+// 短信联系人项，封装短信分享意图
 public class MmsContact extends ContactItem {
     public static final String PKG_NAME = "com.android.contacts";
-
     private Context context;
     private int mContactId;
     private String mPhoneNumber;
-
     public MmsContact(Context context, int contactId, String number, CharSequence displayName) {
         this(context, contactId, number, BitmapUtils.getDefaultContactAvatar(context), displayName);
     }
-
     public MmsContact(Context context, int contactId, String number, Bitmap avatar, CharSequence displayName) {
         super(context, avatar, displayName);
         if(contactId <= 0 || TextUtils.isEmpty(number)){
@@ -39,7 +33,6 @@ public class MmsContact extends ContactItem {
         this.mContactId = contactId;
         this.mPhoneNumber = number;
     }
-
     @Override
     public boolean acceptDragEvent(Context context, DragEvent event) {
         if (event.getClipDescription().getMimeTypeCount() != 1) {
@@ -55,7 +48,6 @@ public class MmsContact extends ContactItem {
         }
         return false;
     }
-
     @Override
     public boolean handleDragEvent(Context context, DragEvent event) {
         Tracker.dragSuccess(3, PKG_NAME);
@@ -63,7 +55,6 @@ public class MmsContact extends ContactItem {
         if(sret){
             return true;
         }
-
         if (event.getClipData().getItemCount() != 1) {
             return false;
         }
@@ -86,12 +77,10 @@ public class MmsContact extends ContactItem {
                 mContext.startActivity(intent);
                 return true;
             } catch (ActivityNotFoundException e) {
-                // NA
             }
         }
         return false;
     }
-
     @Override
     public boolean openUI(Context context) {
         Tracker.onClick(Tracker.EVENT_CLICK_CONTACTS, "contacts_type", "2");
@@ -102,31 +91,25 @@ public class MmsContact extends ContactItem {
             mContext.startActivity(intent);
             return true;
         } catch (ActivityNotFoundException e) {
-            // NA
         }
         return false;
     }
-
     @Override
     public void save() {
         MmsDatabaseHelper.getInstance(context).update(this);
     }
-
     @Override
     public void deleteFromDatabase() {
         MmsDatabaseHelper.getInstance(context).delete(this);
     }
-
     @Override
     public int getTypeIcon() {
         return R.drawable.contact_icon_mms;
     }
-
     @Override
     public String getPackageName() {
         return PKG_NAME;
     }
-
     @Override
     public boolean sameContact(ContactItem ci) {
         if (ci == null) {
@@ -141,7 +124,6 @@ public class MmsContact extends ContactItem {
         }
         return false;
     }
-
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
@@ -152,11 +134,9 @@ public class MmsContact extends ContactItem {
         sb.append(")");
         return sb.toString();
     }
-
     public static List<ContactItem> getContacts(Context context){
         return MmsDatabaseHelper.getInstance(context).getContacts();
     }
-
     private static final class MmsDatabaseHelper extends SQLiteOpenHelper{
         private volatile static MmsDatabaseHelper sInstance;
         public synchronized static MmsDatabaseHelper getInstance(Context context){
@@ -169,16 +149,13 @@ public class MmsContact extends ContactItem {
             }
             return sInstance;
         }
-
         private static final String DB_NAME = "mms_contacts";
         private static final int DB_VERSION = 1;
-
         private Context mContext;
         private MmsDatabaseHelper(Context context) {
             super(context, DB_NAME, null, DB_VERSION);
             mContext = context;
         }
-
         @Override
         public void onCreate(SQLiteDatabase db) {
             db.execSQL("CREATE TABLE " + TABLE_CONTACTS + " (_id INTEGER PRIMARY KEY AUTOINCREMENT,"
@@ -188,12 +165,9 @@ public class MmsContact extends ContactItem {
                     + "display_name TEXT,"
                     + "weight INTEGER);");
         }
-
         @Override
         public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-            //NA
         }
-
         public int getId(MmsContact contact) {
             Cursor cursor = null;
             try {
@@ -212,10 +186,8 @@ public class MmsContact extends ContactItem {
             }
             return 0;
         }
-
         public void update(MmsContact contact) {
             int id = getId(contact);
-            // insert
             ContentValues cv = new ContentValues();
             cv.put(ContactColumns.CONTACT_ID, contact.mContactId + "");
             cv.put(ContactColumns.PHONE_NUMBER, contact.mPhoneNumber);
@@ -223,14 +195,12 @@ public class MmsContact extends ContactItem {
             cv.put(ContactColumns.DISPLAY_NAME, contact.getDisplayName().toString());
             cv.put(ContactColumns.WEIGHT, contact.getIndex());
             if (id != 0) {
-                // update database;
                 getWritableDatabase().update(TABLE_CONTACTS, cv,
                         ContactColumns._ID + "=?", new String[] { id + "" });
             } else {
                 getWritableDatabase().insert(TABLE_CONTACTS, null, cv);
             }
         }
-
         public void delete(MmsContact contact) {
             int id = getId(contact);
             if (id != 0) {
@@ -238,7 +208,6 @@ public class MmsContact extends ContactItem {
                         ContactColumns._ID + "=?", new String[] { id + "" });
             }
         }
-
         public List<ContactItem> getContacts(){
             List<ContactItem> ret = new ArrayList<ContactItem>();
             Cursor cursor = null;
@@ -263,7 +232,6 @@ public class MmsContact extends ContactItem {
             }
             return ret;
         }
-
         private static final String TABLE_CONTACTS = "contacts";
         static class ContactColumns implements BaseColumns{
             static final String CONTACT_ID = "contact_id";

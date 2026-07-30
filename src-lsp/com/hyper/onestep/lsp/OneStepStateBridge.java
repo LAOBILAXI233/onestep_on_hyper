@@ -1,25 +1,20 @@
 package com.hyper.onestep.lsp;
-
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.Rect;
 import android.provider.Settings;
-
 /** Shares OneStep layout state from SystemUI with the separately hooked launcher process. */
 public final class OneStepStateBridge {
     public static final String LAUNCHER_PACKAGE = "com.miui.home";
     public static final String ACTION_LAYOUT_CHANGED =
             "com.hyper.onestep.ACTION_ONE_STEP_LAYOUT_CHANGED";
-
     private static final String SETTINGS_KEY = "onestep_lsp_layout_v1";
     private static final String LANDSCAPE_TASKS_KEY = "onestep_lsp_landscape_tasks_v1";
     private static final String TASK_ORIENTATIONS_KEY = "onestep_lsp_task_orientations_v1";
     private static final String FIXED_LETTERBOX_BOUNDS_KEY =
             "onestep_lsp_fixed_letterbox_bounds_v1";
     private static final String EXTRA_STATE = "layout_state";
-
     private OneStepStateBridge() {}
-
     public static final class State {
         public final boolean enabled;
         public final boolean sidebarOnLeft;
@@ -27,7 +22,6 @@ public final class OneStepStateBridge {
         public final int sidebarWidth;
         public final int topHeight;
         public final int screenHeight;
-
         State(boolean enabled, boolean sidebarOnLeft, int screenWidth,
                 int sidebarWidth, int topHeight, int screenHeight) {
             this.enabled = enabled;
@@ -37,19 +31,17 @@ public final class OneStepStateBridge {
             this.topHeight = topHeight;
             this.screenHeight = screenHeight;
         }
-
         public boolean canTransform() {
             return enabled && screenWidth > sidebarWidth && sidebarWidth >= 0
                     && screenHeight > topHeight && topHeight >= 0;
         }
-
         String encode() {
             return (enabled ? "1" : "0") + "," + (sidebarOnLeft ? "1" : "0")
                     + "," + screenWidth + "," + sidebarWidth + "," + topHeight
                     + "," + screenHeight;
         }
     }
-
+    // 发布OneStep布局状态到Settings.Global并向Launcher发送广播
     public static void publish(Context context, boolean enabled, boolean sidebarOnLeft,
             int screenWidth, int sidebarWidth, int topHeight, int screenHeight) {
         if (context == null) return;
@@ -73,7 +65,7 @@ public final class OneStepStateBridge {
             LSPLogger.e("OneStepStateBridge.publish: launcher broadcast failed", t);
         }
     }
-
+    // 从Settings.Global读取OneStep布局状态
     public static State read(Context context) {
         if (context == null) return disabledState();
         try {
@@ -85,14 +77,14 @@ public final class OneStepStateBridge {
             return disabledState();
         }
     }
-
+    // 优先从广播Intent读取布局状态，缺失时回退到Settings
     public static State read(Intent intent, Context context) {
         State persisted = read(context);
         if (intent == null) return persisted;
         State broadcast = decode(intent.getStringExtra(EXTRA_STATE));
         return broadcast != null ? broadcast : persisted;
     }
-
+    // 记录任务横屏标记到全局设置供跨进程查询
     public static synchronized void setTaskLandscape(Context context, int taskId,
             boolean landscape) {
         if (context == null || taskId <= 0) return;
@@ -115,7 +107,7 @@ public final class OneStepStateBridge {
             LSPLogger.d("OneStepStateBridge.setTaskLandscape: " + t);
         }
     }
-
+    // 查询任务是否被标记为横屏
     public static boolean isTaskLandscape(Context context, int taskId) {
         if (context == null || taskId <= 0) return false;
         try {
@@ -131,7 +123,7 @@ public final class OneStepStateBridge {
         }
         return false;
     }
-
+    // 记录任务请求的方向到全局设置供跨进程查询
     public static synchronized void setTaskRequestedOrientation(Context context, int taskId,
             int orientation) {
         if (context == null || taskId <= 0) return;
@@ -146,7 +138,7 @@ public final class OneStepStateBridge {
             LSPLogger.d("OneStepStateBridge.setTaskRequestedOrientation: " + t);
         }
     }
-
+    // 查询任务记录的请求方向
     public static Integer getTaskRequestedOrientation(Context context, int taskId) {
         if (context == null || taskId <= 0) return null;
         try {
@@ -159,7 +151,7 @@ public final class OneStepStateBridge {
             return null;
         }
     }
-
+    // 记录任务固定信箱边界到全局设置供跨进程查询
     public static synchronized void setTaskFixedLetterboxBounds(Context context, int taskId,
             Rect bounds) {
         if (context == null || taskId <= 0) return;
@@ -180,7 +172,7 @@ public final class OneStepStateBridge {
             LSPLogger.d("OneStepStateBridge.setTaskFixedLetterboxBounds: " + t);
         }
     }
-
+    // 查询任务记录的固定信箱边界
     public static Rect getTaskFixedLetterboxBounds(Context context, int taskId) {
         if (context == null || taskId <= 0) return null;
         try {
@@ -198,7 +190,6 @@ public final class OneStepStateBridge {
             return null;
         }
     }
-
     private static java.util.LinkedHashMap<String, String> decodeMap(String encoded) {
         java.util.LinkedHashMap<String, String> values =
                 new java.util.LinkedHashMap<String, String>();
@@ -210,7 +201,6 @@ public final class OneStepStateBridge {
         }
         return values;
     }
-
     private static String encodeMap(java.util.LinkedHashMap<String, String> values) {
         StringBuilder encoded = new StringBuilder();
         for (java.util.Map.Entry<String, String> entry : values.entrySet()) {
@@ -219,7 +209,6 @@ public final class OneStepStateBridge {
         }
         return encoded.toString();
     }
-
     private static State decode(String encoded) {
         if (encoded == null || encoded.isEmpty()) return null;
         try {
@@ -233,7 +222,6 @@ public final class OneStepStateBridge {
             return null;
         }
     }
-
     private static State disabledState() {
         return new State(false, false, 0, 0, 0, 0);
     }

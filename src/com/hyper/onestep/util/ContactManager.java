@@ -1,23 +1,19 @@
 package com.hyper.onestep.util;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-
 import android.content.Context;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Looper;
 import android.os.Message;
 import android.widget.Toast;
-
 import com.hyper.onestep.R;
 import com.hyper.onestep.receiver.ShortcutReceiver;
-
+// 联系人管理器，统一管理各平台联系人列表
 public class ContactManager extends DataManager{
     private static final LOG log = LOG.getInstance(ContactManager.class);
-
     private volatile static ContactManager sInstance;
     public synchronized static ContactManager getInstance(Context context){
         if(sInstance == null){
@@ -29,16 +25,12 @@ public class ContactManager extends DataManager{
         }
         return sInstance;
     }
-
     private static final int sMaxNumber = 10;
-
     private Context mContext;
     private List<ContactItem> mContacts = new ArrayList<ContactItem>();
     private Handler mHandler;
-
     private Toast mLimitToast;
     private Toast mContactAddedToast;
-
     private ContactManager(Context context){
         mContext = context;
         HandlerThread thread = new HandlerThread(ContactManager.class.getName());
@@ -46,7 +38,6 @@ public class ContactManager extends DataManager{
         mHandler = new ContactManagerHandler(thread.getLooper());
         mHandler.obtainMessage(MSG_READ_CONTACTS).sendToTarget();
     }
-
     public List<ContactItem> getContactList() {
         List<ContactItem> ret = new ArrayList<ContactItem>();
         synchronized (mContacts) {
@@ -54,7 +45,6 @@ public class ContactManager extends DataManager{
         }
         return ret;
     }
-
     private void readContacts(){
         List<ContactItem> list = ContactItem.getContactList(mContext);
         Collections.sort(list, new ContactComparator());
@@ -64,7 +54,7 @@ public class ContactManager extends DataManager{
         }
         notifyListener();
     }
-
+    // 重新排序联系人列表并持久化顺序
     public void updateOrder() {
         synchronized (mContacts) {
             Collections.sort(mContacts, new ContactComparator());
@@ -72,7 +62,7 @@ public class ContactManager extends DataManager{
         notifyListener();
         mHandler.obtainMessage(MSG_UPDATE_ORDER).sendToTarget();
     }
-
+    // 移除指定包名对应的双开应用快捷方式
     public void removeDoppelgangerShortcut(String pkg) {
         if (pkg == null) {
             return;
@@ -80,7 +70,7 @@ public class ContactManager extends DataManager{
         log.error("removeDoppelgangerShortcut ["+pkg+"]");
         mHandler.obtainMessage(MSG_REMOVE_DOPPELGANGER, pkg).sendToTarget();
     }
-
+    // 添加联系人，超过上限时提示；同联系人则替换，并持久化
     public boolean addContact(ContactItem ci) {
         synchronized (mContacts) {
             if(mContacts.size() >= sMaxNumber) {
@@ -116,7 +106,7 @@ public class ContactManager extends DataManager{
             return true;
         }
     }
-
+    // 移除指定联系人并从数据库删除
     public void remove(ContactItem ci) {
         synchronized (mContacts) {
             for (int i = 0; i < mContacts.size(); ++i) {
@@ -129,8 +119,6 @@ public class ContactManager extends DataManager{
             }
         }
     }
-
-
     private void showToastDueToLimit() {
         if (mLimitToast != null) {
             mLimitToast.cancel();
@@ -140,7 +128,6 @@ public class ContactManager extends DataManager{
                 Toast.LENGTH_SHORT);
         mLimitToast.show();
     }
-
     private void showContactAddedToast() {
         if (mContactAddedToast != null) {
             mContactAddedToast.cancel();
@@ -148,19 +135,15 @@ public class ContactManager extends DataManager{
         mContactAddedToast = Toast.makeText(mContext, R.string.contact_added, Toast.LENGTH_SHORT);
         mContactAddedToast.show();
     }
-
     private void saveContact(ContactItem ci){
         mHandler.obtainMessage(MSG_SAVE_CONTACT, ci).sendToTarget();
     }
-
     private void deleteContactFromDatabase(ContactItem ci){
         mHandler.obtainMessage(MSG_DELETE_CONTACT, ci).sendToTarget();
     }
-
     public void onPackageAdded(String packageName){
-        // NA
     }
-
+    // 应用卸载回调：移除属于该包名的所有联系人
     public void onPackageRemoved(String packageName) {
         boolean deleted = false;
         synchronized (mContacts) {
@@ -178,7 +161,6 @@ public class ContactManager extends DataManager{
             notifyListener();
         }
     }
-
     public static final class ContactComparator implements Comparator<ContactItem> {
         @Override
         public int compare(ContactItem lhs, ContactItem rhs) {
@@ -191,18 +173,15 @@ public class ContactManager extends DataManager{
             }
         }
     }
-
     private static final int MSG_SAVE_CONTACT = 0;
     private static final int MSG_DELETE_CONTACT = 1;
     private static final int MSG_UPDATE_ORDER = 2;
     private static final int MSG_READ_CONTACTS = 3;
     private static final int MSG_REMOVE_DOPPELGANGER = 4;
-
     private class ContactManagerHandler extends Handler {
         public ContactManagerHandler(Looper looper) {
             super(looper);
         }
-
         @Override
         public void handleMessage(Message msg) {
             switch (msg.what) {
@@ -229,12 +208,6 @@ public class ContactManager extends DataManager{
                     break;
                 }
                 case MSG_REMOVE_DOPPELGANGER : {
-//                        break;
-//                    List<ContactItem> removeList = new ArrayList<ContactItem>();
-//                                WechatContact contact = (WechatContact) item;
-//                                DingDingContact contact = (DingDingContact) item;
-//                        synchronized(mContacts) {
-//                    notifyListener();
                     break;
                 }
             }

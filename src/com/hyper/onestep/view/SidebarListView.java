@@ -1,5 +1,4 @@
 package com.hyper.onestep.view;
-
 import android.content.Context;
 import android.graphics.Rect;
 import android.graphics.drawable.BitmapDrawable;
@@ -12,7 +11,6 @@ import android.view.ViewTreeObserver;
 import android.widget.AdapterView;
 import android.widget.ListAdapter;
 import android.widget.ListView;
-
 import com.hyper.onestep.R;
 import com.hyper.onestep.SidebarController;
 import com.hyper.onestep.util.BitmapUtils;
@@ -24,30 +22,23 @@ import com.hyper.onestep.util.anim.AnimListener;
 import com.hyper.onestep.util.anim.AnimStatusManager;
 import com.hyper.onestep.util.anim.AnimTimeLine;
 import com.hyper.onestep.util.anim.Vector3f;
-
 import java.util.ArrayList;
 import java.util.List;
-
+// 侧边栏列表视图，支持拖拽与分割线
 public class SidebarListView extends ListView {
     private static final LOG log = LOG.getInstance(SidebarListView.class);
-
     private boolean mNeedDivider = true;
     private View mDivider;
-
     private SideView mSideView;
     private SidebarAdapter mAdapter;
-
     private SidebarItem mDraggedItem;
     private int mDragPosition = -1;
     private int mUnDragNumber = 0;
-
     private AnimTimeLine mDatasetChangeTimeLine;
     private AnimListener mListener = new AnimListener() {
-
         @Override
         public void onStart() {
         }
-
         @Override
         public void onComplete(int type) {
             if(mAdapter != null) {
@@ -56,11 +47,9 @@ public class SidebarListView extends ListView {
         }
     };
     private Context mContext;
-
     public SidebarListView(Context context) {
         this(context, null);
     }
-
     public SidebarListView(Context context, AttributeSet attrs) {
         this(context, attrs, 0);
     }
@@ -68,7 +57,6 @@ public class SidebarListView extends ListView {
             int defStyleAttr) {
         this(context, attrs, defStyleAttr, 0);
     }
-
     public SidebarListView(Context context, AttributeSet attrs,
             int defStyleAttr, int defStyleRes) {
         super(context, attrs, defStyleAttr, defStyleRes);
@@ -76,11 +64,9 @@ public class SidebarListView extends ListView {
         mDivider = LayoutInflater.from(context).inflate(R.layout.sidebar_view_divider, null);
         setOnItemLongClickListener(mOnLongClickListener);
     }
-
     public void setSideView(SideView view) {
         mSideView = view;
     }
-
     @Override
     public void setAdapter(ListAdapter adapter) {
         super.setAdapter(adapter);
@@ -88,19 +74,16 @@ public class SidebarListView extends ListView {
             mAdapter = (SidebarAdapter) adapter;
         }
     }
-
     public void onDragStart(DragEvent event) {
         if (mAdapter != null) {
             mAdapter.onDragStart(event);
         }
     }
-
     public void onDragEnd() {
         if (mAdapter != null) {
             mAdapter.onDragEnd();
         }
     }
-
     private AdapterView.OnItemLongClickListener mOnLongClickListener = new AdapterView.OnItemLongClickListener() {
         @Override
         public boolean onItemLongClick(AdapterView<?> parent, View view, int position, long id) {
@@ -114,12 +97,10 @@ public class SidebarListView extends ListView {
             viewLoc[1] = viewLoc[1] + view.getHeight() / 2;
             mDraggedItem = (SidebarItem) SidebarListView.this.getAdapter().getItem(position);
             if (mDraggedItem == null) {
-                // see ticket 136616 http://mantis.smartisan.cn/view.php?id=136616
                 log.error("mDraggedItem == null !  position -> " + position
                         + ", count -> " + SidebarListView.this.getAdapter().getCount());
             }
             mDragPosition = position;
-            //Drawable icon = mDraggedItem.getAvatar();
             Drawable icon = new BitmapDrawable(mContext.getResources(), BitmapUtils.drawableToBitmap(mDraggedItem.getAvatar()));
             SidebarController.getInstance(mContext).getSidebarRootView().startDrag(icon, view, viewLoc);
             mSideView.setDraggedList(SidebarListView.this);
@@ -128,18 +109,15 @@ public class SidebarListView extends ListView {
             return false;
         }
     };
-
     public SidebarItem getDraggedItem() {
         return mDraggedItem;
     }
-
     public void deleteDraggedSidebarItem() {
         if (mDraggedItem != null) {
             mDraggedItem.delete();
             dragEnd();
         }
     }
-
     public void dropBackSidebarItem() {
         if (mDraggedItem != null) {
             if (mAdapter != null) {
@@ -148,13 +126,11 @@ public class SidebarListView extends ListView {
             dragEnd();
         }
     }
-
     private void dragEnd() {
         mDragPosition = -1;
         mDraggedItem = null;
         AnimStatusManager.getInstance().setStatus(AnimStatusManager.SIDEBAR_ITEM_DRAGGING, false);
     }
-
     private int[] convertToLocalCoordinate(int x, int y, Rect drawingRect) {
         int[] viewLoc = new int[2];
         getLocationOnScreen(viewLoc);
@@ -165,12 +141,10 @@ public class SidebarListView extends ListView {
         loc[1] = loc[1] + drawingRect.top;
         return loc;
     }
-
     public void dragObjectMove(int rawX, int rawY) {
         if (Utils.inArea(rawX, rawY, this)) {
             int count = getAdapter().getCount() - getHeaderViewsCount() - getFooterViewsCount();
             if (count > 0) {
-                // convert global coordinate to view local coordinate
                 Rect drawingRect = new Rect();
                 getDrawingRect(drawingRect);
                 int[] localLoc = convertToLocalCoordinate(rawX, rawY, drawingRect);
@@ -180,31 +154,25 @@ public class SidebarListView extends ListView {
             }
         }
     }
-
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
         int expandSpec = MeasureSpec.makeMeasureSpec(Integer.MAX_VALUE >> 2, MeasureSpec.AT_MOST);
         super.onMeasure(widthMeasureSpec, expandSpec);
     }
-
     public void setNeedFootView(boolean needFootView) {
         if (needFootView != mNeedDivider) {
             mNeedDivider = needFootView;
             requestLayout();
         }
     }
-
     @Override
     public void requestLayout() {
         super.requestLayout();
         if (mDivider == null) {
-            // this means the construcor is going on !
             return;
         }
-
         ListAdapter adapter = this.getAdapter();
         if (adapter != null && adapter.getCount() == getHeaderViewsCount()) {
-            // we are empty actually..
             removeHeaderView(mDivider);
             return;
         }
@@ -218,13 +186,11 @@ public class SidebarListView extends ListView {
             }
         }
     }
-
     @Override
     protected void onSizeChanged(int w, int h, int oldw, int oldh) {
         super.onSizeChanged(w, h, oldw, oldh);
         getViewTreeObserver().addOnGlobalLayoutListener(mAddItemWithAnimListener);
     }
-
     public void animWhenDatasetChange() {
         if(mDatasetChangeTimeLine != null && mDatasetChangeTimeLine.isRunning()) {
             mDatasetChangeTimeLine.cancel();
@@ -282,7 +248,6 @@ public class SidebarListView extends ListView {
         }
         mDatasetChangeTimeLine.start();
     }
-
     private ViewTreeObserver.OnGlobalLayoutListener mAddItemWithAnimListener = new ViewTreeObserver.OnGlobalLayoutListener() {
         @Override
         public void onGlobalLayout() {
@@ -290,11 +255,9 @@ public class SidebarListView extends ListView {
             animWhenDatasetChange();
         }
     };
-
     public void setUnDragNumber(int unDragNumber) {
         mUnDragNumber = unDragNumber;
     }
-
     private void pointToNewPositionWithAnim(int position) {
         int headViewCount = getHeaderViewsCount();
         int count = getCount() - getFooterViewsCount() - headViewCount;
@@ -305,7 +268,6 @@ public class SidebarListView extends ListView {
         }
         int begin = headViewCount;
         int end = begin + count;
-        // check invisible count
         int invisibleViewCount = 0;
         for (int i = begin; i < end; i++) {
             View view = getChildAt(i);
@@ -330,7 +292,6 @@ public class SidebarListView extends ListView {
             }
             throw new IllegalArgumentException("invisibleViewCount != 1");
         }
-
         mDragPosition = position;
         position -= this.getHeaderViewsCount();
         View[] viewArr = new View[count];
@@ -364,7 +325,6 @@ public class SidebarListView extends ListView {
         }
         moveAnimTimeLine.start();
     }
-
     public List<View> getViewList() {
         List<View> views = new ArrayList<View>();
         int count = getChildCount();

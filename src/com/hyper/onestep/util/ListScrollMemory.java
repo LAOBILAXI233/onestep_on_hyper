@@ -1,24 +1,13 @@
 package com.hyper.onestep.util;
-
 import android.content.Context;
 import android.view.View;
 import android.widget.ListView;
-
 import com.hyper.onestep.lsp.LSPLogger;
-
-/**
- * Remembers where each sidebar panel was scrolled to, so reopening a panel resumes at the same
- * place instead of snapping back to the top.
- *
- * <p>A ListView position is a pair: the index of the first visible row plus how far that row is
- * scrolled off the top. Storing only the index would jump by up to one row height each time.</p>
- */
+// 列表滚动位置记忆工具，持久化并恢复滚动偏移
 public final class ListScrollMemory {
     private static final String KEY_PREFIX = "list_scroll_";
-
     private ListScrollMemory() {
     }
-
     /** Records the panel's current position. Call before the list is torn down or hidden. */
     public static void save(Context context, String panelId, ListView list) {
         if (context == null || list == null || panelId == null) return;
@@ -32,11 +21,6 @@ public final class ListScrollMemory {
             LSPLogger.w("ListScrollMemory.save failed for " + panelId + ": " + t);
         }
     }
-
-    /**
-     * Restores the remembered position. Runs on the list's own queue because the adapter's rows
-     * are not measured yet when a panel is shown, and seeking before then lands at the top.
-     */
     public static void restore(Context context, final String panelId, final ListView list) {
         if (context == null || list == null || panelId == null) return;
         try {
@@ -49,8 +33,6 @@ public final class ListScrollMemory {
                     try {
                         int count = list.getCount();
                         if (count <= 0) return;
-                        // Content shrinks between sessions (items cleared or expired), so clamp
-                        // rather than seek past the end and land on a blank list.
                         int target = Math.min(index, count - 1);
                         list.setSelectionFromTop(target, offset);
                     } catch (Throwable t) {
@@ -62,11 +44,9 @@ public final class ListScrollMemory {
             LSPLogger.w("ListScrollMemory.restore failed for " + panelId + ": " + t);
         }
     }
-
     private static String indexKey(String panelId) {
         return KEY_PREFIX + panelId + "_index";
     }
-
     private static String offsetKey(String panelId) {
         return KEY_PREFIX + panelId + "_offset";
     }

@@ -1,5 +1,4 @@
 package com.hyper.onestep.lsp;
-
 import android.app.Activity;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -9,13 +8,10 @@ import android.os.Handler;
 import android.os.Looper;
 import android.view.MotionEvent;
 import android.view.View;
-
 import java.lang.ref.WeakReference;
-
 /** Applies OneStep geometry inside com.miui.home, whose task leash is not owned by SystemUI. */
 public final class LauncherTransformController {
     private static final long[] REAPPLY_DELAYS_MS = { 0L, 120L, 300L, 600L, 1200L, 2000L };
-
     private static final Handler MAIN = new Handler(Looper.getMainLooper());
     private static WeakReference<Activity> sActivity = new WeakReference<>(null);
     private static WeakReference<View> sDecor = new WeakReference<>(null);
@@ -23,16 +19,14 @@ public final class LauncherTransformController {
     private static BroadcastReceiver sReceiver;
     private static OneStepStateBridge.State sState = OneStepStateBridge.read(null);
     private static int sGeneration;
-
     private static float sOriginalPivotX;
     private static float sOriginalPivotY;
     private static float sOriginalScaleX;
     private static float sOriginalScaleY;
     private static float sOriginalTranslationX;
     private static float sOriginalTranslationY;
-
     private LauncherTransformController() {}
-
+    // 绑定Launcher Activity并注册布局状态广播接收器
     public static void attach(Activity activity) {
         if (activity == null || !OneStepStateBridge.LAUNCHER_PACKAGE.equals(
                 activity.getPackageName())) return;
@@ -40,7 +34,7 @@ public final class LauncherTransformController {
         ensureReceiver(activity.getApplicationContext());
         setState(OneStepStateBridge.read(activity));
     }
-
+    // 将屏幕触摸坐标反向映射到Launcher内容坐标
     public static boolean toContent(MotionEvent event) {
         OneStepStateBridge.State state = sState;
         return state != null && state.canTransform()
@@ -48,14 +42,13 @@ public final class LauncherTransformController {
                         state.sidebarWidth, state.topHeight, state.screenHeight,
                         state.sidebarOnLeft);
     }
-
+    // 将Launcher内容坐标还原为屏幕坐标
     public static void toScreen(MotionEvent event) {
         OneStepStateBridge.State state = sState;
         if (state == null) return;
         OneStepTouchMapper.toScreen(event, state.screenWidth, state.sidebarWidth,
                 state.topHeight, state.screenHeight, state.sidebarOnLeft);
     }
-
     private static void ensureReceiver(Context context) {
         if (sReceiver != null || context == null) return;
         sAppContext = context;
@@ -73,7 +66,6 @@ public final class LauncherTransformController {
             LSPLogger.e("LauncherTransformController: receiver registration failed", t);
         }
     }
-
     private static void setState(OneStepStateBridge.State state) {
         sState = state != null ? state : OneStepStateBridge.read(sAppContext);
         int generation = ++sGeneration;
@@ -83,7 +75,6 @@ public final class LauncherTransformController {
             }, delay);
         }
     }
-
     private static void applyCurrentState() {
         Activity activity = sActivity.get();
         if (activity == null || activity.isDestroyed()) return;
@@ -99,7 +90,6 @@ public final class LauncherTransformController {
             sOriginalTranslationX = decor.getTranslationX();
             sOriginalTranslationY = decor.getTranslationY();
         }
-
         OneStepStateBridge.State state = sState;
         if (state == null || !state.canTransform()) {
             restore(decor);
@@ -111,9 +101,6 @@ public final class LauncherTransformController {
                 / (float) state.screenHeight;
         float targetTranslationX = state.sidebarOnLeft ? state.sidebarWidth : 0f;
         float targetTranslationY = state.topHeight;
-        // The layout broadcast storm re-triggers this several times a second. Skip the
-        // property writes when the decor already carries this exact transform — every
-        // setScaleX/TranslationX invalidates the launcher view hierarchy.
         if (decor.getPivotX() == 0f && decor.getPivotY() == 0f
                 && Math.abs(decor.getScaleX() - targetScaleX) < 0.0001f
                 && Math.abs(decor.getScaleY() - targetScaleY) < 0.0001f
@@ -131,7 +118,6 @@ public final class LauncherTransformController {
                 + state.sidebarOnLeft + " screen=" + state.screenWidth + "x"
                 + state.screenHeight);
     }
-
     private static void restore(View decor) {
         decor.setPivotX(sOriginalPivotX);
         decor.setPivotY(sOriginalPivotY);

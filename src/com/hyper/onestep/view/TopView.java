@@ -1,5 +1,4 @@
 package com.hyper.onestep.view;
-
 import android.app.usage.UsageStats;
 import android.app.usage.UsageStatsManager;
 import android.app.PendingIntent;
@@ -31,13 +30,14 @@ import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
-
 import com.hyper.onestep.R;
 import com.hyper.onestep.SidebarController;
 import com.hyper.onestep.SidebarMode;
 import com.hyper.onestep.SidebarStatus;
 import com.hyper.onestep.lsp.LSPLogger;
 import com.hyper.onestep.lsp.MultiTaskController;
+import com.hyper.onestep.util.AppIconLoader;
+import com.hyper.onestep.util.AppIconPlaceholder;
 import com.hyper.onestep.util.AppItem;
 import com.hyper.onestep.util.AppManager;
 import com.hyper.onestep.util.DataManager;
@@ -49,14 +49,12 @@ import com.hyper.onestep.util.anim.AnimStatusManager;
 import com.hyper.onestep.util.anim.AnimTimeLine;
 import com.hyper.onestep.view.ContentView.ContentType;
 import com.hyper.onestep.util.Utils;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
 /** OneStep 3.0 top app strip. Long-press an icon and drag it into a task slot. */
 public class TopView extends FrameLayout {
     private LinearLayout mAppStrip;
@@ -77,10 +75,8 @@ public class TopView extends FrameLayout {
     private long mAppsLoadedAt;
     private int mAppRenderGeneration;
     private int mAppRefreshRetryCount;
-
     private static final int MAX_TOP_APPS = 64;
     private static final long APP_CACHE_TTL_MS = 5L * 60L * 1000L;
-
     private View mCurrentPage;
     private View mLegacyPage;
     private View mAppScroll;
@@ -92,7 +88,6 @@ public class TopView extends FrameLayout {
     private TopItemView mClipboard;
     private final Map<ITopItem, ContentType> mViewToType =
             new HashMap<ITopItem, ContentType>();
-
     private static final int PAGE_CURRENT = 0;
     private static final int PAGE_LEGACY = 1;
     private static final String KEY_LAST_TOP_PAGE = "last_top_page";
@@ -105,12 +100,10 @@ public class TopView extends FrameLayout {
     private int mTouchSlop;
     private int mMinimumFlingVelocity;
     private final Rect mTouchBounds = new Rect();
-
     private final Handler mMediaHandler = new Handler(Looper.getMainLooper());
     private MediaSessionManager mMediaSessionManager;
     private MediaController mMediaController;
     private boolean mMediaListening;
-
     private final MediaSessionManager.OnActiveSessionsChangedListener mMediaSessionsListener =
             new MediaSessionManager.OnActiveSessionsChangedListener() {
                 @Override
@@ -118,18 +111,15 @@ public class TopView extends FrameLayout {
                     bindBestMediaController(controllers);
                 }
             };
-
     private final MediaController.Callback mMediaCallback = new MediaController.Callback() {
         @Override
         public void onMetadataChanged(MediaMetadata metadata) {
             postMediaUpdate();
         }
-
         @Override
         public void onPlaybackStateChanged(PlaybackState state) {
             postMediaUpdate();
         }
-
         @Override
         public void onSessionDestroyed() {
             mMediaHandler.post(new Runnable() {
@@ -140,7 +130,6 @@ public class TopView extends FrameLayout {
             });
         }
     };
-
     private final DataManager.RecentUpdateListener mAppsChangedListener =
             new DataManager.RecentUpdateListener() {
                 @Override
@@ -153,7 +142,6 @@ public class TopView extends FrameLayout {
                     });
                 }
             };
-
     private final OnClickListener mLegacyItemClickListener = new OnClickListener() {
         @Override
         public void onClick(View view) {
@@ -162,7 +150,6 @@ public class TopView extends FrameLayout {
                 AnimStatusManager.getInstance().dumpStatus();
                 return;
             }
-
             TopItemView itemView = (TopItemView) view;
             ContentType contentType = mViewToType.get(itemView);
             if (contentType == null || contentType == ContentType.NONE) return;
@@ -178,7 +165,6 @@ public class TopView extends FrameLayout {
                     @Override
                     public void onStart() {
                     }
-
                     @Override
                     public void onComplete(int type) {
                         AnimStatusManager.getInstance().setStatus(
@@ -192,26 +178,22 @@ public class TopView extends FrameLayout {
             }
         }
     };
-
     public TopView(Context context) {
         this(context, null);
     }
-
     public TopView(Context context, AttributeSet attrs) {
         this(context, attrs, 0);
     }
-
     public TopView(Context context, AttributeSet attrs, int defStyleAttr) {
         this(context, attrs, defStyleAttr, 0);
     }
-
     public TopView(Context context, AttributeSet attrs, int defStyleAttr, int defStyleRes) {
         super(context, attrs, defStyleAttr, defStyleRes);
         ViewConfiguration configuration = ViewConfiguration.get(context);
         mTouchSlop = configuration.getScaledTouchSlop();
         mMinimumFlingVelocity = configuration.getScaledMinimumFlingVelocity();
     }
-
+    // 视图加载完成：初始化页面、控件、媒体控制器并刷新应用列表
     @Override
     protected void onFinishInflate() {
         super.onFinishInflate();
@@ -229,7 +211,6 @@ public class TopView extends FrameLayout {
         mMediaPrevious = (ImageButton) findViewById(R.id.media_previous);
         mMediaPlayPause = (ImageButton) findViewById(R.id.media_play_pause);
         mMediaNext = (ImageButton) findViewById(R.id.media_next);
-
         mController = SidebarController.getInstance(getContext());
         mAppManager = AppManager.getInstance(getContext());
         mAppManager.addListener(mAppsChangedListener);
@@ -237,7 +218,6 @@ public class TopView extends FrameLayout {
                 Process.THREAD_PRIORITY_BACKGROUND);
         mAppLoaderThread.start();
         mAppLoader = new Handler(mAppLoaderThread.getLooper());
-
         bindLegacyItems();
         bindControls();
         bindMediaControls();
@@ -245,14 +225,12 @@ public class TopView extends FrameLayout {
         startMediaController();
         requestAppsRefresh(true);
     }
-
     private void bindLegacyItems() {
         mLegacyLeft = (DimSpaceView) findViewById(R.id.top_dim_view_left);
         mLegacyRight = (DimSpaceView) findViewById(R.id.top_dim_view_right);
         mPhotos = (TopItemView) findViewById(R.id.photo);
         mFile = (TopItemView) findViewById(R.id.file);
         mClipboard = (TopItemView) findViewById(R.id.clipboard);
-
         mPhotos.setText(R.string.topbar_photo);
         mPhotos.setIconBackground(R.drawable.topbar_photo, R.drawable.topbar_photo_dim);
         mPhotos.setIconContentPaddingTop(getResources().getDimensionPixelSize(
@@ -264,19 +242,17 @@ public class TopView extends FrameLayout {
         mClipboard.setText(R.string.topbar_clipboard);
         mClipboard.setIconBackground(
                 R.drawable.topbar_clipboard, R.drawable.topbar_clipboard_dim);
-
         mViewToType.clear();
         mViewToType.put(mLegacyLeft, ContentType.NONE);
         mViewToType.put(mPhotos, ContentType.PHOTO);
         mViewToType.put(mFile, ContentType.FILE);
         mViewToType.put(mClipboard, ContentType.CLIPBOARD);
         mViewToType.put(mLegacyRight, ContentType.NONE);
-
         mPhotos.setOnClickListener(mLegacyItemClickListener);
         mFile.setOnClickListener(mLegacyItemClickListener);
         mClipboard.setOnClickListener(mLegacyItemClickListener);
     }
-
+    // 视图销毁时释放应用加载线程与媒体控制器
     @Override
     protected void onDetachedFromWindow() {
         if (mAppManager != null) mAppManager.removeListener(mAppsChangedListener);
@@ -289,7 +265,7 @@ public class TopView extends FrameLayout {
         stopMediaController();
         super.onDetachedFromWindow();
     }
-
+    // 根据状态切换顶栏为正常或暗化效果
     public void requestStatus(SidebarStatus status) {
         if (status == SidebarStatus.NORMAL) {
             resumeToNormal();
@@ -298,16 +274,10 @@ public class TopView extends FrameLayout {
             setAlpha(0.68f);
         }
     }
-
-    /**
-     * Reopens a panel on behalf of the controller, e.g. restoring the one the user had open when
-     * the sidebar last closed. Mirrors the click path so the top bar highlight matches the panel;
-     * showing the content alone would leave every icon dimmed.
-     */
+    // 恢复上次打开的内容类型并触发高亮动画
     public void restoreContentType(ContentType contentType) {
         if (mController == null || contentType == null || contentType == ContentType.NONE) return;
         if (mController.getCurrentContentType() != ContentType.NONE) return;
-
         ITopItem target = null;
         for (Map.Entry<ITopItem, ContentType> entry : mViewToType.entrySet()) {
             if (entry.getValue() == contentType) {
@@ -316,7 +286,6 @@ public class TopView extends FrameLayout {
             }
         }
         if (target == null) return;
-
         mController.showContent(contentType);
         AnimTimeLine timeLine = new AnimTimeLine();
         for (ITopItem item : mViewToType.keySet()) {
@@ -324,7 +293,7 @@ public class TopView extends FrameLayout {
         }
         timeLine.start();
     }
-
+    // 恢复所有顶栏项到正常显示状态并播放动画
     public void resumeToNormal() {
         animate().alpha(1f).setDuration(120L).start();
         if (mViewToType.isEmpty()
@@ -342,7 +311,6 @@ public class TopView extends FrameLayout {
             @Override
             public void onStart() {
             }
-
             @Override
             public void onComplete(int type) {
                 AnimStatusManager.getInstance().setStatus(
@@ -351,7 +319,6 @@ public class TopView extends FrameLayout {
         });
         timeLine.start();
     }
-
     private void dimLegacyItems() {
         if (mViewToType.isEmpty()) return;
         AnimTimeLine timeLine = new AnimTimeLine();
@@ -360,7 +327,7 @@ public class TopView extends FrameLayout {
         }
         timeLine.start();
     }
-
+    // 显示或隐藏顶栏并播放进入/退出动画
     public void show(boolean show) {
         animate().cancel();
         cancelPageGesture();
@@ -386,8 +353,6 @@ public class TopView extends FrameLayout {
             }, 260L);
         } else {
             resumeToNormal();
-            // Settle the pages without changing which one is current: hiding must not discard the
-            // page the user picked, since show() reopens on it.
             resetPages(mPage);
             animate().alpha(0f)
                     .translationY(-getResources().getDimensionPixelSize(
@@ -403,7 +368,7 @@ public class TopView extends FrameLayout {
                     }).start();
         }
     }
-
+    // 启用/禁用顶栏交互并控制遮罩显示
     @Override
     public void setEnabled(boolean enabled) {
         super.setEnabled(enabled);
@@ -415,7 +380,7 @@ public class TopView extends FrameLayout {
             mDisableView.setVisibility(enabled ? GONE : VISIBLE);
         }
     }
-
+    // 内容面板可见时拦截触摸以恢复侧边栏
     @Override
     public boolean dispatchTouchEvent(MotionEvent event) {
         if (event.getActionMasked() == MotionEvent.ACTION_DOWN
@@ -427,14 +392,13 @@ public class TopView extends FrameLayout {
         }
         return super.dispatchTouchEvent(event);
     }
-
+    // 拦截横向滑动以切换顶栏页面
     @Override
     public boolean onInterceptTouchEvent(MotionEvent event) {
         if (!isEnabled() || mController == null
                 || mController.getCurrentContentType() != ContentType.NONE) {
             return super.onInterceptTouchEvent(event);
         }
-
         switch (event.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
                 cancelPageGesture();
@@ -446,7 +410,6 @@ public class TopView extends FrameLayout {
                     mPageVelocityTracker.addMovement(event);
                 }
                 return false;
-
             case MotionEvent.ACTION_MOVE:
                 if (!mPotentialPageSwipe) return false;
                 addPageVelocityMovement(event);
@@ -471,18 +434,16 @@ public class TopView extends FrameLayout {
                     return true;
                 }
                 return false;
-
             case MotionEvent.ACTION_UP:
             case MotionEvent.ACTION_CANCEL:
                 boolean wasDragging = mDraggingPage;
                 if (!wasDragging) cancelPageGesture();
                 return wasDragging;
-
             default:
                 return false;
         }
     }
-
+    // 处理页面拖拽手势并根据速度决定是否切换页面
     @Override
     public boolean onTouchEvent(MotionEvent event) {
         if (!mDraggingPage) return super.onTouchEvent(event);
@@ -491,7 +452,6 @@ public class TopView extends FrameLayout {
             case MotionEvent.ACTION_MOVE:
                 updatePageDrag(event.getX() - mPageDownX);
                 return true;
-
             case MotionEvent.ACTION_UP:
                 float velocityX = 0f;
                 if (mPageVelocityTracker != null) {
@@ -509,27 +469,21 @@ public class TopView extends FrameLayout {
                 mPotentialPageSwipe = false;
                 mDraggingPage = false;
                 return true;
-
             case MotionEvent.ACTION_CANCEL:
                 settlePage(mPage, true);
                 cancelPageGesture();
                 return true;
-
             default:
                 return true;
         }
     }
-
     @Override
     public boolean performClick() {
         super.performClick();
         return true;
     }
-
     private boolean canStartPageSwipe(MotionEvent event) {
         if (mCurrentPage == null || mLegacyPage == null) return false;
-        // The app strip is shared by both pages. Never let page switching steal its horizontal
-        // scroll gesture, especially on the legacy recent-items page.
         if (isTouchInsideView(mAppScroll, event)
                 || isTouchInsideView(mControls, event)) {
             return false;
@@ -539,13 +493,11 @@ public class TopView extends FrameLayout {
                 && !isTouchInsideView(mMediaPlayPause, event)
                 && !isTouchInsideView(mMediaNext, event);
     }
-
     private boolean isTouchInsideView(View view, MotionEvent event) {
         return view != null && view.isShown()
                 && view.getGlobalVisibleRect(mTouchBounds)
                 && mTouchBounds.contains((int) event.getRawX(), (int) event.getRawY());
     }
-
     private void preparePagesForDrag() {
         int width = Math.max(1, getWidth());
         mCurrentPage.animate().cancel();
@@ -560,7 +512,6 @@ public class TopView extends FrameLayout {
             mCurrentPage.setTranslationX(width);
         }
     }
-
     private void updatePageDrag(float dx) {
         int width = Math.max(1, getWidth());
         if (mPage == PAGE_CURRENT) {
@@ -573,7 +524,6 @@ public class TopView extends FrameLayout {
             mCurrentPage.setTranslationX(width + offset);
         }
     }
-
     private void settlePage(final int targetPage, boolean animate) {
         int width = Math.max(1, getWidth());
         mCurrentPage.animate().cancel();
@@ -597,13 +547,10 @@ public class TopView extends FrameLayout {
                     }
                 }).start();
     }
-
     private void finishPageSettle(int targetPage) {
         boolean pageChanged = mPage != targetPage;
         mPage = targetPage;
         if (pageChanged) {
-            // Persist the page so reopening OneStep lands on the one the user was last using
-            // instead of always starting on the media controls.
             Utils.Config.setIntValue(getContext(), KEY_LAST_TOP_PAGE, targetPage);
         }
         int width = Math.max(1, getWidth());
@@ -612,12 +559,10 @@ public class TopView extends FrameLayout {
         mCurrentPage.setVisibility(targetPage == PAGE_CURRENT ? VISIBLE : INVISIBLE);
         mLegacyPage.setVisibility(targetPage == PAGE_LEGACY ? VISIBLE : INVISIBLE);
     }
-
     private void resetPages(int page) {
         if (mCurrentPage == null || mLegacyPage == null) return;
         settlePage(page, false);
     }
-
     /** The top-bar page the user last swiped to; defaults to the media controls. */
     private int rememberedPage() {
         try {
@@ -627,29 +572,24 @@ public class TopView extends FrameLayout {
             return PAGE_CURRENT;
         }
     }
-
     private int oppositePage(int page) {
         return page == PAGE_CURRENT ? PAGE_LEGACY : PAGE_CURRENT;
     }
-
     private void addPageVelocityMovement(MotionEvent event) {
         if (mPageVelocityTracker == null) mPageVelocityTracker = VelocityTracker.obtain();
         mPageVelocityTracker.addMovement(event);
     }
-
     private void cancelPageGesture() {
         mPotentialPageSwipe = false;
         mDraggingPage = false;
         recyclePageVelocityTracker();
         if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(false);
     }
-
     private void recyclePageVelocityTracker() {
         if (mPageVelocityTracker == null) return;
         mPageVelocityTracker.recycle();
         mPageVelocityTracker = null;
     }
-
     private void bindControls() {
         findViewById(R.id.top_move_left).setOnClickListener(new OnClickListener() {
             @Override
@@ -687,13 +627,6 @@ public class TopView extends FrameLayout {
             }
         });
     }
-
-    /**
-     * Bind the small player to the same system MediaSession feed used by HyperOS SystemUI.
-     * We intentionally do not instantiate MediaCarouselController: it is a private Dagger
-     * graph object whose ownership/lifecycle belongs to SystemUI. MediaSessionManager gives
-     * us the same active sessions and lets the transport controls remain app-owned.
-     */
     private void startMediaController() {
         Context host = mController == null ? getContext() : mController.getHostContext();
         if (host == null) host = getContext();
@@ -711,8 +644,6 @@ public class TopView extends FrameLayout {
             LSPLogger.i("TopView.startMediaController: active session listener registered");
             refreshMediaSessions();
         } catch (SecurityException e) {
-            // SystemUI normally has MEDIA_CONTENT_CONTROL. Keep the panel harmless if a ROM
-            // changes that permission boundary instead of taking down the sidebar window.
             LSPLogger.w("TopView.startMediaController: permission denied: " + e.getMessage());
             renderNoMedia();
         } catch (Throwable t) {
@@ -720,7 +651,6 @@ public class TopView extends FrameLayout {
             renderNoMedia();
         }
     }
-
     private void stopMediaController() {
         if (mMediaSessionManager != null && mMediaListening) {
             try {
@@ -734,7 +664,6 @@ public class TopView extends FrameLayout {
         mMediaSessionManager = null;
         mMediaHandler.removeCallbacksAndMessages(null);
     }
-
     private void refreshMediaSessions() {
         if (mMediaSessionManager == null) {
             renderNoMedia();
@@ -750,7 +679,6 @@ public class TopView extends FrameLayout {
             renderNoMedia();
         }
     }
-
     private void bindBestMediaController(List<MediaController> controllers) {
         if (Looper.myLooper() != Looper.getMainLooper()) {
             final List<MediaController> copy = controllers == null
@@ -763,7 +691,6 @@ public class TopView extends FrameLayout {
             });
             return;
         }
-
         MediaController best = chooseMediaController(controllers);
         if (!sameMediaSession(best, mMediaController)) {
             unregisterMediaCallback();
@@ -780,7 +707,6 @@ public class TopView extends FrameLayout {
         }
         updateMediaUi();
     }
-
     private MediaController chooseMediaController(List<MediaController> controllers) {
         if (controllers == null || controllers.isEmpty()) return null;
         MediaController best = null;
@@ -794,7 +720,6 @@ public class TopView extends FrameLayout {
                 state = controller.getPlaybackState();
                 metadata = controller.getMetadata();
             } catch (Throwable ignored) {
-                // A session can disappear between getActiveSessions and its callback query.
             }
             if (state != null) {
                 int playbackState = state.getState();
@@ -816,7 +741,6 @@ public class TopView extends FrameLayout {
         }
         return best;
     }
-
     private boolean sameMediaSession(MediaController left, MediaController right) {
         if (left == right) return true;
         if (left == null || right == null) return false;
@@ -827,16 +751,13 @@ public class TopView extends FrameLayout {
             return false;
         }
     }
-
     private void unregisterMediaCallback() {
         if (mMediaController == null) return;
         try {
             mMediaController.unregisterCallback(mMediaCallback);
         } catch (Throwable ignored) {
-            // The remote session may already be gone.
         }
     }
-
     private void postMediaUpdate() {
         mMediaHandler.post(new Runnable() {
             @Override
@@ -845,7 +766,6 @@ public class TopView extends FrameLayout {
             }
         });
     }
-
     private void bindMediaControls() {
         if (mMediaPrevious != null) {
             mMediaPrevious.setOnClickListener(new OnClickListener() {
@@ -890,7 +810,6 @@ public class TopView extends FrameLayout {
             });
         }
     }
-
     private void toggleMediaPlayback() {
         if (mMediaController == null) return;
         try {
@@ -906,7 +825,6 @@ public class TopView extends FrameLayout {
             LSPLogger.w("TopView.mediaPlayPause: " + t);
         }
     }
-
     private void openMediaSession() {
         if (mMediaController == null) return;
         try {
@@ -916,14 +834,12 @@ public class TopView extends FrameLayout {
             LSPLogger.w("TopView.openMediaSession: " + t);
         }
     }
-
     private void updateMediaUi() {
         if (mMediaTitle == null) return;
         if (mMediaController == null) {
             renderNoMedia();
             return;
         }
-
         MediaMetadata metadata = null;
         PlaybackState state = null;
         try {
@@ -932,7 +848,6 @@ public class TopView extends FrameLayout {
         } catch (Throwable t) {
             LSPLogger.w("TopView.updateMediaUi: session query failed: " + t);
         }
-
         String packageName = mMediaController.getPackageName();
         String appLabel = getApplicationLabel(packageName);
         String title = firstNonEmpty(
@@ -950,7 +865,6 @@ public class TopView extends FrameLayout {
         mMediaTitle.setText(title);
         mMediaArtist.setText(artist);
         mMediaTitle.setContentDescription(title);
-
         Bitmap art = getMetadataBitmap(metadata, MediaMetadata.METADATA_KEY_ALBUM_ART);
         if (art == null) art = getMetadataBitmap(metadata, MediaMetadata.METADATA_KEY_ART);
         if (art != null) {
@@ -960,7 +874,6 @@ public class TopView extends FrameLayout {
             mMediaArt.setImageDrawable(appIcon == null ? getResources().getDrawable(
                     R.drawable.ic_media_note) : appIcon);
         }
-
         long actions = state == null ? 0L : state.getActions();
         boolean playing = state != null && (state.getState() == PlaybackState.STATE_PLAYING
                 || state.getState() == PlaybackState.STATE_BUFFERING);
@@ -980,7 +893,6 @@ public class TopView extends FrameLayout {
         }
         if (mMediaCard != null) mMediaCard.setAlpha(1f);
     }
-
     private void renderNoMedia() {
         if (mMediaTitle == null) return;
         mMediaTitle.setText(R.string.media_no_media);
@@ -991,19 +903,16 @@ public class TopView extends FrameLayout {
         setMediaButtonEnabled(mMediaNext, false);
         if (mMediaCard != null) mMediaCard.setAlpha(0.78f);
     }
-
     private void setMediaButtonEnabled(ImageButton button, boolean enabled) {
         if (button == null) return;
         button.setEnabled(enabled);
         button.setAlpha(enabled ? 1f : 0.38f);
     }
-
     private boolean hasUsefulMetadata(MediaMetadata metadata) {
         return !TextUtils.isEmpty(getMetadataString(metadata, MediaMetadata.METADATA_KEY_TITLE))
                 || !TextUtils.isEmpty(getMetadataString(metadata,
                 MediaMetadata.METADATA_KEY_DISPLAY_TITLE));
     }
-
     private String getMetadataString(MediaMetadata metadata, String key) {
         if (metadata == null || key == null) return null;
         try {
@@ -1012,7 +921,6 @@ public class TopView extends FrameLayout {
             return null;
         }
     }
-
     private Bitmap getMetadataBitmap(MediaMetadata metadata, String key) {
         if (metadata == null || key == null) return null;
         try {
@@ -1021,7 +929,6 @@ public class TopView extends FrameLayout {
             return null;
         }
     }
-
     private String firstNonEmpty(String... values) {
         if (values == null) return "";
         for (String value : values) {
@@ -1029,7 +936,6 @@ public class TopView extends FrameLayout {
         }
         return "";
     }
-
     private String getApplicationLabel(String packageName) {
         try {
             Context host = mController == null ? getContext() : mController.getHostContext();
@@ -1039,7 +945,6 @@ public class TopView extends FrameLayout {
             return null;
         }
     }
-
     private Drawable getApplicationIcon(String packageName) {
         try {
             Context host = mController == null ? getContext() : mController.getHostContext();
@@ -1048,7 +953,6 @@ public class TopView extends FrameLayout {
             return null;
         }
     }
-
     private void requestAppsRefresh(final boolean force) {
         if (mAppStrip == null || mAppManager == null || mAppLoader == null
                 || mAppRefreshPending) {
@@ -1086,7 +990,6 @@ public class TopView extends FrameLayout {
             }
         });
     }
-
     private void scheduleAppsRefreshRetry() {
         if (mAppStrip == null || mAppLoader == null || mAppRefreshRetryCount >= 4) return;
         final long delay = 250L << mAppRefreshRetryCount++;
@@ -1098,7 +1001,6 @@ public class TopView extends FrameLayout {
             }
         }, delay);
     }
-
     private List<AppItem> loadAppsInBackground() {
         if (mAppManager == null) return null;
         long started = SystemClock.uptimeMillis();
@@ -1114,22 +1016,18 @@ public class TopView extends FrameLayout {
         for (int i = 0; i < count; i++) {
             AppItem app = apps.get(i);
             app.getDisplayName();
-            if (app.getAvatar() != null) {
-                ready.add(app);
-            }
+            ready.add(app);
         }
         LSPLogger.i("TopView.loadAppsInBackground: count=" + ready.size()
                 + " queried=" + count + " elapsedMs="
                 + (SystemClock.uptimeMillis() - started));
         return ready;
     }
-
     private void renderApps(List<AppItem> apps) {
         final int generation = ++mAppRenderGeneration;
         mAppStrip.removeAllViews();
         renderAppBatch(apps, 0, generation);
     }
-
     private void renderAppBatch(final List<AppItem> apps, int start,
             final int generation) {
         if (generation != mAppRenderGeneration || mAppStrip == null) return;
@@ -1137,7 +1035,7 @@ public class TopView extends FrameLayout {
         int end = Math.min(count, start + 8);
         for (int i = start; i < end; i++) {
             final AppItem app = apps.get(i);
-            View appItem = createAppItem(app);
+            View appItem = createAppItem(app, generation);
             if (appItem != null) {
                 mAppStrip.addView(appItem, new LinearLayout.LayoutParams(
                         getResources().getDimensionPixelSize(R.dimen.multitask_app_item_width),
@@ -1158,7 +1056,6 @@ public class TopView extends FrameLayout {
             }
         });
     }
-
     private void sortByRecentUsage(List<AppItem> apps) {
         final Map<String, Long> scores = new HashMap<String, Long>();
         try {
@@ -1194,34 +1091,42 @@ public class TopView extends FrameLayout {
             }
         });
     }
-
-    private View createAppItem(final AppItem app) {
+    private View createAppItem(final AppItem app, final int generation) {
         FrameLayout container = new FrameLayout(getContext());
         container.setClickable(true);
         container.setLongClickable(true);
         container.setContentDescription(app.getDisplayName());
-
-        ImageView icon = new ImageView(getContext());
+        final ImageView icon = new ImageView(getContext());
         icon.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        Drawable avatar = app.getAvatar();
+        icon.setTag(app.mName);
+        Drawable avatar = app.getCachedAvatar();
+        icon.setImageDrawable(avatar != null ? avatar
+                : AppIconPlaceholder.get(getContext()));
         if (avatar == null) {
-            LSPLogger.w("TopView.createAppItem: skip unresolved icon "
-                    + app.mName.flattenToShortString());
-            return null;
+            AppIconLoader.getInstance().load(app, new AppIconLoader.Callback() {
+                @Override
+                public boolean isValid() {
+                    return generation == mAppRenderGeneration
+                            && app.mName.equals(icon.getTag())
+                            && icon.getParent() != null;
+                }
+
+                @Override
+                public void onIconLoaded(AppItem loadedApp, Drawable loadedIcon) {
+                    if (loadedIcon != null) icon.setImageDrawable(loadedIcon);
+                }
+            });
         }
-        icon.setImageDrawable(avatar);
         int iconSize = getResources().getDimensionPixelSize(R.dimen.multitask_app_icon_size);
         FrameLayout.LayoutParams iconParams = new FrameLayout.LayoutParams(
                 iconSize, iconSize, Gravity.CENTER);
         container.addView(icon, iconParams);
-
         container.setOnClickListener(new OnClickListener() {
             @Override
             public void onClick(View view) {
                 MultiTaskController.getInstance(getContext()).openAppInMain(app.mName);
             }
         });
-
         container.setOnLongClickListener(new OnLongClickListener() {
             @Override
             public boolean onLongClick(View view) {

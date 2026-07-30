@@ -1,5 +1,4 @@
 package com.hyper.onestep.view;
-
 import android.content.Context;
 import android.content.res.Resources;
 import android.graphics.drawable.Drawable;
@@ -14,7 +13,6 @@ import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
-
 import com.hyper.onestep.SidebarController;
 import com.hyper.onestep.SidebarMode;
 import com.hyper.onestep.SidebarStatus;
@@ -26,11 +24,9 @@ import com.hyper.onestep.util.anim.AnimStatusManager;
 import com.hyper.onestep.util.anim.AnimTimeLine;
 import com.hyper.onestep.util.anim.Vector3f;
 import com.hyper.onestep.R;
-
+// 侧边栏根容器，承载 SideView 与拖拽层
 public class SidebarRootView extends FrameLayout {
-
     private static final LOG log = LOG.getInstance(SidebarRootView.class);
-
     private Context mContext;
     private DragView mDragView;
     private SideView mSideView;
@@ -39,43 +35,35 @@ public class SidebarRootView extends FrameLayout {
     public SidebarRootView(Context context) {
         this(context, null);
     }
-
     public SidebarRootView(Context context, AttributeSet attrs) {
         this(context, attrs, 0);
     }
-
     public SidebarRootView(Context context, AttributeSet attrs, int defStyleAttr) {
         this(context, attrs, defStyleAttr, 0);
     }
-
     public SidebarRootView(Context context, AttributeSet attrs, int defStyleAttr, int defStyleRes) {
         super(context, attrs, defStyleAttr, defStyleRes);
         mContext = context;
         sidebarWidth = mContext.getResources().getDimensionPixelSize(R.dimen.sidebar_width);
     }
-
+    // 视图加载完成：初始化 SideView 与垃圾桶组件
     @Override
     protected void onFinishInflate() {
         mSideView = (SideView) findViewById(R.id.sidebar);
         mTrash = new Trash(mContext, (ImageView) findViewById(R.id.trash_with_shadow), (ImageView) findViewById(R.id.trash_foreground));
     }
-
     public void requestStatus(SidebarStatus status) {
         mSideView.requestStatus(status);
     }
-
     public Trash getTrash() {
         return mTrash;
     }
-
     public class DragView {
         public View mListViewItem;
         private Drawable mIcon;
-
         public final View mView;
         public final ImageView mDragViewIcon;
         public final TextView mBubbleText;
-
         public DragView(Context context, Drawable icon, View view, int[] loc) {
             mView = LayoutInflater.from(context).inflate(R.layout.drag_view, null);
             LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
@@ -88,7 +76,6 @@ public class SidebarRootView extends FrameLayout {
             mDragViewIcon.setBackground(mIcon);
             mBubbleText = (TextView) mView.findViewById(R.id.drag_view_bubble_text);
             mBubbleText.setText(getDisplayName());
-
             mView.getViewTreeObserver().addOnGlobalLayoutListener(new ViewTreeObserver.OnGlobalLayoutListener() {
                 @Override
                 public void onGlobalLayout() {
@@ -109,32 +96,29 @@ public class SidebarRootView extends FrameLayout {
                 }
             });
         }
-
         public CharSequence getDisplayName() {
             return mSideView.getDraggedListView().getDraggedItem().getDisplayName();
         }
-
+        // 删除当前被拖拽的列表项
         public void delelte(){
             mSideView.getDraggedListView().deleteDraggedSidebarItem();
         }
-
+        // 将拖拽项还原回原列表位置
         public void backToPostion() {
             mListViewItem.setVisibility(View.VISIBLE);
             mSideView.getDraggedListView().dropBackSidebarItem();
         }
-
         public void setBubbleVisibleStatus(int visible) {
             if (mBubbleText != null) {
                 mBubbleText.setVisibility(visible);
             }
         }
-
         public void hideBubble() {
             if (mBubbleText != null) {
                 mBubbleText.setVisibility(View.GONE);
             }
         }
-
+        // 根据触摸坐标移动拖拽视图
         public void move(float touchX, float touchY) {
             if (mView.getVisibility() != View.VISIBLE) {
                 return;
@@ -144,29 +128,26 @@ public class SidebarRootView extends FrameLayout {
             mView.setTranslationX(x);
             mView.setTranslationY(y);
         }
-
+        // 将拖拽视图添加到根容器并初始为不可见
         public void showView() {
             mView.setVisibility(View.INVISIBLE);
             addView(mView);
         }
-
+        // 从根容器移除拖拽视图
         public void removeView() {
             mView.setVisibility(View.GONE);
             SidebarRootView.this.removeView(mView);
         }
     }
-
     private class ShowDragViewWhenRelayout implements ViewTreeObserver.OnGlobalLayoutListener {
         private Drawable iconOrig;
         public View mListViewItem;
         private int[] mLoc;
-
         public ShowDragViewWhenRelayout(Drawable icon, View view, int[] loc) {
             iconOrig = icon;
             mListViewItem = view;
             mLoc = loc;
         }
-
         @Override
         public void onGlobalLayout() {
             getViewTreeObserver().removeOnGlobalLayoutListener(this);
@@ -177,20 +158,19 @@ public class SidebarRootView extends FrameLayout {
             mShowDragViewWhenRelayout = null;
         }
     }
-
     private boolean mDragging = false;
     private ShowDragViewWhenRelayout mShowDragViewWhenRelayout;
+    // 启动拖拽：创建 DragView 并切到全屏拖拽窗口
     public void startDrag(Drawable icon, View view, int[] loc) {
         if(mDragging || mShowDragViewWhenRelayout != null){
             return ;
         }
         mShowDragViewWhenRelayout = new ShowDragViewWhenRelayout(icon, view, loc);
         getViewTreeObserver().addOnGlobalLayoutListener(mShowDragViewWhenRelayout);
-        //set sidebar to full screen
         SidebarController.getInstance(mContext).updateDragWindow(true);
     }
-
     private boolean mDragDeleting = false;
+    // 删除被拖拽的项：播放动画并最终移除视图
     public void deleteDrag(){
         if (!mDragging) {
             return;
@@ -200,7 +180,6 @@ public class SidebarRootView extends FrameLayout {
         mTrash.mTrashForegroundView.setTranslationX(trashLocX);
         mTrash.mTrashForegroundView.setTranslationY(trashLocY);
         mTrash.mTrashForegroundView.setVisibility(View.VISIBLE);
-
         setChildrenDrawingOrderEnabled(true);
         requestLayout();
         View view = mDragView.mView;
@@ -212,7 +191,6 @@ public class SidebarRootView extends FrameLayout {
             public void onStart() {
                 mDragDeleting = true;
             }
-
             @Override
             public void onComplete(int type) {
                 mDragDeleting = false;
@@ -229,14 +207,12 @@ public class SidebarRootView extends FrameLayout {
         });
         anim.start();
     }
-
     private class DropAnim extends Animation {
         private DragView mDrag;
         private View view;
         private float scaleTo;
         private int[] moveFrom;
         private int[] moveTo;
-
         public DropAnim(DragView drag) {
             mDrag = drag;
             mDrag.hideBubble();
@@ -247,22 +223,18 @@ public class SidebarRootView extends FrameLayout {
             icon.getLocationOnScreen(moveFrom);
             mDragView.mListViewItem.getLocationOnScreen(moveTo);
             Resources resources = mContext.getResources();
-            //list item has padding top, so set real loc Y
             moveTo[1] = moveTo[1] + resources.getDimensionPixelSize(R.dimen.sidebar_list_item_padding_top);
             int dragViewSize = resources.getDimensionPixelSize(R.dimen.drag_view_icon_size);
             int itemViewSize = resources.getDimensionPixelSize(R.dimen.sidebar_list_item_img_size);
             scaleTo = (float) ((1.0 * itemViewSize) / (1.0 * dragViewSize));
         }
-
         @Override
         protected void applyTransformation(float interpolatedTime, Transformation t) {
             float scale = (1 - scaleTo) * (1 - interpolatedTime) + scaleTo;
             view.setScaleX(scale);
             view.setScaleY(scale);
-
             int deltaX = moveTo[0] - moveFrom[0];
             int deltaY = moveTo[1] - moveFrom[1];
-
             int x = (int) (deltaX * interpolatedTime + moveFrom[0]);
             int y = (int) (deltaY * interpolatedTime + moveFrom[1]);
             view.setTranslationX(x);
@@ -272,7 +244,6 @@ public class SidebarRootView extends FrameLayout {
                 complete();
             }
         }
-
         private void complete() {
             mDragging = false;
             mDragDroping = false;
@@ -281,8 +252,8 @@ public class SidebarRootView extends FrameLayout {
             SidebarController.getInstance(mContext).updateDragWindow(false);
         }
     }
-
     private boolean mDragDroping = false;
+    // 放下被拖拽的项：播放回弹动画并还原位置
     public void dropDrag() {
         if (!mDragging) {
             return;
@@ -292,7 +263,6 @@ public class SidebarRootView extends FrameLayout {
             return;
         }
         mDragDroping = true;
-        //calculate icon loc, bubble will hide, move icon to right loc
         int[] iconLoc = new int[2];
         int deltaX = (mDragView.mView.getWidth() - mDragView.mDragViewIcon.getWidth()) / 2;
         int deltaY = mDragView.mView.getHeight() - mDragView.mDragViewIcon.getHeight();
@@ -313,37 +283,30 @@ public class SidebarRootView extends FrameLayout {
             }
         });
     }
-
     public DragView getDraggedView() {
         if(!mDragging){
             return null;
         }
         return mDragView;
     }
-
     private final boolean ENABLE_TOUCH_LOG = false;
-
+    // 触摸事件分发：拖拽中处理手势，否则恢复侧边栏
     @Override
     public boolean dispatchTouchEvent(MotionEvent ev) {
         if (mDragDroping || mDragDeleting) {
-            // ignore !
             return true;
         }
-
         if (mDragging) {
             precessTouch(ev);
             return true;
         }
-
         if (ev.getAction() == MotionEvent.ACTION_DOWN) {
             if (processResumeSidebar()) {
                 return true;
             }
         }
-
         return super.dispatchTouchEvent(ev);
     }
-
     private boolean processResumeSidebar() {
         if (SidebarController.getInstance(mContext).getCurrentContentType() != ContentView.ContentType.NONE) {
             log.error("processResumeSidebar !");
@@ -352,7 +315,6 @@ public class SidebarRootView extends FrameLayout {
         }
         return false;
     }
-
     private void precessTouch(MotionEvent event) {
         int action = event.getAction();
         int x = (int) event.getRawX();
@@ -367,13 +329,11 @@ public class SidebarRootView extends FrameLayout {
             case MotionEvent.ACTION_UP : {
                 if (ENABLE_TOUCH_LOG) log.error("ACTION_UP");
                 if (mTrash.dragObjectUpOnUp(x, y, mDragView)) {
-                    //handle uninstall
                 } else {
                     dropDrag();
                     mTrash.trashDisappearWithAnim(null);
                 }
                 if (mDragView != null) {
-                    // we need action_update to stop scroll !
                     mSideView.dragObjectMove(event, eventTime);
                 }
                 break;
@@ -393,8 +353,7 @@ public class SidebarRootView extends FrameLayout {
             }
         }
     }
-
-    //force stop drag !
+    // 强制终止拖拽状态并恢复窗口布局
     public void stopDrag() {
         if (mDragging) {
             mDragging = false;
@@ -406,7 +365,7 @@ public class SidebarRootView extends FrameLayout {
             SidebarController.getInstance(mContext).updateDragWindow(false);
         }
     }
-
+    // 显示或隐藏根视图，并播放进入/退出动画
     public void show(boolean show){
         if(show){
             if (mExitAnimTimeLine != null) {
@@ -430,9 +389,7 @@ public class SidebarRootView extends FrameLayout {
             doAnimWhenExit();
         }
     }
-
     private AnimTimeLine mEnterAnimTimeLine = null;
-
     private void doAnimWhenEnter() {
         final View shadowView = mSideView.getShadowLineView();
         if (shadowView != null) {
@@ -446,7 +403,6 @@ public class SidebarRootView extends FrameLayout {
         Vector3f alphaTo = new Vector3f(0, 0, 1);
         Anim moveAnim = new Anim(this, Anim.MOVE, time, 0, new Vector3f(fromX, 0), new Vector3f());
         Anim alphaAnim = new Anim(this, Anim.TRANSPARENT, time, Anim.CUBIC_OUT, alphaFrom, alphaTo);
-
         mSideView.setVisibility(View.INVISIBLE);
         Anim showShadowBg = new Anim(mSideView, Anim.TRANSPARENT, 200, Anim.CUBIC_OUT, alphaFrom, alphaTo);
         showShadowBg.setListener(new AnimListener() {
@@ -454,7 +410,6 @@ public class SidebarRootView extends FrameLayout {
             public void onStart() {
                 mSideView.setVisibility(View.VISIBLE);
             }
-
             @Override
             public void onComplete(int type) {
                 mSideView.setAlpha(1);
@@ -462,7 +417,6 @@ public class SidebarRootView extends FrameLayout {
         });
         showShadowBg.setDelay(100);
         showShadowBg.start();
-
         mEnterAnimTimeLine = new AnimTimeLine();
         mEnterAnimTimeLine.addAnim(moveAnim);
         mEnterAnimTimeLine.addAnim(alphaAnim);
@@ -471,13 +425,11 @@ public class SidebarRootView extends FrameLayout {
             public void onStart() {
                 AnimStatusManager.getInstance().setStatus(AnimStatusManager.ON_SIDE_VIEW_ENTER, true);
             }
-
             @Override
             public void onComplete(int type) {
                 if (mEnterAnimTimeLine != null) {
                     AnimStatusManager.getInstance().setStatus(AnimStatusManager.ON_SIDE_VIEW_ENTER, false);
                     mSideView.setBackgroundResource(R.drawable.background);
-                    //setBackgroundResource(R.color.sidebar_root_background);
                     setAlpha(1);
                     setTranslationX(0);
                     if (shadowView != null) {
@@ -503,9 +455,7 @@ public class SidebarRootView extends FrameLayout {
         });
         mEnterAnimTimeLine.start();
     }
-
     private AnimTimeLine mExitAnimTimeLine = null;
-
     private void doAnimWhenExit() {
         mSideView.setBackgroundResource(android.R.color.transparent);
         final View shadowView = mSideView.getShadowLineView();
@@ -526,7 +476,6 @@ public class SidebarRootView extends FrameLayout {
             public void onStart() {
                 AnimStatusManager.getInstance().setStatus(AnimStatusManager.ON_SIDE_VIEW_EXIT, true);
             }
-
             @Override
             public void onComplete(int type) {
                 if (mExitAnimTimeLine != null) {
@@ -545,20 +494,20 @@ public class SidebarRootView extends FrameLayout {
         });
         mExitAnimTimeLine.start();
     }
-
+    // 控制垃圾桶前景图的绘制顺序，确保浮于其它子视图之上
     @Override
     protected int getChildDrawingOrder(int childCount, int index) {
         int id = getChildAt(index).getId();
         if (index < childCount - 2) {
             return index;
         }
-        if (id == R.id.trash_foreground) { // the most up view
+        if (id == R.id.trash_foreground) {
             return (childCount - 1);
-        } else {// dragview
+        } else {
             return (childCount - 2);
         }
     }
-
+    // 启用/禁用根视图交互（透传给 SideView）
     public void setEnabled(boolean enabled) {
         mSideView.setEnabled(enabled);
     }

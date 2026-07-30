@@ -1,10 +1,8 @@
 package com.hyper.onestep.view;
-
 import com.hyper.onestep.R;
 import com.hyper.onestep.lsp.DragHelper;
 import com.hyper.onestep.util.Tracker;
 import com.hyper.onestep.util.Utils;
-
 import android.content.Context;
 import android.content.CopyHistoryItem;
 import android.content.res.Configuration;
@@ -18,17 +16,15 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
-
+// 剪贴板条目视图，支持滑动删除
 public class ClipboardItemView extends LinearLayout {
     private static final float DELETE_THRESHOLD = 0.35f;
     private static final float HORIZONTAL_DIRECTION_RATIO = 1.2f;
     private static final long REBOUND_DURATION_MS = 180L;
     private static final long DELETE_DURATION_MS = 190L;
-
     public interface OnDeleteListener {
         boolean onDelete(CopyHistoryItem item);
     }
-
     private TextView mDateText;
     private View mItemGroup;
     private TextView mText;
@@ -38,7 +34,6 @@ public class ClipboardItemView extends LinearLayout {
     private ImageView mDeleteEnd;
     private ImageView mDeleteButton;
     private Context mContext;
-
     private CopyHistoryItem mBoundItem;
     private OnDeleteListener mDeleteListener;
     private int mTouchSlop;
@@ -48,34 +43,28 @@ public class ClipboardItemView extends LinearLayout {
     private float mSwipeStartTranslation;
     private boolean mSwiping;
     private boolean mDeleteAnimating;
-
     private final View.OnTouchListener mSwipeTouchListener = new View.OnTouchListener() {
         @Override
         public boolean onTouch(View view, MotionEvent event) {
             return handleSwipeTouch(event);
         }
     };
-
     public ClipboardItemView(Context context) {
         this(context, null);
     }
-
     public ClipboardItemView(Context context, AttributeSet attrs) {
         this(context, attrs, 0);
     }
-
     public ClipboardItemView(Context context, AttributeSet attrs,
             int defStyleAttr) {
         this(context, attrs, defStyleAttr, 0);
     }
-
     public ClipboardItemView(Context context, AttributeSet attrs,
             int defStyleAttr, int defStyleRes) {
         super(context, attrs, defStyleAttr, defStyleRes);
         mContext = context;
         setOrientation(LinearLayout.VERTICAL);
         LayoutInflater.from(context).inflate(R.layout.copy_history_item, this, true);
-
         mDateText = (TextView) findViewById(R.id.date_content);
         mItemGroup = findViewById(R.id.text_item);
         mText = (TextView) findViewById(R.id.text);
@@ -84,24 +73,20 @@ public class ClipboardItemView extends LinearLayout {
         mDeleteStart = (ImageView) findViewById(R.id.clipboard_delete_start);
         mDeleteEnd = (ImageView) findViewById(R.id.clipboard_delete_end);
         mDeleteButton = (ImageView) findViewById(R.id.clipboard_delete_button);
-
         updateGestureConfiguration();
         mItemGroup.setOnTouchListener(mSwipeTouchListener);
         mDeleteButton.setOnTouchListener(mSwipeTouchListener);
     }
-
     @Override
     protected void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
         mMoreLabel.setText(R.string.load_more);
         updateGestureConfiguration();
     }
-
     private void updateGestureConfiguration() {
         mTouchSlop = ViewConfiguration.get(mContext).getScaledTouchSlop();
         mDeleteRevealDistance = 56f * getResources().getDisplayMetrics().density;
     }
-
     public void reset() {
         mBoundItem = null;
         mDeleteListener = null;
@@ -109,7 +94,6 @@ public class ClipboardItemView extends LinearLayout {
         mDeleteAnimating = false;
         requestParentDisallowIntercept(false);
         resetSwipeVisuals();
-
         mMoreLabel.setVisibility(View.GONE);
         mDateText.setVisibility(View.GONE);
         mItemGroup.setVisibility(View.GONE);
@@ -119,7 +103,6 @@ public class ClipboardItemView extends LinearLayout {
         mItemGroup.setOnLongClickListener(null);
         mDeleteButton.setOnClickListener(null);
     }
-
     public void showItem(final CopyHistoryItem item, OnDeleteListener deleteListener) {
         if (item == null) {
             return;
@@ -128,7 +111,6 @@ public class ClipboardItemView extends LinearLayout {
         mDeleteListener = deleteListener;
         mText.setText(item.mContent);
         mItemGroup.setVisibility(View.VISIBLE);
-
         mItemGroup.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -141,7 +123,6 @@ public class ClipboardItemView extends LinearLayout {
                 Tracker.onClick(Tracker.EVENT_COPY);
             }
         });
-
         mItemGroup.setOnLongClickListener(new View.OnLongClickListener() {
             @Override
             public boolean onLongClick(View view) {
@@ -152,7 +133,6 @@ public class ClipboardItemView extends LinearLayout {
                 return true;
             }
         });
-
         mDeleteButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -160,7 +140,6 @@ public class ClipboardItemView extends LinearLayout {
             }
         });
     }
-
     private boolean handleSwipeTouch(MotionEvent event) {
         if (mBoundItem == null) {
             return false;
@@ -168,7 +147,6 @@ public class ClipboardItemView extends LinearLayout {
         if (mDeleteAnimating) {
             return true;
         }
-
         switch (event.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
                 mDownRawX = event.getRawX();
@@ -176,7 +154,6 @@ public class ClipboardItemView extends LinearLayout {
                 mSwipeStartTranslation = mItemGroup.getTranslationX();
                 mSwiping = false;
                 return false;
-
             case MotionEvent.ACTION_MOVE:
                 float deltaX = event.getRawX() - mDownRawX;
                 float deltaY = event.getRawY() - mDownRawY;
@@ -196,7 +173,6 @@ public class ClipboardItemView extends LinearLayout {
                 }
                 setSwipeTranslation(mSwipeStartTranslation + deltaX);
                 return true;
-
             case MotionEvent.ACTION_UP:
                 if (!mSwiping) {
                     return false;
@@ -205,7 +181,6 @@ public class ClipboardItemView extends LinearLayout {
                 requestParentDisallowIntercept(false);
                 settleSwipe();
                 return true;
-
             case MotionEvent.ACTION_CANCEL:
                 boolean wasSwiping = mSwiping;
                 mSwiping = false;
@@ -214,23 +189,19 @@ public class ClipboardItemView extends LinearLayout {
                     animateBack();
                 }
                 return wasSwiping;
-
             default:
                 return mSwiping;
         }
     }
-
     private void setSwipeTranslation(float translation) {
         float width = Math.max(1f, mItemGroup.getWidth());
         float clamped = Math.max(-width, Math.min(width, translation));
         float distance = Math.abs(clamped);
         mItemGroup.setTranslationX(clamped);
-
         if (distance == 0f) {
             hideDeleteUnderlay();
             return;
         }
-
         mDeleteUnderlay.setVisibility(View.VISIBLE);
         float alpha = Math.min(1f, distance / Math.max(1f, mDeleteRevealDistance));
         if (clamped > 0f) {
@@ -245,7 +216,6 @@ public class ClipboardItemView extends LinearLayout {
             mDeleteStart.setVisibility(View.INVISIBLE);
         }
     }
-
     private void settleSwipe() {
         final CopyHistoryItem item = mBoundItem;
         final OnDeleteListener listener = mDeleteListener;
@@ -256,7 +226,6 @@ public class ClipboardItemView extends LinearLayout {
             animateBack();
             return;
         }
-
         mDeleteAnimating = true;
         float target = translation > 0f ? width : -width;
         mItemGroup.animate()
@@ -282,7 +251,6 @@ public class ClipboardItemView extends LinearLayout {
                 })
                 .start();
     }
-
     private void animateBack() {
         final CopyHistoryItem item = mBoundItem;
         mDeleteAnimating = true;
@@ -303,7 +271,6 @@ public class ClipboardItemView extends LinearLayout {
                 })
                 .start();
     }
-
     private void deleteBoundItem() {
         final CopyHistoryItem item = mBoundItem;
         final OnDeleteListener listener = mDeleteListener;
@@ -319,7 +286,6 @@ public class ClipboardItemView extends LinearLayout {
             }
         }
     }
-
     private void resetSwipeVisuals() {
         mItemGroup.animate().setListener(null).withEndAction(null).cancel();
         mDeleteStart.animate().setListener(null).withEndAction(null).cancel();
@@ -327,7 +293,6 @@ public class ClipboardItemView extends LinearLayout {
         mItemGroup.setTranslationX(0f);
         hideDeleteUnderlay();
     }
-
     private void hideDeleteUnderlay() {
         mDeleteStart.setAlpha(0f);
         mDeleteEnd.setAlpha(0f);
@@ -335,19 +300,16 @@ public class ClipboardItemView extends LinearLayout {
         mDeleteEnd.setVisibility(View.INVISIBLE);
         mDeleteUnderlay.setVisibility(View.INVISIBLE);
     }
-
     private void requestParentDisallowIntercept(boolean disallow) {
         ViewParent parent = getParent();
         if (parent != null) {
             parent.requestDisallowInterceptTouchEvent(disallow);
         }
     }
-
     public void showDate(int resId) {
         mDateText.setText(resId);
         mDateText.setVisibility(View.VISIBLE);
     }
-
     public void showMoreTag(View.OnClickListener listener) {
         mMoreLabel.setVisibility(View.VISIBLE);
         setOnClickListener(listener);

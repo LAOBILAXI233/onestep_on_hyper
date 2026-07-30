@@ -1,10 +1,8 @@
 package com.hyper.onestep.util;
-
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
@@ -17,28 +15,18 @@ import android.os.Looper;
 import android.os.Process;
 import android.os.RemoteException;
 import android.text.TextUtils;
-
 import com.hyper.onestep.SidebarController;
 import com.hyper.onestep.lsp.LSPLogger;
-
 import org.json.JSONArray;
 import org.json.JSONObject;
-
-/**
- * Clipboard history backed by SystemUI-owned preferences.
- *
- * AOSP exposes only the current primary clip. OneStep therefore records text
- * clips observed by SystemUI and persists a bounded local history itself.
- */
+// 剪贴板历史管理器，监听剪贴板变化并持久化
 public class RecentClipManager extends DataManager implements IClear {
     private static final String PREFS_NAME = "onestep_clipboard_history";
     private static final String PREFS_KEY_HISTORY = "history";
     private static final String JSON_KEY_CONTENT = "content";
     private static final String JSON_KEY_TIME = "time";
     private static final int MAX_HISTORY_SIZE = 50;
-
     private volatile static RecentClipManager sInstance;
-
     public synchronized static RecentClipManager getInstance(Context context) {
         if (sInstance == null) {
             synchronized (RecentClipManager.class) {
@@ -49,7 +37,6 @@ public class RecentClipManager extends DataManager implements IClear {
         }
         return sInstance;
     }
-
     private final Context mContext;
     private final ClipboardManager mClipboard;
     private final SharedPreferences mPreferences;
@@ -57,12 +44,10 @@ public class RecentClipManager extends DataManager implements IClear {
     private final Handler mMainHandler = new Handler(Looper.getMainLooper());
     private final HandlerThread mStoreThread;
     private final Handler mStoreHandler;
-
     private RecentClipManager(Context context) {
         mContext = resolveOperationContext(context);
         mClipboard = mContext == null ? null
                 : (ClipboardManager) mContext.getSystemService(Context.CLIPBOARD_SERVICE);
-
         SharedPreferences preferences = null;
         if (mContext != null) {
             try {
@@ -72,18 +57,15 @@ public class RecentClipManager extends DataManager implements IClear {
             }
         }
         mPreferences = preferences;
-
         mStoreThread = new HandlerThread(
                 RecentClipManager.class.getName() + ".Store",
                 Process.THREAD_PRIORITY_BACKGROUND);
         mStoreThread.start();
         mStoreHandler = new Handler(mStoreThread.getLooper());
-
         restoreHistory();
         recordPrimaryClip(false);
         registerPrimaryClipListener();
     }
-
     private static SharedPreferences openPreferences(Context context) {
         Context storageContext = context;
         if (!context.isDeviceProtectedStorage()) {
@@ -94,7 +76,6 @@ public class RecentClipManager extends DataManager implements IClear {
         }
         return storageContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
     }
-
     private static Context resolveOperationContext(Context fallback) {
         try {
             SidebarController controller = SidebarController.peekInstance();
@@ -107,7 +88,6 @@ public class RecentClipManager extends DataManager implements IClear {
         } catch (Throwable t) {
             LSPLogger.e("RecentClipManager: resolve SystemUI host context failed", t);
         }
-
         if (fallback == null) {
             LSPLogger.e("RecentClipManager: no operation context available");
             return null;
@@ -116,7 +96,6 @@ public class RecentClipManager extends DataManager implements IClear {
         LSPLogger.w("RecentClipManager: SystemUI host context unavailable; using fallback");
         return applicationContext == null ? fallback : applicationContext;
     }
-
     private void registerPrimaryClipListener() {
         if (mClipboard == null) {
             LSPLogger.w("RecentClipManager: ClipboardManager unavailable");
@@ -140,7 +119,6 @@ public class RecentClipManager extends DataManager implements IClear {
             LSPLogger.e("RecentClipManager: register primary clip listener failed", t);
         }
     }
-
     public List<CopyHistoryItem> getCopyList() {
         synchronized (mHistory) {
             List<CopyHistoryItem> copy = new ArrayList<CopyHistoryItem>(mHistory.size());
@@ -150,12 +128,10 @@ public class RecentClipManager extends DataManager implements IClear {
             return copy;
         }
     }
-
     public boolean remove(CopyHistoryItem item) {
         if (item == null || TextUtils.isEmpty(item.mContent)) {
             return false;
         }
-
         boolean removed = false;
         synchronized (mHistory) {
             for (int i = 0; i < mHistory.size(); i++) {
@@ -173,7 +149,6 @@ public class RecentClipManager extends DataManager implements IClear {
             notifyListenersOnMainThread();
             return false;
         }
-
         CharSequence currentText = getPrimaryText();
         if (currentText != null && TextUtils.equals(currentText, item.mContent)) {
             clearSystemPrimaryClip("remove");
@@ -181,13 +156,11 @@ public class RecentClipManager extends DataManager implements IClear {
         notifyListenersOnMainThread();
         return true;
     }
-
     private boolean recordPrimaryClip(boolean updateTimestamp) {
         CharSequence currentText = getPrimaryText();
         if (TextUtils.isEmpty(currentText)) {
             return false;
         }
-
         String content = currentText.toString();
         synchronized (mHistory) {
             long timestamp = System.currentTimeMillis();
@@ -207,7 +180,6 @@ public class RecentClipManager extends DataManager implements IClear {
         }
         return true;
     }
-
     private CharSequence getPrimaryText() {
         if (mClipboard == null) {
             return null;
@@ -227,7 +199,6 @@ public class RecentClipManager extends DataManager implements IClear {
             return null;
         }
     }
-
     private boolean clearSystemPrimaryClip(String source) {
         if (mClipboard == null) {
             return false;
@@ -240,7 +211,6 @@ public class RecentClipManager extends DataManager implements IClear {
             return false;
         }
     }
-
     private void restoreHistory() {
         if (mPreferences == null) {
             return;
@@ -255,7 +225,6 @@ public class RecentClipManager extends DataManager implements IClear {
         if (TextUtils.isEmpty(encoded)) {
             return;
         }
-
         List<CopyHistoryItem> restored = new ArrayList<CopyHistoryItem>();
         Set<String> seen = new HashSet<String>();
         try {
@@ -277,24 +246,20 @@ public class RecentClipManager extends DataManager implements IClear {
                 restored.add(new CopyHistoryItem(content, time));
             }
         } catch (Throwable t) {
-            // JSONException may include the source string, so do not log its message.
             LSPLogger.e("RecentClipManager: stored history is invalid ("
                     + t.getClass().getSimpleName() + ")");
             return;
         }
-
         synchronized (mHistory) {
             mHistory.clear();
             mHistory.addAll(restored);
         }
         LSPLogger.i("RecentClipManager: restored history count=" + restored.size());
     }
-
     private void persistHistoryLocked() {
         if (mPreferences == null) {
             return;
         }
-
         final String encoded;
         try {
             JSONArray array = new JSONArray();
@@ -310,7 +275,6 @@ public class RecentClipManager extends DataManager implements IClear {
                     + t.getClass().getSimpleName() + ")");
             return;
         }
-
         mStoreHandler.post(new Runnable() {
             @Override
             public void run() {
@@ -327,7 +291,6 @@ public class RecentClipManager extends DataManager implements IClear {
             }
         });
     }
-
     private void notifyListenersOnMainThread() {
         if (Looper.myLooper() == Looper.getMainLooper()) {
             notifyListener();
@@ -340,7 +303,6 @@ public class RecentClipManager extends DataManager implements IClear {
             });
         }
     }
-
     @Override
     public void clear() {
         synchronized (mHistory) {
@@ -350,7 +312,6 @@ public class RecentClipManager extends DataManager implements IClear {
         clearSystemPrimaryClip("clear");
         notifyListenersOnMainThread();
     }
-
     private final IClipboardListener mListener = new IClipboardListener.Stub() {
         @Override
         public void onCopyHistoryChanged() throws RemoteException {
@@ -358,7 +319,6 @@ public class RecentClipManager extends DataManager implements IClear {
             notifyListenersOnMainThread();
         }
     };
-
     public void refresh() {
         recordPrimaryClip(false);
         notifyListenersOnMainThread();

@@ -1,5 +1,4 @@
 package com.hyper.onestep.lsp;
-
 import android.app.ActivityOptions;
 import android.app.KeyguardManager;
 import android.content.Context;
@@ -7,7 +6,6 @@ import android.content.Intent;
 import android.graphics.Bitmap;
 import android.net.Uri;
 import android.view.Display;
-
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledFuture;
@@ -16,7 +14,6 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-
 /** Coordinates one page-tree, screenshot, and OCR extraction session at a time. */
 final class BigBangExtractionCoordinator {
     private static final long CONTENT_TIMEOUT_MS = 1800L;
@@ -24,21 +21,18 @@ final class BigBangExtractionCoordinator {
     private static final long SESSION_TIMEOUT_MS = 5500L;
     private static final int MAX_OCR_PIXELS = 2_000_000;
     private static final int MAX_OCR_EDGE_PX = 2048;
-
     private static final AtomicLong NEXT_SESSION_ID = new AtomicLong();
     private static final AtomicReference<Session> ACTIVE_SESSION = new AtomicReference<>();
     private static final Object SESSION_HANDOFF_LOCK = new Object();
     private static final ScheduledThreadPoolExecutor EXECUTOR = createExecutor();
-
     private BigBangExtractionCoordinator() {}
-
+    // 提交一次页面树抓取、截屏与OCR提取的会话并取消前序会话
     static boolean submit(Context context, ClassLoader systemServerClassLoader,
             String foregroundPackage, int touchX, int touchY) {
         if (context == null || systemServerClassLoader == null
                 || foregroundPackage == null || foregroundPackage.trim().isEmpty()) {
             return false;
         }
-
         Context applicationContext = context.getApplicationContext();
         Session session = new Session(applicationContext == null ? context : applicationContext,
                 systemServerClassLoader, foregroundPackage.trim(), touchX, touchY,
@@ -48,7 +42,6 @@ final class BigBangExtractionCoordinator {
             previous = ACTIVE_SESSION.getAndSet(session);
         }
         if (previous != null) previous.cancel("superseded");
-
         try {
             session.start();
             return true;
@@ -59,12 +52,10 @@ final class BigBangExtractionCoordinator {
             return false;
         }
     }
-
     private static ScheduledThreadPoolExecutor createExecutor() {
         ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(3,
                 new ThreadFactory() {
                     private int mThreadNumber;
-
                     @Override
                     public synchronized Thread newThread(Runnable runnable) {
                         Thread thread = new Thread(runnable,
@@ -77,7 +68,6 @@ final class BigBangExtractionCoordinator {
         executor.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
         return executor;
     }
-
     private static final class Session {
         private final Object mLock = new Object();
         private final Context mContext;
@@ -86,7 +76,6 @@ final class BigBangExtractionCoordinator {
         private final int mTouchX;
         private final int mTouchY;
         private final long mSessionId;
-
         private boolean mFinished;
         private volatile boolean mCancelled;
         private boolean mXmlDone;
@@ -100,7 +89,6 @@ final class BigBangExtractionCoordinator {
         private AicrOcrClient.Request mOcrRequest;
         private ScheduledFuture<?> mDeadline;
         private Future<?> mScreenshotFuture;
-
         Session(Context context, ClassLoader systemServerClassLoader, String foregroundPackage,
                 int touchX, int touchY, long sessionId) {
             mContext = context;
@@ -110,7 +98,6 @@ final class BigBangExtractionCoordinator {
             mTouchY = touchY;
             mSessionId = sessionId;
         }
-
         void start() {
             mDeadline = EXECUTOR.schedule(new Runnable() {
                 @Override
@@ -120,7 +107,6 @@ final class BigBangExtractionCoordinator {
                     maybeComplete(true);
                 }
             }, SESSION_TIMEOUT_MS, TimeUnit.MILLISECONDS);
-
             startContentCapture();
             try {
                 Future<?> future = EXECUTOR.submit(new Runnable() {
@@ -145,7 +131,6 @@ final class BigBangExtractionCoordinator {
             LSPLogger.i("BigBangExtractionCoordinator: submitted session=" + mSessionId
                     + " package=" + mForegroundPackage + " touch=" + mTouchX + "," + mTouchY);
         }
-
         private void startContentCapture() {
             ContentCatcherClient.Request request = ContentCatcherClient.capture(
                     mContext, mForegroundPackage, CONTENT_TIMEOUT_MS, EXECUTOR,
@@ -165,7 +150,6 @@ final class BigBangExtractionCoordinator {
                                     + " image=" + (parsed.imageBounds != null));
                             maybeComplete(false);
                         }
-
                         @Override
                         public void onError(String stage, Throwable error) {
                             synchronized (mLock) {
@@ -184,13 +168,11 @@ final class BigBangExtractionCoordinator {
             }
             if (cancel) request.cancel();
         }
-
         private void captureScreenshot() {
             Bitmap screenshot = ScreenCaptureCompat.captureDefaultDisplay(
                     mSystemServerClassLoader);
             onScreenshotReady(screenshot);
         }
-
         private void onScreenshotReady(Bitmap screenshot) {
             boolean shouldStartOcr;
             synchronized (mLock) {
@@ -203,7 +185,6 @@ final class BigBangExtractionCoordinator {
                 shouldStartOcr = screenshot != null && (!mXmlDone || !mTree.hasText());
                 if (screenshot == null || !shouldStartOcr) mOcrDone = true;
             }
-
             if (shouldStartOcr) {
                 Bitmap ocrBitmap = createOcrBitmap(screenshot);
                 if (ocrBitmap == null) {
@@ -217,7 +198,6 @@ final class BigBangExtractionCoordinator {
             }
             maybeComplete(false);
         }
-
         private void startOcr(final Bitmap ocrBitmap) {
             synchronized (mLock) {
                 if (mFinished || (mXmlDone && mTree.hasText())) {
@@ -227,7 +207,6 @@ final class BigBangExtractionCoordinator {
                 }
                 mOcrBitmap = ocrBitmap;
             }
-
             final AicrOcrClient.Request request;
             try {
                 request = AicrOcrClient.recognize(mContext, ocrBitmap, OCR_TIMEOUT_MS, EXECUTOR,
@@ -236,7 +215,6 @@ final class BigBangExtractionCoordinator {
                             public void onSuccess(String text) {
                                 onOcrTerminal(text, null, null);
                             }
-
                             @Override
                             public void onError(String stage, Throwable error) {
                                 onOcrTerminal("", stage, error);
@@ -246,7 +224,6 @@ final class BigBangExtractionCoordinator {
                 onOcrTerminal("", "start", error);
                 return;
             }
-
             boolean cancel;
             synchronized (mLock) {
                 mOcrRequest = request;
@@ -254,7 +231,6 @@ final class BigBangExtractionCoordinator {
             }
             if (cancel) request.cancel();
         }
-
         private void onOcrTerminal(String text, String errorStage, Throwable error) {
             Bitmap ownedBitmap;
             synchronized (mLock) {
@@ -273,12 +249,10 @@ final class BigBangExtractionCoordinator {
             }
             maybeComplete(false);
         }
-
         private void maybeComplete(boolean deadlineReached) {
             Completion completion = null;
             synchronized (mLock) {
                 if (mFinished) return;
-
                 boolean structuredTextReady = mXmlDone && mTree.hasText();
                 if (!deadlineReached) {
                     if (!mXmlDone) return;
@@ -291,14 +265,12 @@ final class BigBangExtractionCoordinator {
                         return;
                     }
                 }
-
                 String text = structuredTextReady ? mTree.text : mOcrText;
                 int touchIndex = structuredTextReady ? mTree.touchIndex : -1;
                 boolean touchedImage = mTree.imageBounds != null;
                 boolean fallbackImage = !touchedImage && mTree.touchIndex < 0;
                 boolean includeImage = mScreenshot != null
                         && (touchedImage || fallbackImage);
-
                 mFinished = true;
                 completion = new Completion(text, touchIndex,
                         touchedImage ? mTree.imageBounds : null,
@@ -307,10 +279,8 @@ final class BigBangExtractionCoordinator {
             }
             processCompletion(completion);
         }
-
         private void processCompletion(Completion completion) {
             cancelOutstandingRequests();
-
             Uri imageUri = null;
             if (completion.screenshot != null) {
                 try {
@@ -320,7 +290,6 @@ final class BigBangExtractionCoordinator {
                     recycle(completion.screenshot);
                 }
             }
-
             boolean hasText = !completion.text.trim().isEmpty();
             if (hasText || imageUri != null) {
                 synchronized (SESSION_HANDOFF_LOCK) {
@@ -345,11 +314,9 @@ final class BigBangExtractionCoordinator {
                 LSPLogger.w("BigBangExtractionCoordinator: session=" + mSessionId
                         + " produced no content");
             }
-
             recycleDetachedScreenshot();
             ACTIVE_SESSION.compareAndSet(this, null);
         }
-
         void cancel(String reason) {
             Bitmap screenshot;
             synchronized (mLock) {
@@ -365,7 +332,6 @@ final class BigBangExtractionCoordinator {
             LSPLogger.i("BigBangExtractionCoordinator: cancelled session=" + mSessionId
                     + " reason=" + reason);
         }
-
         private void cancelOutstandingRequests() {
             ScheduledFuture<?> deadline;
             Future<?> screenshotFuture;
@@ -386,7 +352,6 @@ final class BigBangExtractionCoordinator {
             if (contentRequest != null && !contentRequest.isDone()) contentRequest.cancel();
             if (ocrRequest != null && !ocrRequest.isDone()) ocrRequest.cancel();
         }
-
         private void recycleDetachedScreenshot() {
             Bitmap screenshot;
             synchronized (mLock) {
@@ -396,7 +361,6 @@ final class BigBangExtractionCoordinator {
             recycle(screenshot);
         }
     }
-
     private static Bitmap createOcrBitmap(Bitmap screenshot) {
         if (screenshot == null || screenshot.isRecycled()) return null;
         int width = screenshot.getWidth();
@@ -417,7 +381,6 @@ final class BigBangExtractionCoordinator {
             return null;
         }
     }
-
     private static String sanitizeText(String text) {
         if (text == null) return "";
         String trimmed = text.trim();
@@ -426,7 +389,6 @@ final class BigBangExtractionCoordinator {
         if (Character.isHighSurrogate(trimmed.charAt(end - 1))) end--;
         return trimmed.substring(0, end);
     }
-
     private static boolean isKeyguardLocked(Context context) {
         try {
             KeyguardManager keyguardManager = (KeyguardManager) context.getSystemService(
@@ -437,7 +399,6 @@ final class BigBangExtractionCoordinator {
             return true;
         }
     }
-
     private static void recycle(Bitmap bitmap) {
         if (bitmap == null || bitmap.isRecycled()) return;
         try {
@@ -445,13 +406,11 @@ final class BigBangExtractionCoordinator {
         } catch (Throwable ignored) {
         }
     }
-
     private static final class Completion {
         final String text;
         final int touchIndex;
         final ContentTreeParser.Bounds imageBounds;
         final Bitmap screenshot;
-
         Completion(String text, int touchIndex, ContentTreeParser.Bounds imageBounds,
                 Bitmap screenshot) {
             this.text = text == null ? "" : text;

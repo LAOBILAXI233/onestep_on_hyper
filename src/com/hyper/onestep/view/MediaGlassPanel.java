@@ -1,5 +1,4 @@
 package com.hyper.onestep.view;
-
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.animation.ValueAnimator;
@@ -28,7 +27,6 @@ import android.view.animation.PathInterpolator;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
-
 import com.hyper.onestep.R;
 import com.hyper.onestep.SidebarController;
 import com.hyper.onestep.lsp.LSPLogger;
@@ -39,50 +37,37 @@ import com.hyper.onestep.util.RecentClipManager;
 import com.hyper.onestep.util.RecentFileManager;
 import com.hyper.onestep.util.RecentPhotoManager;
 import com.hyper.onestep.view.ContentView.ContentType;
-
 import java.io.File;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
-
-/**
- * Expandable glass surface shown over the compact media card.
- *
- * The view owns only lightweight previews. Full clipboard, image and file content remains
- * in ContentView and is opened through SidebarController when a section is selected.
- */
+// 媒体玻璃面板，展示剪贴板/图片/文件的预览
 public class MediaGlassPanel extends FrameLayout {
     private static final long EXPAND_DURATION_MS = 260L;
     private static final long COLLAPSE_DURATION_MS = 210L;
     private static final int MAX_PREVIEW_ROWS = 2;
-
     private static final int SECTION_CLIPBOARD = 0;
     private static final int SECTION_PHOTOS = 1;
     private static final int SECTION_FILES = 2;
-
     private static final PathInterpolator EXPAND_INTERPOLATOR =
             new PathInterpolator(0.16f, 0.86f, 0.24f, 1f);
     private static final PathInterpolator COLLAPSE_INTERPOLATOR =
             new PathInterpolator(0.42f, 0f, 0.72f, 0.36f);
-
     private final RectF mGlassBounds = new RectF();
     private final Paint mGlassWashPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.DITHER_FLAG);
     private final Paint mRimPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint mInnerHighlightPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final List<SectionBinding> mSections = new ArrayList<SectionBinding>(3);
-
     private final float mCornerRadiusPx;
     private final float mBaseElevationPx;
     private final float mClosedOffsetPx;
     private int mGlassTintColor = Color.WHITE;
     private LinearGradient mGlassWashShader;
-
     private float mExpansionProgress = 1f;
     private boolean mExpanded;
     private boolean mAttached;
     private ValueAnimator mExpansionAnimator;
     private OnPanelStateChangeListener mStateChangeListener;
-
     private LinearLayout mSectionsContainer;
     private View mHandle;
     private RecentClipManager mClipManager;
@@ -90,7 +75,6 @@ public class MediaGlassPanel extends FrameLayout {
     private RecentFileManager mFileManager;
     private boolean mDataListenersRegistered;
     private boolean mDataSourcesStarted;
-
     private final DataManager.RecentUpdateListener mDataChangedListener =
             new DataManager.RecentUpdateListener() {
                 @Override
@@ -103,7 +87,6 @@ public class MediaGlassPanel extends FrameLayout {
                     });
                 }
             };
-
     private final int mTouchSlop;
     private final int mMinimumFlingVelocity;
     private final int mMaximumFlingVelocity;
@@ -112,38 +95,30 @@ public class MediaGlassPanel extends FrameLayout {
     private float mDownY;
     private float mSwipeStartProgress;
     private boolean mInterceptingCloseSwipe;
-
     private WeakReference<View> mBackdropLayer = new WeakReference<View>(null);
     private float mBackdropBlurRadiusPx;
     private boolean mBackdropBlurEnabled = true;
     private boolean mBackdropBlurApplied;
-
     public MediaGlassPanel(Context context) {
         this(context, null);
     }
-
     public MediaGlassPanel(Context context, AttributeSet attrs) {
         this(context, attrs, 0);
     }
-
     public MediaGlassPanel(Context context, AttributeSet attrs, int defStyleAttr) {
         this(context, attrs, defStyleAttr, 0);
     }
-
     public MediaGlassPanel(Context context, AttributeSet attrs, int defStyleAttr,
             int defStyleRes) {
         super(context, attrs, defStyleAttr, defStyleRes);
-
         mCornerRadiusPx = getResources().getDimension(R.dimen.glass_panel_corner_radius);
         mBaseElevationPx = getResources().getDimension(R.dimen.glass_panel_elevation);
         mClosedOffsetPx = dp(42f);
         mBackdropBlurRadiusPx = dp(22f);
-
         ViewConfiguration configuration = ViewConfiguration.get(context);
         mTouchSlop = configuration.getScaledTouchSlop();
         mMinimumFlingVelocity = configuration.getScaledMinimumFlingVelocity();
         mMaximumFlingVelocity = configuration.getScaledMaximumFlingVelocity();
-
         setWillNotDraw(false);
         setClipToOutline(true);
         setClickable(true);
@@ -162,25 +137,20 @@ public class MediaGlassPanel extends FrameLayout {
                 }
             }
         });
-
         mRimPaint.setStyle(Paint.Style.STROKE);
         mRimPaint.setStrokeWidth(dp(1f));
         mRimPaint.setColor(0x66ffffff);
         mInnerHighlightPaint.setStyle(Paint.Style.STROKE);
         mInnerHighlightPaint.setStrokeWidth(dp(0.65f));
         mInnerHighlightPaint.setColor(0x42ffffff);
-
-        // A layout may start GONE while still keeping a fully expanded resting state.
         mExpanded = getVisibility() == VISIBLE;
         applyExpansionVisuals();
     }
-
     @Override
     protected void onFinishInflate() {
         super.onFinishInflate();
         mHandle = findViewById(R.id.glass_panel_handle);
         mSectionsContainer = (LinearLayout) findViewById(R.id.glass_panel_sections);
-
         if (mHandle != null) {
             mHandle.setClickable(true);
             mHandle.setOnClickListener(new OnClickListener() {
@@ -190,13 +160,11 @@ public class MediaGlassPanel extends FrameLayout {
                 }
             });
         }
-
         bindManagers();
         createSectionsIfNeeded();
         refreshSections();
         updatePanelAccessibilityDescription();
     }
-
     @Override
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
@@ -206,7 +174,6 @@ public class MediaGlassPanel extends FrameLayout {
             startVisibleState();
         }
     }
-
     @Override
     protected void onDetachedFromWindow() {
         mAttached = false;
@@ -217,7 +184,6 @@ public class MediaGlassPanel extends FrameLayout {
         clearBackdropBlur();
         super.onDetachedFromWindow();
     }
-
     @Override
     public void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
@@ -227,7 +193,6 @@ public class MediaGlassPanel extends FrameLayout {
             }
         }
     }
-
     @Override
     protected void onVisibilityChanged(View changedView, int visibility) {
         super.onVisibilityChanged(changedView, visibility);
@@ -238,7 +203,6 @@ public class MediaGlassPanel extends FrameLayout {
             stopVisibleState();
         }
     }
-
     private void startVisibleState() {
         bindManagers();
         registerDataListeners();
@@ -246,20 +210,17 @@ public class MediaGlassPanel extends FrameLayout {
         refreshSections();
         applyBackdropBlur();
     }
-
     private void stopVisibleState() {
         unregisterDataListeners();
         stopDataSources();
         dismissClearDialogs();
         clearBackdropBlur();
     }
-
     private void dismissClearDialogs() {
         for (SectionBinding binding : mSections) {
             if (binding.clearListener != null) binding.clearListener.dismiss();
         }
     }
-
     @Override
     protected void onSizeChanged(int width, int height, int oldWidth, int oldHeight) {
         super.onSizeChanged(width, height, oldWidth, oldHeight);
@@ -278,7 +239,6 @@ public class MediaGlassPanel extends FrameLayout {
                 Shader.TileMode.CLAMP);
         invalidateOutline();
     }
-
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
@@ -287,15 +247,12 @@ public class MediaGlassPanel extends FrameLayout {
         canvas.drawRoundRect(mGlassBounds, mCornerRadiusPx, mCornerRadiusPx,
                 mGlassWashPaint);
     }
-
     @Override
     protected void dispatchDraw(Canvas canvas) {
         super.dispatchDraw(canvas);
         if (mGlassBounds.isEmpty()) return;
-
         float rimInset = dp(0.75f);
         canvas.drawRoundRect(mGlassBounds, mCornerRadiusPx, mCornerRadiusPx, mRimPaint);
-
         RectF innerBounds = new RectF(
                 mGlassBounds.left + rimInset,
                 mGlassBounds.top + rimInset,
@@ -309,40 +266,31 @@ public class MediaGlassPanel extends FrameLayout {
                 mInnerHighlightPaint);
         canvas.restore();
     }
-
     /** Shows the panel with its default spring-like transition. */
     public void show() {
         show(true);
     }
-
     public void show(boolean animate) {
         setExpanded(true, animate);
     }
-
     /** Hides the panel and marks it GONE after the transition completes. */
     public void hide() {
         hide(true);
     }
-
     public void hide(boolean animate) {
         setExpanded(false, animate);
     }
-
     public void expand() {
         setExpanded(true, true);
     }
-
     public void collapse() {
         setExpanded(false, true);
     }
-
     public void setExpanded(boolean expanded) {
         setExpanded(expanded, true);
     }
-
     public void setExpanded(final boolean expanded, boolean animate) {
         cancelExpansionAnimator();
-
         boolean wasHidden = getVisibility() != VISIBLE;
         if (expanded) {
             if (wasHidden) {
@@ -352,13 +300,11 @@ public class MediaGlassPanel extends FrameLayout {
             refreshSections();
             applyBackdropBlur();
         }
-
         boolean stateChanged = mExpanded != expanded;
         mExpanded = expanded;
         if (stateChanged && mStateChangeListener != null) {
             mStateChangeListener.onExpandedChanged(this, expanded);
         }
-
         float target = expanded ? 1f : 0f;
         if (!animate || Math.abs(mExpansionProgress - target) < 0.001f) {
             setExpansionProgressInternal(target, true);
@@ -368,7 +314,6 @@ public class MediaGlassPanel extends FrameLayout {
             }
             return;
         }
-
         final boolean[] cancelled = new boolean[1];
         mExpansionAnimator = ValueAnimator.ofFloat(mExpansionProgress, target);
         long baseDuration = expanded ? EXPAND_DURATION_MS : COLLAPSE_DURATION_MS;
@@ -388,7 +333,6 @@ public class MediaGlassPanel extends FrameLayout {
             public void onAnimationCancel(Animator animation) {
                 cancelled[0] = true;
             }
-
             @Override
             public void onAnimationEnd(Animator animation) {
                 if (mExpansionAnimator == animation) mExpansionAnimator = null;
@@ -402,38 +346,24 @@ public class MediaGlassPanel extends FrameLayout {
         });
         mExpansionAnimator.start();
     }
-
     public boolean isExpanded() {
         return mExpanded;
     }
-
-    /**
-     * Sets interactive expansion in the range [0, 1]. A caller should finish the gesture with
-     * setExpanded() so the view can settle and update visibility.
-     */
     public void setExpansionProgress(float progress) {
         cancelExpansionAnimator();
         float clamped = clamp01(progress);
         if (clamped > 0f && getVisibility() != VISIBLE) setVisibility(VISIBLE);
         setExpansionProgressInternal(clamped, true);
     }
-
     public float getExpansionProgress() {
         return mExpansionProgress;
     }
-
     public void setOnPanelStateChangeListener(OnPanelStateChangeListener listener) {
         mStateChangeListener = listener;
     }
-
     public void refreshContent() {
         refreshSections();
     }
-
-    /**
-     * Applies blur to a dedicated snapshot/sibling layer behind this panel. Applying a
-     * RenderEffect directly to the panel would blur its labels and controls as well.
-     */
     public void setBackdropLayer(View backdropLayer) {
         View current = mBackdropLayer.get();
         if (current == backdropLayer) return;
@@ -446,7 +376,6 @@ public class MediaGlassPanel extends FrameLayout {
         mBackdropLayer = new WeakReference<View>(backdropLayer);
         if (getVisibility() == VISIBLE) applyBackdropBlur();
     }
-
     public void setBackdropBlurEnabled(boolean enabled) {
         if (mBackdropBlurEnabled == enabled) return;
         mBackdropBlurEnabled = enabled;
@@ -456,21 +385,18 @@ public class MediaGlassPanel extends FrameLayout {
             clearBackdropBlur();
         }
     }
-
     public void setBackdropBlurRadius(float radiusPx) {
         float safeRadius = Math.max(0f, radiusPx);
         if (Math.abs(mBackdropBlurRadiusPx - safeRadius) < 0.5f) return;
         mBackdropBlurRadiusPx = safeRadius;
         if (getVisibility() == VISIBLE) applyBackdropBlur();
     }
-
     public void setGlassTintColor(int color) {
         if (mGlassTintColor == color) return;
         mGlassTintColor = color;
         onSizeChanged(getWidth(), getHeight(), getWidth(), getHeight());
         invalidate();
     }
-
     @Override
     public boolean onInterceptTouchEvent(MotionEvent event) {
         int action = event.getActionMasked();
@@ -478,7 +404,6 @@ public class MediaGlassPanel extends FrameLayout {
             beginTouch(event);
             return false;
         }
-
         addVelocityMovement(event);
         if (action == MotionEvent.ACTION_MOVE && !mInterceptingCloseSwipe) {
             float dx = event.getX() - mDownX;
@@ -491,15 +416,11 @@ public class MediaGlassPanel extends FrameLayout {
                 return true;
             }
         }
-
         if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
-            // Once a horizontal close gesture has been intercepted, keep returning true
-            // until onTouchEvent settles it. This preserves the child's normal tap path.
             if (!mInterceptingCloseSwipe) recycleVelocityTracker();
         }
         return mInterceptingCloseSwipe;
     }
-
     @Override
     public boolean onTouchEvent(MotionEvent event) {
         int action = event.getActionMasked();
@@ -507,7 +428,6 @@ public class MediaGlassPanel extends FrameLayout {
             beginTouch(event);
             return true;
         }
-
         addVelocityMovement(event);
         if (action == MotionEvent.ACTION_MOVE && mInterceptingCloseSwipe) {
             float width = Math.max(1f, getWidth());
@@ -516,7 +436,6 @@ public class MediaGlassPanel extends FrameLayout {
             setExpansionProgressInternal(clamp01(progress), true);
             return true;
         }
-
         if (action == MotionEvent.ACTION_UP && mInterceptingCloseSwipe) {
             float velocityX = computeCurrentVelocityX();
             float dx = event.getX() - mDownX;
@@ -531,7 +450,6 @@ public class MediaGlassPanel extends FrameLayout {
             setExpanded(!(flingClosed || draggedClosed), true);
             return true;
         }
-
         if (action == MotionEvent.ACTION_CANCEL && mInterceptingCloseSwipe) {
             recycleVelocityTracker();
             mInterceptingCloseSwipe = false;
@@ -541,17 +459,14 @@ public class MediaGlassPanel extends FrameLayout {
             setExpanded(true, true);
             return true;
         }
-
         return super.onTouchEvent(event);
     }
-
     private void createSectionsIfNeeded() {
         if (mSectionsContainer == null) {
             LSPLogger.w("MediaGlassPanel: glass_panel_sections is missing");
             return;
         }
         if (!mSections.isEmpty()) return;
-
         mSectionsContainer.removeAllViews();
         mSections.add(createSection(SECTION_CLIPBOARD, ContentType.CLIPBOARD,
                 R.string.title_clipboard, R.string.clipboard_empty_text));
@@ -560,7 +475,6 @@ public class MediaGlassPanel extends FrameLayout {
         mSections.add(createSection(SECTION_FILES, ContentType.FILE,
                 R.string.title_file, R.string.file_empty_text));
     }
-
     private SectionBinding createSection(final int sectionType, final ContentType contentType,
             int titleResId, int emptyResId) {
         View root = LayoutInflater.from(getContext()).inflate(
@@ -570,20 +484,17 @@ public class MediaGlassPanel extends FrameLayout {
         TextView empty = (TextView) root.findViewById(R.id.section_empty);
         View legacyList = root.findViewById(R.id.section_list);
         if (legacyList != null) legacyList.setVisibility(GONE);
-
         LinearLayout preview = new LinearLayout(getContext());
         preview.setOrientation(LinearLayout.VERTICAL);
         preview.setClipToPadding(false);
         ViewGroup.LayoutParams previewParams = new ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-
         if (root instanceof ViewGroup) {
             ViewGroup rootGroup = (ViewGroup) root;
             int insertIndex = legacyList == null ? rootGroup.getChildCount()
                     : rootGroup.indexOfChild(legacyList);
             rootGroup.addView(preview, Math.max(0, insertIndex), previewParams);
         }
-
         final ClearListener clearListener = new ClearListener(new Runnable() {
             @Override
             public void run() {
@@ -606,7 +517,6 @@ public class MediaGlassPanel extends FrameLayout {
         mSectionsContainer.addView(root);
         return binding;
     }
-
     private void bindManagers() {
         if (mClipManager != null && mPhotoManager != null && mFileManager != null) return;
         try {
@@ -622,7 +532,6 @@ public class MediaGlassPanel extends FrameLayout {
             LSPLogger.e("MediaGlassPanel: manager initialization failed", throwable);
         }
     }
-
     private void registerDataListeners() {
         if (mDataListenersRegistered) return;
         if (mClipManager == null || mPhotoManager == null || mFileManager == null) return;
@@ -631,7 +540,6 @@ public class MediaGlassPanel extends FrameLayout {
         mFileManager.addListener(mDataChangedListener);
         mDataListenersRegistered = true;
     }
-
     private void unregisterDataListeners() {
         if (!mDataListenersRegistered) return;
         if (mClipManager != null) mClipManager.removeListener(mDataChangedListener);
@@ -639,7 +547,6 @@ public class MediaGlassPanel extends FrameLayout {
         if (mFileManager != null) mFileManager.removeListener(mDataChangedListener);
         mDataListenersRegistered = false;
     }
-
     private void startDataSources() {
         if (mDataSourcesStarted) return;
         mDataSourcesStarted = true;
@@ -657,7 +564,6 @@ public class MediaGlassPanel extends FrameLayout {
             LSPLogger.w("MediaGlassPanel: file observer unavailable: " + throwable);
         }
     }
-
     private void stopDataSources() {
         if (!mDataSourcesStarted) return;
         mDataSourcesStarted = false;
@@ -672,7 +578,6 @@ public class MediaGlassPanel extends FrameLayout {
             LSPLogger.w("MediaGlassPanel: file observer stop failed: " + throwable);
         }
     }
-
     private void refreshSections() {
         if (mSections.isEmpty()) return;
         for (SectionBinding binding : mSections) {
@@ -698,7 +603,6 @@ public class MediaGlassPanel extends FrameLayout {
             }
         }
     }
-
     private void updateSection(SectionBinding binding, int count, List<String> previews) {
         String title = getResources().getString(binding.titleResId);
         String countLabel = getCountLabel(count);
@@ -714,7 +618,6 @@ public class MediaGlassPanel extends FrameLayout {
             binding.empty.setText(binding.emptyResId);
             binding.empty.setVisibility(count == 0 ? VISIBLE : GONE);
         }
-
         binding.preview.removeAllViews();
         if (count == 0) {
             binding.preview.setVisibility(GONE);
@@ -726,14 +629,12 @@ public class MediaGlassPanel extends FrameLayout {
             binding.preview.addView(createPreviewRow(previews.get(i), i < rows - 1));
         }
     }
-
     private View createPreviewRow(String text, boolean addDivider) {
         LinearLayout row = new LinearLayout(getContext());
         row.setOrientation(LinearLayout.VERTICAL);
         row.setGravity(android.view.Gravity.CENTER_VERTICAL);
         row.setPadding(Math.round(dp(14f)), 0, Math.round(dp(14f)), 0);
         row.setMinimumHeight(Math.round(dp(42f)));
-
         TextView label = new TextView(getContext());
         label.setText(text);
         label.setTextColor(getColorCompat(R.color.glass_text_secondary, 0xd9f2f4f5));
@@ -743,7 +644,6 @@ public class MediaGlassPanel extends FrameLayout {
         label.setIncludeFontPadding(false);
         row.addView(label, new LinearLayout.LayoutParams(
                 LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
-
         if (addDivider) {
             View divider = new View(getContext());
             divider.setBackgroundColor(getColorCompat(R.color.glass_section_stroke,
@@ -756,7 +656,6 @@ public class MediaGlassPanel extends FrameLayout {
         }
         return row;
     }
-
     private List<String> clipboardPreviews(List<CopyHistoryItem> items) {
         List<String> previews = new ArrayList<String>(MAX_PREVIEW_ROWS);
         for (int i = 0; i < items.size() && previews.size() < MAX_PREVIEW_ROWS; i++) {
@@ -767,7 +666,6 @@ public class MediaGlassPanel extends FrameLayout {
         }
         return previews;
     }
-
     private int countClipboardItems(List<CopyHistoryItem> items) {
         int count = 0;
         for (int i = 0; i < items.size(); i++) {
@@ -779,7 +677,6 @@ public class MediaGlassPanel extends FrameLayout {
         }
         return count;
     }
-
     private List<String> photoPreviews(List<ImageInfo> items) {
         List<String> previews = new ArrayList<String>(MAX_PREVIEW_ROWS);
         for (int i = 0; i < items.size() && previews.size() < MAX_PREVIEW_ROWS; i++) {
@@ -789,7 +686,6 @@ public class MediaGlassPanel extends FrameLayout {
         }
         return previews;
     }
-
     private List<String> filePreviews(List<FileInfo> items) {
         List<String> previews = new ArrayList<String>(MAX_PREVIEW_ROWS);
         for (int i = 0; i < items.size() && previews.size() < MAX_PREVIEW_ROWS; i++) {
@@ -799,7 +695,6 @@ public class MediaGlassPanel extends FrameLayout {
         }
         return previews;
     }
-
     private String getCountLabel(int count) {
         int resourceId = getResources().getIdentifier(
                 "glass_section_item_count", "plurals", getContext().getPackageName());
@@ -808,7 +703,6 @@ public class MediaGlassPanel extends FrameLayout {
         }
         return Integer.toString(count);
     }
-
     private void clearSection(int sectionType) {
         try {
             if (sectionType == SECTION_CLIPBOARD && mClipManager != null) {
@@ -823,7 +717,6 @@ public class MediaGlassPanel extends FrameLayout {
             LSPLogger.e("MediaGlassPanel: clear failed type=" + sectionType, throwable);
         }
     }
-
     private int clearTitleForSection(int sectionType) {
         if (sectionType == SECTION_CLIPBOARD) {
             return R.string.title_confirm_delete_history_clipboard;
@@ -833,7 +726,6 @@ public class MediaGlassPanel extends FrameLayout {
         }
         return R.string.title_confirm_delete_history_file;
     }
-
     private void openFullSection(ContentType contentType) {
         try {
             hide(true);
@@ -842,7 +734,6 @@ public class MediaGlassPanel extends FrameLayout {
             LSPLogger.e("MediaGlassPanel: open section failed type=" + contentType, throwable);
         }
     }
-
     private void updatePanelAccessibilityDescription() {
         int resourceId = getResources().getIdentifier(
                 "glass_panel_accessibility_title", "string", getContext().getPackageName());
@@ -852,7 +743,6 @@ public class MediaGlassPanel extends FrameLayout {
         }
         if (resourceId != 0) setContentDescription(getResources().getString(resourceId));
     }
-
     private void setExpansionProgressInternal(float progress, boolean notifyListener) {
         mExpansionProgress = clamp01(progress);
         applyExpansionVisuals();
@@ -860,7 +750,6 @@ public class MediaGlassPanel extends FrameLayout {
             mStateChangeListener.onExpansionChanged(this, mExpansionProgress);
         }
     }
-
     private void applyExpansionVisuals() {
         float eased = 1f - (1f - mExpansionProgress) * (1f - mExpansionProgress);
         setAlpha(eased);
@@ -870,14 +759,12 @@ public class MediaGlassPanel extends FrameLayout {
         setElevation(mBaseElevationPx * (0.72f + 0.28f * eased));
         invalidate();
     }
-
     private void cancelExpansionAnimator() {
         if (mExpansionAnimator == null) return;
         ValueAnimator animator = mExpansionAnimator;
         mExpansionAnimator = null;
         animator.cancel();
     }
-
     private void beginTouch(MotionEvent event) {
         recycleVelocityTracker();
         mVelocityTracker = VelocityTracker.obtain();
@@ -887,23 +774,19 @@ public class MediaGlassPanel extends FrameLayout {
         mSwipeStartProgress = mExpansionProgress;
         mInterceptingCloseSwipe = false;
     }
-
     private void addVelocityMovement(MotionEvent event) {
         if (mVelocityTracker != null) mVelocityTracker.addMovement(event);
     }
-
     private float computeCurrentVelocityX() {
         if (mVelocityTracker == null) return 0f;
         mVelocityTracker.computeCurrentVelocity(1000, mMaximumFlingVelocity);
         return mVelocityTracker.getXVelocity();
     }
-
     private void recycleVelocityTracker() {
         if (mVelocityTracker == null) return;
         mVelocityTracker.recycle();
         mVelocityTracker = null;
     }
-
     private void applyBackdropBlur() {
         clearBackdropBlur();
         View backdrop = mBackdropLayer.get();
@@ -913,9 +796,7 @@ public class MediaGlassPanel extends FrameLayout {
                     mBackdropBlurRadiusPx, mBackdropBlurRadiusPx, Shader.TileMode.CLAMP));
             mBackdropBlurApplied = true;
         }
-        // Pre-S hosts retain the translucent wash, rim and elevation as the visual fallback.
     }
-
     private void clearBackdropBlur() {
         View backdrop = mBackdropLayer.get();
         if (mBackdropBlurApplied && backdrop != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -923,17 +804,14 @@ public class MediaGlassPanel extends FrameLayout {
         }
         mBackdropBlurApplied = false;
     }
-
     private String fileName(String path) {
         if (TextUtils.isEmpty(path)) return null;
         String name = new File(path).getName();
         return TextUtils.isEmpty(name) ? path : name;
     }
-
     private float dp(float value) {
         return value * getResources().getDisplayMetrics().density;
     }
-
     private int getColorCompat(int resourceId, int fallback) {
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -944,23 +822,18 @@ public class MediaGlassPanel extends FrameLayout {
             return fallback;
         }
     }
-
     private static float clamp01(float value) {
         return Math.max(0f, Math.min(1f, value));
     }
-
     private static int withAlpha(int color, int alpha) {
         int sourceAlpha = Color.alpha(color);
         int resultAlpha = Math.round(sourceAlpha * (alpha / 255f));
         return (color & 0x00ffffff) | (resultAlpha << 24);
     }
-
     public interface OnPanelStateChangeListener {
         void onExpansionChanged(MediaGlassPanel panel, float progress);
-
         void onExpandedChanged(MediaGlassPanel panel, boolean expanded);
     }
-
     private static final class SectionBinding {
         final int sectionType;
         final ContentType contentType;
@@ -972,7 +845,6 @@ public class MediaGlassPanel extends FrameLayout {
         final TextView empty;
         final LinearLayout preview;
         final ClearListener clearListener;
-
         SectionBinding(int sectionType, ContentType contentType, int titleResId,
                 int emptyResId, View root, TextView title, View clear, TextView empty,
                 LinearLayout preview, ClearListener clearListener) {

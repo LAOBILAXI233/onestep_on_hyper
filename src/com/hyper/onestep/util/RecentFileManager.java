@@ -1,5 +1,4 @@
 package com.hyper.onestep.util;
-
 import android.content.Context;
 import android.content.ContentResolver;
 import android.content.SharedPreferences;
@@ -19,13 +18,10 @@ import android.provider.MediaStore;
 import android.provider.MediaStore.Files.FileColumns;
 import android.text.TextUtils;
 import android.util.Log;
-
 import com.hyper.onestep.SidebarController;
 import com.hyper.onestep.lsp.LSPLogger;
-
 import org.json.JSONArray;
 import org.json.JSONObject;
-
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -33,9 +29,8 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-
+// 最近文件数据管理器，查询 MediaStore 并缓存
 public class RecentFileManager extends DataManager implements IClear{
-
     private static final String TAG = RecentFileManager.class.getName();
     private static final String DB_NAME = "UselessFile";
     private static final String PREFS_NAME = "onestep_recent_file_cache";
@@ -48,7 +43,6 @@ public class RecentFileManager extends DataManager implements IClear{
     private static final long DATABASE_REFRESH_TTL_MS = 30_000L;
     private static final long FOLDER_REFRESH_TTL_MS = 5L * 60L * 1000L;
     private static final long RETRY_DELAY_MS = 2000L;
-
     private volatile static RecentFileManager sInstance;
     public synchronized static RecentFileManager getInstance(Context context){
         if(sInstance == null){
@@ -60,7 +54,6 @@ public class RecentFileManager extends DataManager implements IClear{
         }
         return sInstance;
     }
-
     private static final String[] FILE_PROJECTION = new String[] {
         FileColumns._ID,
         FileColumns.TITLE,
@@ -69,19 +62,15 @@ public class RecentFileManager extends DataManager implements IClear{
         FileColumns.DATE_MODIFIED,
         FileColumns.MIME_TYPE,
     };
-
     private final Context mContext;
     private final Handler mHandler;
     private final SharedPreferences mPreferences;
-
     private static final int MSG_UPDATE_DATABASE_LIST = 0;
     private static final int MSG_SEARCH_FILE = 1;
-
     private static final String VOLUME_EXTERNAL = "external";
     private static final Uri FILES_URI = MediaStore.Files.getContentUri(VOLUME_EXTERNAL);
     private static final String FILE_SORT_ORDER = FileColumns.DATE_MODIFIED + " DESC, "
             + FileColumns._ID + " DESC";
-
     private static final String[] TARGET_DIR = new String[]{
         Environment.getExternalStorageDirectory().getAbsolutePath()+"/tencent/QQfile_recv/",
         Environment.getExternalStorageDirectory().getAbsolutePath()+"/tencent/MicroMsg/Download/",
@@ -91,7 +80,6 @@ public class RecentFileManager extends DataManager implements IClear{
         Environment.getExternalStorageDirectory().getAbsolutePath()+"/BaiduNetdisk/",
         Environment.getExternalStorageDirectory().getAbsolutePath()+"/Download/",
     };
-
     private List<FileInfo> mList = new ArrayList<FileInfo>();
     private List<FileInfo> mCursorCacheList = new ArrayList<FileInfo>();
     private List<FileInfo> mSearchCacheList = new ArrayList<FileInfo>();
@@ -101,12 +89,10 @@ public class RecentFileManager extends DataManager implements IClear{
     private int mClearGeneration;
     private long mLastDatabaseRefreshElapsed;
     private long mLastFolderRefreshElapsed;
-
     private boolean mRegistered;
     private int mObserverClients;
     private DatabaseObserver mDatabaseObserver;
     private ClearDatabaseHelper mDatabaseHelper;
-
     private RecentFileManager(Context context) {
         mContext = resolveOperationContext(context);
         HandlerThread thread = new HandlerThread(RecentFileManager.class.getName());
@@ -118,7 +104,6 @@ public class RecentFileManager extends DataManager implements IClear{
         mDatabaseHelper = new ClearDatabaseHelper(mContext,DB_NAME, mCallback);
         LSPLogger.i("RecentFileManager: operation context=" + mContext.getPackageName());
     }
-
     private static Context resolveOperationContext(Context context) {
         Context resolved = context;
         try {
@@ -132,7 +117,6 @@ public class RecentFileManager extends DataManager implements IClear{
         Context application = resolved == null ? null : resolved.getApplicationContext();
         return application == null ? resolved : application;
     }
-
     private static SharedPreferences openPreferences(Context context) {
         if (context == null) {
             return null;
@@ -151,7 +135,6 @@ public class RecentFileManager extends DataManager implements IClear{
             return null;
         }
     }
-
     private ClearDatabaseHelper.Callback mCallback = new ClearDatabaseHelper.Callback() {
         @Override
         public void onInitComplete() {
@@ -159,7 +142,6 @@ public class RecentFileManager extends DataManager implements IClear{
             sendMessageIfNotExist(MSG_UPDATE_DATABASE_LIST);
         }
     };
-
     public List<FileInfo> getFileList(){
         synchronized (RecentFileManager.class) {
             List<FileInfo> recentList = new ArrayList<FileInfo>();
@@ -167,13 +149,13 @@ public class RecentFileManager extends DataManager implements IClear{
             return recentList;
         }
     }
-
+    // 启动一次目标目录的文件扫描任务
     public void startSearchFile() {
         if (isFolderRefreshStale()) {
             sendMessageIfNotExist(MSG_SEARCH_FILE);
         }
     }
-
+    // 注册 MediaStore 与录音 URI 的内容观察者，并触发首次刷新
     public void startFileObserver(){
         synchronized (mDatabaseObserver) {
             mObserverClients++;
@@ -198,7 +180,7 @@ public class RecentFileManager extends DataManager implements IClear{
             sendMessageIfNotExist(MSG_UPDATE_DATABASE_LIST);
         }
     }
-
+    // 注销文件内容观察者并停止刷新任务
     public void stopFileObserver() {
         synchronized (mDatabaseObserver) {
             if (mObserverClients == 0) {
@@ -221,11 +203,10 @@ public class RecentFileManager extends DataManager implements IClear{
             }
         }
     }
-
+    // 清除集合变更回调：根据当前清除标记重新排序
     public void onClearSetChange(){
         sortRecentFileList(getClearGeneration());
     }
-
     private List<String> searchDestinationFolder(File dir) {
         List<String> filePathList = new ArrayList<String>();
         if (dir.exists()) {
@@ -251,7 +232,6 @@ public class RecentFileManager extends DataManager implements IClear{
         }
         return filePathList;
     }
-
     private boolean searchFile(){
         if (!isExternalStorageReady()) {
             LSPLogger.w("RecentFileManager.searchFile: storage not ready; keeping snapshot");
@@ -281,7 +261,6 @@ public class RecentFileManager extends DataManager implements IClear{
         }
         return true;
     }
-
     private boolean updateDatabaseContent() {
         ThreadVerify.verify(false);
         if (!isExternalStorageReady()) {
@@ -337,7 +316,6 @@ public class RecentFileManager extends DataManager implements IClear{
         }
         return true;
     }
-
     private void onScanComplete(boolean database, int clearGeneration) {
         if (database) {
             mInitialDatabaseLoaded = true;
@@ -355,12 +333,10 @@ public class RecentFileManager extends DataManager implements IClear{
             mPreservingRestoredSnapshot = false;
         }
     }
-
     private boolean sortRecentFileList(int clearGeneration) {
         if(!mDatabaseHelper.isDataSetOk()){
             return false;
         }
-
         List<FileInfo> allInfo = new ArrayList<FileInfo>();
         Set<Integer> clearSet = mDatabaseHelper.getSet();
         Set<String> dataSet = new HashSet<String>();
@@ -372,7 +348,6 @@ public class RecentFileManager extends DataManager implements IClear{
                 allInfo.add(info);
             }
         }
-
         for (FileInfo info : mSearchCacheList) {
             info.refresh();
             if (!clearSet.contains(info.getHashKey())
@@ -381,7 +356,6 @@ public class RecentFileManager extends DataManager implements IClear{
                 allInfo.add(info);
             }
         }
-
         FileComparator comparator = new FileComparator();
         Collections.sort(allInfo, comparator);
         boolean staleResult = false;
@@ -403,13 +377,11 @@ public class RecentFileManager extends DataManager implements IClear{
         notifyListener();
         return true;
     }
-
     private int getClearGeneration() {
         synchronized (RecentFileManager.class) {
             return mClearGeneration;
         }
     }
-
     private boolean hasExistingCurrentItem() {
         List<FileInfo> current = new ArrayList<FileInfo>();
         synchronized (RecentFileManager.class) {
@@ -426,7 +398,6 @@ public class RecentFileManager extends DataManager implements IClear{
         }
         return false;
     }
-
     private boolean isExternalStorageReady() {
         try {
             UserManager userManager = (UserManager) mContext.getSystemService(Context.USER_SERVICE);
@@ -441,7 +412,6 @@ public class RecentFileManager extends DataManager implements IClear{
             return false;
         }
     }
-
     private void scheduleRetry(int messageId) {
         synchronized (mDatabaseObserver) {
             if (mObserverClients <= 0 || mHandler.hasMessages(messageId)) {
@@ -450,7 +420,6 @@ public class RecentFileManager extends DataManager implements IClear{
             mHandler.sendEmptyMessageDelayed(messageId, RETRY_DELAY_MS);
         }
     }
-
     private void restoreSnapshot() {
         if (mPreferences == null) {
             return;
@@ -465,7 +434,6 @@ public class RecentFileManager extends DataManager implements IClear{
         if (TextUtils.isEmpty(encoded)) {
             return;
         }
-
         List<FileInfo> restored = new ArrayList<FileInfo>();
         Set<String> seen = new HashSet<String>();
         try {
@@ -493,7 +461,6 @@ public class RecentFileManager extends DataManager implements IClear{
                     + t.getClass().getSimpleName() + ")");
             return;
         }
-
         synchronized (RecentFileManager.class) {
             mList.clear();
             mList.addAll(restored);
@@ -501,12 +468,10 @@ public class RecentFileManager extends DataManager implements IClear{
         mPreservingRestoredSnapshot = !restored.isEmpty();
         LSPLogger.i("RecentFileManager: restored snapshot count=" + restored.size());
     }
-
     private void persistSnapshot() {
         if (mPreferences == null) {
             return;
         }
-
         final String encoded;
         try {
             JSONArray array = new JSONArray();
@@ -531,7 +496,6 @@ public class RecentFileManager extends DataManager implements IClear{
                     + t.getClass().getSimpleName() + ")");
             return;
         }
-
         mHandler.post(new Runnable() {
             @Override
             public void run() {
@@ -545,7 +509,6 @@ public class RecentFileManager extends DataManager implements IClear{
             }
         });
     }
-
     private class FileComparator implements Comparator<FileInfo> {
         public int compare(FileInfo fileInfo1, FileInfo fileInfo2) {
             long time1 = fileInfo1.lastTime;
@@ -560,7 +523,6 @@ public class RecentFileManager extends DataManager implements IClear{
             }
         }
     }
-
     private List<FileInfo> getFileInfoByCursor(Cursor cursor) {
         List<FileInfo> infos = new ArrayList<FileInfo>();
         if (cursor == null) {
@@ -592,23 +554,18 @@ public class RecentFileManager extends DataManager implements IClear{
         }
         return infos;
     }
-
     private class ReceiveFileOberver extends FileObserver{
         public ReceiveFileOberver(String path) {
             super(path);
         }
-
         @Override
         public void onEvent(int event, String path) {
-            // NA
         }
     }
-
     private class DatabaseObserver extends ContentObserver{
         public DatabaseObserver(Handler handler) {
             super(handler);
         }
-
         @Override
         public void onChange(boolean selfChange) {
             super.onChange(selfChange);
@@ -616,19 +573,15 @@ public class RecentFileManager extends DataManager implements IClear{
             sendMessageIfNotExist(MSG_UPDATE_DATABASE_LIST);
         }
     }
-
     private void sendMessageIfNotExist(int msgId) {
         if (!mHandler.hasMessages(msgId)) {
             mHandler.obtainMessage(msgId).sendToTarget();
         }
     }
-
     private class FileManagerHandler extends Handler {
-
         public FileManagerHandler(Looper looper) {
             super(looper);
         }
-
         @Override
         public void handleMessage(Message msg) {
             switch (msg.what) {
@@ -653,7 +606,7 @@ public class RecentFileManager extends DataManager implements IClear{
             }
         }
     }
-
+    // 清空最近文件列表并将所有项标记为忽略
     @Override
     public void clear() {
         synchronized (RecentFileManager.class) {
@@ -669,7 +622,7 @@ public class RecentFileManager extends DataManager implements IClear{
         persistSnapshot();
         notifyListener();
     }
-
+    // 通知监听器刷新并在数据陈旧时触发后台扫描
     public void refresh() {
         notifyListener();
         if (isDatabaseRefreshStale()) {
@@ -679,13 +632,11 @@ public class RecentFileManager extends DataManager implements IClear{
             sendMessageIfNotExist(MSG_SEARCH_FILE);
         }
     }
-
     private boolean isDatabaseRefreshStale() {
         return mLastDatabaseRefreshElapsed == 0L
                 || SystemClock.elapsedRealtime() - mLastDatabaseRefreshElapsed
                 >= DATABASE_REFRESH_TTL_MS;
     }
-
     private boolean isFolderRefreshStale() {
         return mLastFolderRefreshElapsed == 0L
                 || SystemClock.elapsedRealtime() - mLastFolderRefreshElapsed

@@ -1,5 +1,4 @@
 package com.hyper.onestep.lsp;
-
 import android.app.ActivityOptions;
 import android.content.ClipData;
 import android.content.ClipDescription;
@@ -10,18 +9,18 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
 import android.view.Display;
-
 import com.hyper.onestep.SidebarController;
-
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 /** Coordinates three live tasks hosted on dedicated virtual displays. */
 public final class MultiTaskController {
     public static final int SLOT_COUNT = 3;
     public static final String DRAG_MIME = "application/vnd.smartisanos.onestep-app";
-
     public interface Listener {
         void onSlotsChanged(Slot[] slots);
     }
-
     public static final class Slot {
         public final int taskId;
         public final int displayId;
@@ -30,7 +29,6 @@ public final class MultiTaskController {
         public final long landscapeHintUntil;
         /** Uptime when this slot was created; bounds the late-landscape recheck window. */
         public final long createdAt;
-
         private Slot(int taskId, int displayId, ComponentName component,
                 boolean landscapeHint, long landscapeHintUntil, long createdAt) {
             this.taskId = taskId;
@@ -41,9 +39,7 @@ public final class MultiTaskController {
             this.createdAt = createdAt;
         }
     }
-
     private static volatile MultiTaskController sInstance;
-
     private final Context mContext;
     private final Handler mMainHandler = new Handler(Looper.getMainLooper());
     private final Slot[] mSlots = new Slot[SLOT_COUNT];
@@ -57,11 +53,6 @@ public final class MultiTaskController {
     private int mRecentlyParkedTaskId = -1;
     private long mParkProtectUntil;
     private static final long TRANSITION_SETTLE_MS = 350L;
-    /**
-     * Park→activate gap no longer needs a 1.8s lock. Evidence 00:45–00:47: users tapped
-     * within the protect window and got silent "ignore activate of just-parked" /
-     * mBusy early-return → "点不动". Keep a short settle so VD consumer can attach.
-     */
     private static final long PARK_SETTLE_MS = 600L;
     private static final long PARK_ACTIVATE_PROTECT_MS = 450L;
     private static final long SLOT_RECONCILE_GRACE_MS = 2400L;
@@ -78,13 +69,8 @@ public final class MultiTaskController {
                     mReconcileTick = 0;
                     adoptOrphanedSlotTasks();
                     reconcileSlots();
-                    // Task identity may be unchanged while a player enters/exits fullscreen.
-                    // Rebind so each VirtualDisplay follows that task's current orientation.
                     notifySlotsChanged();
                 }
-                // Keep a low-rate, continuous diagnostic stream while the GUI switch is on.
-                // The snapshot runs off the main thread so getRunningTasks/process queries do
-                // not add latency to touch or TextureView reconciliation.
                 if (++mDiagnosticsTick >= 42) {
                     mDiagnosticsTick = 0;
                     logRuntimeSnapshotAsync("periodic presentation="
@@ -95,7 +81,6 @@ public final class MultiTaskController {
         }
     };
     private int mDiagnosticsTick;
-
     public static MultiTaskController getInstance(Context context) {
         if (sInstance == null) {
             synchronized (MultiTaskController.class) {
@@ -104,11 +89,9 @@ public final class MultiTaskController {
         }
         return sInstance;
     }
-
     private MultiTaskController(Context context) {
         mContext = context;
     }
-
     public void setListener(Listener listener) {
         mMainHandler.removeCallbacks(mReconcileRunnable);
         mListener = listener;
@@ -119,7 +102,7 @@ public final class MultiTaskController {
         }
         notifySlotsChanged();
     }
-
+    // 注册槽位与虚拟显示的映射关系，并触发槽位对账
     public void registerSlotDisplay(int slotIndex, int displayId) {
         if (!isValidSlot(slotIndex) || displayId < 0) return;
         mDisplayIds[slotIndex] = displayId;
@@ -127,23 +110,83 @@ public final class MultiTaskController {
                 + " displayId=" + displayId);
         if (!mBusy && reconcileSlots()) notifySlotsChanged();
     }
-
+    /** Moves OneStep display tasks back to the default display, preserving slot records. */
+    public List<Integer> moveSlotTasksToDefaultDisplay() {
+        Context context = systemContext();
+        Set<Integer> candidates = new HashSet<>();
+        for (Slot slot : mSlots) {
+            if (slot != null && slot.taskId > 0) candidates.add(slot.taskId);
+        }
+        collectTasksOnOwnedDisplays(context, candidates);
+        List<Integer> moved = new ArrayList<>();
+        for (Integer taskId : candidates) {
+            int liveDisplayId = TaskResizer.findTaskDisplayId(context, taskId);
+            if (liveDisplayId == Display.DEFAULT_DISPLAY) {
+                moved.add(taskId);
+                continue;
+            }
+            if (!isOwnedDisplay(liveDisplayId)) {
+                LSPLogger.w("MultiTaskController.exit: skip task=" + taskId
+                        + " on foreign display=" + liveDisplayId);
+                continue;
+            }
+            if (TaskResizer.moveRootTaskToDisplay(taskId, Display.DEFAULT_DISPLAY)) {
+                moved.add(taskId);
+                LSPLogger.i("MultiTaskController.exit: restored task=" + taskId
+                        + " from display=" + liveDisplayId);
+            } else {
+                LSPLogger.w("MultiTaskController.exit: failed task=" + taskId
+                        + " from display=" + liveDisplayId);
+            }
+        }
+        if (!moved.isEmpty()) {
+            mRecentlyParkedTaskId = -1;
+            mParkProtectUntil = 0L;
+            mPendingSlotTap = -1;
+            notifySlotsChanged();
+        }
+        return moved;
+    }
+    /** Moves slot tasks from the default display back to their slot virtual displays. */
+    public void restoreSlotsToDisplays() {
+        Context context = systemContext();
+        boolean anyMoved = false;
+        for (int i = 0; i < mSlots.length; i++) {
+            Slot slot = mSlots[i];
+            if (slot == null || slot.taskId <= 0) continue;
+            int targetDisplay = mDisplayIds[i];
+            if (targetDisplay < 0) continue;
+            int liveDisplayId = TaskResizer.findTaskDisplayId(context, slot.taskId);
+            if (liveDisplayId == targetDisplay) continue;
+            if (TaskResizer.moveRootTaskToDisplay(slot.taskId, targetDisplay)) {
+                anyMoved = true;
+                LSPLogger.i("MultiTaskController.restore: moved task=" + slot.taskId
+                        + " to display=" + targetDisplay);
+            } else {
+                LSPLogger.w("MultiTaskController.restore: failed task=" + slot.taskId
+                        + " to display=" + targetDisplay);
+                mSlots[i] = null;
+                mSlotMismatchSince[i] = 0L;
+            }
+        }
+        if (anyMoved) {
+            notifySlotsChanged();
+        }
+    }
     public static ClipData createAppDragData(ComponentName component) {
         ClipDescription description = new ClipDescription(
                 "OneStep app", new String[] { DRAG_MIME });
         return new ClipData(description, new ClipData.Item(component.flattenToString()));
     }
-
     public static boolean isAppDrag(ClipDescription description) {
         return description != null && description.hasMimeType(DRAG_MIME);
     }
-
     public static ComponentName readDraggedComponent(ClipData data) {
         if (data == null || data.getItemCount() == 0) return null;
         CharSequence text = data.getItemAt(0).getText();
         return text == null ? null : ComponentName.unflattenFromString(text.toString());
     }
-
+    // 判断指定槽位能否接收给定ClipDescription的内容拖拽
     public boolean canDeliverContentToSlot(int slotIndex, ClipDescription description) {
         if (!isValidSlot(slotIndex) || description == null
                 || description.getMimeTypeCount() == 0 || isAppDrag(description)) {
@@ -153,7 +196,7 @@ public final class MultiTaskController {
         return slot != null && slot.component != null
                 && slot.taskId >= 0 && slot.displayId >= 0;
     }
-
+    // 将指定应用启动或迁移到对应槽位的虚拟显示上
     public void putAppInSlot(final int slotIndex, final ComponentName component) {
         if (!isValidSlot(slotIndex) || component == null) return;
         if (mBusy) {
@@ -167,7 +210,6 @@ public final class MultiTaskController {
                     + slotIndex);
             return;
         }
-
         Integer mainTaskId = TaskResizer.getCurrentTaskId();
         Context systemContext = systemContext();
         Integer existingTaskId = TaskResizer.findTaskIdForPackage(
@@ -183,7 +225,6 @@ public final class MultiTaskController {
                     + component.flattenToShortString());
             return;
         }
-
         mBusy = true;
         try {
             Intent intent = Intent.makeMainActivity(component);
@@ -199,7 +240,6 @@ public final class MultiTaskController {
             LSPLogger.e("MultiTaskController.putAppInSlot: launch failed", t);
             return;
         }
-
         mMainHandler.postDelayed(new Runnable() {
             @Override
             public void run() {
@@ -215,7 +255,6 @@ public final class MultiTaskController {
             }
         }, 700L);
     }
-
     /** Opens a top-strip app in the main area without treating a tap as a slot tap. */
     public void openAppInMain(final ComponentName component) {
         if (component == null) return;
@@ -224,13 +263,11 @@ public final class MultiTaskController {
                     + component.flattenToShortString());
             return;
         }
-
         int existingSlot = findSlot(component);
         if (existingSlot >= 0) {
             swapWithSlot(existingSlot);
             return;
         }
-
         final SidebarController controller = SidebarController.getInstance(mContext);
         final Context context = systemContext();
         final Integer existingTaskId = TaskResizer.findTaskIdForPackage(
@@ -249,12 +286,8 @@ public final class MultiTaskController {
         final boolean currentLandscape = currentTaskId != null
                 && TaskResizer.isLandscapeTask(context, currentTaskId);
         if (currentTaskId != null && component.equals(currentComponent)) return;
-
         mBusy = true;
         try {
-            // The visible Home task is not a reliable signal while the main app is being
-            // surface-transformed. If a tracked main task exists, always park it before
-            // replacing the main app so an available side slot is not silently skipped.
             if (currentTaskId != null && emptySlot >= 0) {
                 if (controller.parkMainTaskAndShowHome(mDisplayIds[emptySlot])) {
                     clearDuplicateTaskSlots(currentTaskId, emptySlot);
@@ -267,7 +300,6 @@ public final class MultiTaskController {
                             + " landscape=" + currentLandscape);
                 }
             }
-
             if (existingTaskId != null && !existingTaskId.equals(currentTaskId)) {
                 if (TaskResizer.bringTaskToFront(context, existingTaskId)) {
                     LSPLogger.i("MultiTaskController.openAppInMain: resumed background task="
@@ -276,7 +308,6 @@ public final class MultiTaskController {
                 }
                 return;
             }
-
             Intent intent = Intent.makeMainActivity(component);
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
                     | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
@@ -296,7 +327,6 @@ public final class MultiTaskController {
             }, 700L);
         }
     }
-
     private void activateBackgroundTask(int taskId, int sourceDisplayId,
             ComponentName component) {
         SidebarController controller = SidebarController.getInstance(mContext);
@@ -315,7 +345,6 @@ public final class MultiTaskController {
         }
         scheduleBusyRelease();
     }
-
     private void clearTaskFromSlots(int taskId) {
         for (int i = 0; i < mSlots.length; i++) {
             if (mSlots[i] != null && mSlots[i].taskId == taskId) {
@@ -323,13 +352,12 @@ public final class MultiTaskController {
             }
         }
     }
-
+    // 主任务与指定槽位任务互换位置，或停靠/激活槽位任务
     public void swapWithSlot(int slotIndex) {
         LSPLogger.i("MultiTaskController.swapWithSlot: enter slot=" + slotIndex
                 + " valid=" + isValidSlot(slotIndex) + " busy=" + mBusy);
         if (!isValidSlot(slotIndex)) return;
         if (mBusy) {
-            // Queue the last tap so a settle window does not swallow user intent.
             mPendingSlotTap = slotIndex;
             LSPLogger.i("MultiTaskController.swapWithSlot: busy queue slot=" + slotIndex);
             return;
@@ -341,12 +369,10 @@ public final class MultiTaskController {
         Context context = systemContext();
         boolean homeVisible = TaskResizer.isHomeVisibleOnDefaultDisplay(context);
         Integer currentTaskId = TaskResizer.getCurrentTaskId();
-
         if (target == null) {
             if (homeVisible || currentTaskId == null) return;
             ComponentName currentComponent = TaskResizer.findTaskComponent(
                     context, currentTaskId);
-            // Capture before park restores presentation and clears landscape transform state.
             boolean currentLandscape = TaskResizer.isLandscapeTask(context, currentTaskId);
             mBusy = true;
             if (sidebarController.parkMainTaskAndShowHome(mDisplayIds[slotIndex])) {
@@ -361,10 +387,7 @@ public final class MultiTaskController {
             scheduleBusyRelease(PARK_SETTLE_MS);
             return;
         }
-
         if (homeVisible || currentTaskId == null) {
-            // Only block the accidental double-tap that re-activates the task just parked
-            // into this same slot. Evidence: protect=2s made normal main↔slot feel dead.
             if (isParkActivateProtected(target.taskId)) {
                 mPendingSlotTap = slotIndex;
                 LSPLogger.i("MultiTaskController.swapWithSlot: defer activate of just-parked"
@@ -402,7 +425,6 @@ public final class MultiTaskController {
             notifySlotsChanged();
             return;
         }
-
         ComponentName currentComponent = TaskResizer.findTaskComponent(
                 context, currentTaskId);
         boolean currentLandscape = TaskResizer.isLandscapeTask(context, currentTaskId);
@@ -428,7 +450,7 @@ public final class MultiTaskController {
         }
         scheduleBusyRelease();
     }
-
+    // 移除并结束指定槽位的任务
     public void removeSlot(int slotIndex) {
         if (!isValidSlot(slotIndex)) return;
         if (mBusy) {
@@ -443,21 +465,18 @@ public final class MultiTaskController {
         notifySlotsChanged();
         mBusy = false;
     }
-
     private int findSlot(ComponentName component) {
         for (int i = 0; i < mSlots.length; i++) {
             if (mSlots[i] != null && component.equals(mSlots[i].component)) return i;
         }
         return -1;
     }
-
     private int findEmptyReadySlot() {
         for (int i = 0; i < mSlots.length; i++) {
             if (mSlots[i] == null && mDisplayIds[i] >= 0) return i;
         }
         return -1;
     }
-
     private void setSlot(int index, int taskId, int displayId, ComponentName component) {
         clearDuplicateTaskSlots(taskId, index);
         mSlots[index] = createSlot(taskId, displayId, component);
@@ -466,7 +485,6 @@ public final class MultiTaskController {
                 + " component=" + component);
         notifySlotsChanged();
     }
-
     private void clearDuplicateTaskSlots(int taskId, int keepIndex) {
         for (int i = 0; i < mSlots.length; i++) {
             if (i != keepIndex && mSlots[i] != null && mSlots[i].taskId == taskId) {
@@ -476,15 +494,6 @@ public final class MultiTaskController {
             }
         }
     }
-
-    /**
-     * Recovers tasks stranded on virtual displays from a previous SystemUI life.
-     *
-     * When SystemUI restarts, its SlotViews die but the tasks they hosted stay on the
-     * old "OneStep-slot-N" displays — invisible, untouchable, and rendering black.
-     * The display name carries the slot index, so each stranded task is moved onto the
-     * CURRENT virtual display of that same slot and the slot is re-bound.
-     */
     private void adoptOrphanedSlotTasks() {
         Context context = systemContext();
         if (context == null) return;
@@ -524,9 +533,7 @@ public final class MultiTaskController {
             LSPLogger.w("MultiTaskController.adopt: failed", t);
         }
     }
-
     private static final String SLOT_DISPLAY_PREFIX = "OneStep-slot-";
-
     private static int parseSlotIndex(String displayName) {
         try {
             return Integer.parseInt(displayName.substring(SLOT_DISPLAY_PREFIX.length()));
@@ -534,14 +541,12 @@ public final class MultiTaskController {
             return -1;
         }
     }
-
     private boolean isOwnedDisplay(int displayId) {
         for (int id : mDisplayIds) {
             if (id == displayId) return true;
         }
         return false;
     }
-
     private static Integer findTopTaskOnDisplay(Context context, int displayId) {
         try {
             android.app.ActivityManager am = (android.app.ActivityManager) context
@@ -551,26 +556,45 @@ public final class MultiTaskController {
                     am.getRunningTasks(100);
             if (tasks == null) return null;
             for (android.app.ActivityManager.RunningTaskInfo task : tasks) {
-                int taskDisplay = readTaskDisplayId(task);
-                if (taskDisplay != displayId) continue;
-                ComponentName top = task.topActivity != null
-                        ? task.topActivity : task.baseActivity;
-                if (top == null) continue;
-                String pkg = top.getPackageName();
-                if (pkg == null) continue;
-                String lower = pkg.toLowerCase();
-                if (lower.contains("systemui") || lower.contains("launcher")
-                        || lower.contains("miui.home") || lower.contains("smartisanos")) {
-                    continue;
+                if (readTaskDisplayId(task) == displayId && isRestorableAppTask(task)) {
+                    return task.taskId;
                 }
-                return task.taskId;
             }
         } catch (Throwable t) {
             LSPLogger.d("MultiTaskController.findTopTaskOnDisplay: " + t);
         }
         return null;
     }
-
+    private void collectTasksOnOwnedDisplays(Context context, Set<Integer> result) {
+        if (context == null || result == null) return;
+        try {
+            android.app.ActivityManager am = (android.app.ActivityManager) context
+                    .getSystemService(Context.ACTIVITY_SERVICE);
+            if (am == null) return;
+            java.util.List<android.app.ActivityManager.RunningTaskInfo> tasks =
+                    am.getRunningTasks(100);
+            if (tasks == null) return;
+            for (android.app.ActivityManager.RunningTaskInfo task : tasks) {
+                if (task.taskId > 0 && isOwnedDisplay(readTaskDisplayId(task))
+                        && isRestorableAppTask(task)) {
+                    result.add(task.taskId);
+                }
+            }
+        } catch (Throwable t) {
+            LSPLogger.w("MultiTaskController.exit: task scan failed", t);
+        }
+    }
+    private static boolean isRestorableAppTask(
+            android.app.ActivityManager.RunningTaskInfo task) {
+        if (task == null) return false;
+        ComponentName top = task.topActivity != null ? task.topActivity : task.baseActivity;
+        if (top == null) return false;
+        String pkg = top.getPackageName();
+        if (pkg == null) return false;
+        String lower = pkg.toLowerCase();
+        return !lower.contains("systemui") && !lower.contains("launcher")
+                && !lower.contains("miui.home") && !lower.contains("smartisanos");
+    }
     private static int readTaskDisplayId(android.app.ActivityManager.RunningTaskInfo task) {
         try {
             java.lang.reflect.Field field = task.getClass().getField("displayId");
@@ -585,7 +609,6 @@ public final class MultiTaskController {
             }
         }
     }
-
     private boolean reconcileSlots() {
         boolean changed = false;
         Context context = systemContext();
@@ -614,11 +637,6 @@ public final class MultiTaskController {
                         slot.landscapeHint, slot.landscapeHintUntil, slot.createdAt);
                 changed = true;
             } else if (isLateLandscapeCandidate(slot, now)) {
-                // Evidence 2026-07-23 20:16:45-47: swapWithSlot read isLandscapeTask()
-                // as false at park time, but the player's setRequestedOrientation(LANDSCAPE)
-                // request landed ~1.7s later (system_server RequestedOrientationHooker).
-                // The slot was already bound portrait and never re-checked. Re-probe once
-                // during the park settle window so a late landscape flip still lands.
                 boolean landscapeNow = TaskResizer.isLandscapeTask(context, slot.taskId);
                 if (landscapeNow) {
                     LSPLogger.i("MultiTaskController.reconcileSlots: late landscape slot=" + i
@@ -633,59 +651,37 @@ public final class MultiTaskController {
         }
         return changed;
     }
-
-    /**
-     * Capture orientation before WMS moves a task to a virtual display. HyperOS 3 can expose
-     * the destination display's portrait configuration for a short interval, which is too
-     * late for TextureView to choose its producer buffer size.
-     */
     private Slot createSlot(int taskId, int displayId, ComponentName component) {
         boolean landscape = TaskResizer.isLandscapeTask(systemContext(), taskId);
         return createSlot(taskId, displayId, component, landscape);
     }
-
     private Slot createSlot(int taskId, int displayId, ComponentName component,
             boolean landscape) {
         return createSlot(taskId, displayId, component, landscape,
                 SystemClock.uptimeMillis());
     }
-
     private Slot createSlot(int taskId, int displayId, ComponentName component,
             boolean landscape, long createdAt) {
-        // Keep the landscape producer geometry long enough for TextureView recreate +
-        // first frame. device_onestep.log never logged landscape=true geometry before.
         long hintUntil = landscape ? SystemClock.uptimeMillis() + 8000L : 0L;
         return new Slot(taskId, displayId, component, landscape, hintUntil, createdAt);
     }
-
-    /**
-     * A slot bound portrait right after park may still receive a late landscape
-     * orientation request (evidence: request landed ~1.7s after park). Re-probing
-     * forever would cost a getRunningTasks-class call every reconcile tick for every
-     * slot, so the window is bounded to the settle period right after creation.
-     */
     private static final long LATE_LANDSCAPE_WINDOW_MS = 3000L;
-
     private boolean isLateLandscapeCandidate(Slot slot, long now) {
         return slot != null && !slot.landscapeHint
                 && now - slot.createdAt <= LATE_LANDSCAPE_WINDOW_MS;
     }
-
     private void markRecentlyParked(int taskId) {
         mRecentlyParkedTaskId = taskId;
         mParkProtectUntil = SystemClock.uptimeMillis() + PARK_ACTIVATE_PROTECT_MS;
     }
-
     private boolean isParkActivateProtected(int taskId) {
         return taskId > 0
                 && taskId == mRecentlyParkedTaskId
                 && SystemClock.uptimeMillis() < mParkProtectUntil;
     }
-
     private void scheduleBusyRelease() {
         scheduleBusyRelease(TRANSITION_SETTLE_MS);
     }
-
     private void scheduleBusyRelease(long settleMs) {
         final int generation = ++mBusyGeneration;
         mMainHandler.postDelayed(new Runnable() {
@@ -704,7 +700,6 @@ public final class MultiTaskController {
             }
         }, settleMs);
     }
-
     private void notifySlotsChanged() {
         final Listener listener = mListener;
         if (listener == null) return;
@@ -716,7 +711,6 @@ public final class MultiTaskController {
             }
         });
     }
-
     private void logRuntimeSnapshotAsync(final String reason) {
         if (!LSPLogger.isEnabled() || mDiagnosticsRunning) return;
         mDiagnosticsRunning = true;
@@ -732,11 +726,9 @@ public final class MultiTaskController {
             }
         }, "OneStep-Diagnostics").start();
     }
-
     private static boolean isValidSlot(int index) {
         return index >= 0 && index < SLOT_COUNT;
     }
-
     private Context systemContext() {
         SidebarController controller = SidebarController.peekInstance();
         return controller != null && controller.getHostContext() != null

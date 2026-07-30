@@ -1,8 +1,6 @@
 package com.hyper.onestep.view;
-
 import java.util.ArrayList;
 import java.util.List;
-
 import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
@@ -12,12 +10,11 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.animation.AccelerateDecelerateInterpolator;
 import android.widget.TextView;
-
 import com.hyper.onestep.R;
 import com.hyper.onestep.util.OngoingItem;
 import com.hyper.onestep.util.OngoingManager;
 import com.hyper.onestep.util.Utils;
-
+// 进行中任务列表适配器
 public class OngoingAdapter extends SidebarAdapter {
     private static final float SCALE_SIZE = 1.4f;
     private Context mContext;
@@ -39,22 +36,18 @@ public class OngoingAdapter extends SidebarAdapter {
             }
         });
     }
-
     @Override
     public int getCount() {
         return mAccpetableList.size();
     }
-
     @Override
     public Object getItem(int position) {
         return mAccpetableList.get(position);
     }
-
     @Override
     public long getItemId(int position) {
         return position;
     }
-
     @Override
     public View getView(int position, View convertView, ViewGroup parent) {
         View ret = convertView;
@@ -96,7 +89,6 @@ public class OngoingAdapter extends SidebarAdapter {
             }
         });
         ret.setOnClickListener(new View.OnClickListener() {
-
             @Override
             public void onClick(View v) {
                 ViewHolder vh = (ViewHolder) v.getTag();
@@ -105,8 +97,6 @@ public class OngoingAdapter extends SidebarAdapter {
         });
         return ret;
     }
-
-
     private void updateAcceptableList() {
         mAccpetableList.clear();
         for (OngoingItem item : mList) {
@@ -116,24 +106,19 @@ public class OngoingAdapter extends SidebarAdapter {
         }
         notifyDataSetChanged();
     }
-
     @Override
     public void moveItemPostion(Object object, int index) {
-        // NA
     }
-
     @Override
     public void onDragStart(DragEvent event) {
         mDragEvent = event;
         updateAcceptableList();
     }
-
     @Override
     public void onDragEnd() {
         mDragEvent = null;
         updateAcceptableList();
     }
-
     @Override
     public void updateData() {
         mHandler.post(new Runnable() {
@@ -144,11 +129,9 @@ public class OngoingAdapter extends SidebarAdapter {
             }
         });
     }
-
     class ViewHolder {
         public TextView pendingNumbers;
         public OngoingItem item;
-
         public void updateUI() {
             if (item.getPendingNumbers() <= 0) {
                 pendingNumbers.setVisibility(View.INVISIBLE);

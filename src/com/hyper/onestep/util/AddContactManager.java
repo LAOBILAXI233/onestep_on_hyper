@@ -1,10 +1,8 @@
 package com.hyper.onestep.util;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
 import android.app.AlertDialog;
 import android.content.ActivityNotFoundException;
 import android.content.ComponentName;
@@ -14,13 +12,11 @@ import android.content.Intent;
 import android.util.Log;
 import android.view.View;
 import android.view.WindowManager;
-
 import com.hyper.onestep.R;
 import com.hyper.onestep.SidebarController;
-
+// 添加联系人管理器，提供各平台联系人添加入口
 public class AddContactManager extends DataManager {
     private static final String TAG = AddContactManager.class.getName();
-
     private volatile static AddContactManager sInstance;
     public synchronized static AddContactManager getInstance(Context context){
         if(sInstance == null){
@@ -32,12 +28,9 @@ public class AddContactManager extends DataManager {
         }
         return sInstance;
     }
-
     private Map<AddContactItem, String> mMapPackageToItem;
-
     private Context mContext;
     private List<AddContactItem> mItemList = new ArrayList<AddContactItem>();
-
     private AddContactManager(Context context){
         mContext = context;
         mMapPackageToItem = new HashMap<AddContactItem, String>();
@@ -47,7 +40,6 @@ public class AddContactManager extends DataManager {
         mMapPackageToItem.put(new AddContactItem(R.drawable.icon_add_wechat, R.string.add_contact_wechat, mWechatListener), WechatContact.PKG_NAME);
         updateData();
     }
-
     public List<AddContactItem> getList() {
         List<AddContactItem> list = new ArrayList<AddContactItem>();
         synchronized (mItemList) {
@@ -55,7 +47,6 @@ public class AddContactManager extends DataManager {
         }
         return list;
     }
-
     private void updateData() {
         List<AddContactItem> list = new ArrayList<AddContactItem>();
         for (Map.Entry<AddContactItem, String> entry : mMapPackageToItem.entrySet()) {
@@ -68,17 +59,14 @@ public class AddContactManager extends DataManager {
             mItemList.addAll(list);
         }
     }
-
     public void onPackageAdded(String packageName) {
         updateData();
         notifyListener();
     }
-
     public void onPackageRemoved(String packageName) {
         updateData();
         notifyListener();
     }
-
     private View.OnClickListener mDingDingListener = new View.OnClickListener() {
         @Override
         public void onClick(View v) {
@@ -89,11 +77,9 @@ public class AddContactManager extends DataManager {
                 Utils.dismissAllDialog(mContext);
                 mContext.startActivity(intent);
             }catch(ActivityNotFoundException e){
-                // TODO show dialog
             }
         }
     };
-
     private View.OnClickListener mWechatListener = new View.OnClickListener() {
         @Override
         public void onClick(View v) {
@@ -121,7 +107,6 @@ public class AddContactManager extends DataManager {
             dialog.show();
         }
     };
-
     private View.OnClickListener mMmsListener = new View.OnClickListener() {
         @Override
         public void onClick(View v) {
@@ -132,12 +117,10 @@ public class AddContactManager extends DataManager {
                 Utils.dismissAllDialog(mContext);
                 mContext.startActivity(intent);
             }catch(ActivityNotFoundException e){
-                // NA
                 Log.d(TAG, "not found !", e);
             }
         }
     };
-
     private View.OnClickListener mMailListener = new View.OnClickListener() {
         @Override
         public void onClick(View v) {
@@ -148,12 +131,10 @@ public class AddContactManager extends DataManager {
                 Utils.dismissAllDialog(mContext);
                 mContext.startActivity(intent);
             }catch(ActivityNotFoundException e){
-                // NA
                 Log.d(TAG, "not found !", e);
             }
         }
     };
-
     public static class AddContactItem{
         public final int iconId;
         public final int labelId;

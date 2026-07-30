@@ -1,7 +1,6 @@
 package com.hyper.onestep.util;
-
 import android.app.Application;
-
+// 行为埋点统计工具类
 public class Tracker {
     public static final String EVENT_ONLAUNCH = "EVENT_ONLAUNCH";
     public static final String EVENT_SWITCH = "EVENT_SWITCH";
@@ -17,33 +16,23 @@ public class Tracker {
     public static final String EVENT_CLICK_CONTACTS = "EVENT_CLICK_CONTACTS";
     public static final String STATUS_APPNAME = "STATUS_APPNAME";
     public static final String EVENT_SUCCESS_DRAG = "EVENT_SUCCESS_DRAG";
-    //TODO
     public static final String EVENT_DRAG = "EVENT_DRAG";
     public static final String EVENT_EXIT = "EVENT_EXIT";
     public static final String EVENT_SIGN = "EVENT_SIGN";
-
     public static void init(Application application) {
     }
-
     public static void onClick(String tag) {
     }
-
     public static void onClick(String tag, String... data) {
     }
-
     public static void reportStatus(String tag, String... data) {
     }
-
     public static void dragSuccess(int dragTarget, String targetPackage) {
     }
-
     public static void onEvent(String tag, String subTag, int action, String data) {
     }
-
     public static void onEvent(String tag, int action, String... data) {
-
     }
-
     public static void flush() {
     }
 }

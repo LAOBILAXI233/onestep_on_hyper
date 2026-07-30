@@ -1,9 +1,6 @@
 package com.hyper.onestep.util;
-
 import java.util.List;
-
 import com.hyper.onestep.PendingDragEventTask;
-
 import android.content.ClipDescription;
 import android.content.ComponentName;
 import android.content.Context;
@@ -12,9 +9,8 @@ import android.content.pm.ResolveInfo;
 import android.graphics.drawable.Drawable;
 import android.text.TextUtils;
 import android.view.DragEvent;
-
+// 进行中任务条目，承载任务组件名与 pid
 public class OngoingItem extends SidebarItem {
-
     private ComponentName mName;
     private int mToken;
     private int mPendingNumbers;
@@ -28,30 +24,23 @@ public class OngoingItem extends SidebarItem {
         mTitle = title;
         mPid = pid;
     }
-
     public int getPid() {
         return mPid;
     }
-
     public int getPendingNumbers() {
         return mPendingNumbers;
     }
-
     @Override
     public CharSequence getDisplayName() {
         return mTitle;
     }
-
     @Override
     public Drawable getAvatar() {
         return null;
     }
-
     @Override
     public void delete() {
-        // TODO Auto-generated method stub
     }
-
     @Override
     public boolean acceptDragEvent(Context context, DragEvent event) {
         if (event == null) {
@@ -60,7 +49,6 @@ public class OngoingItem extends SidebarItem {
         if (event.getClipDescription().getMimeTypeCount() <= 0) {
             return false;
         }
-
         String mimeType = event.getClipDescription().getMimeType(0);
         if (TextUtils.isEmpty(mimeType)) {
             return false;
@@ -99,7 +87,6 @@ public class OngoingItem extends SidebarItem {
         }
         return false;
     }
-
     @Override
     public boolean handleDragEvent(Context context, DragEvent event) {
         boolean isPending = PendingDragEventTask.tryPending(context, event,
@@ -107,13 +94,11 @@ public class OngoingItem extends SidebarItem {
         if (isPending) {
             return true;
         }
-
         if (event.getClipData().getItemCount() <= 0
                 || event.getClipDescription() == null
                 || event.getClipDescription().getMimeTypeCount() <= 0) {
             return false;
         }
-
         String mimeType = event.getClipDescription().getMimeType(0);
         if (TextUtils.isEmpty(mimeType)) {
             return false;
@@ -150,7 +135,6 @@ public class OngoingItem extends SidebarItem {
             return true;
         }
     }
-
     @Override
     public boolean openUI(Context context) {
         Intent realIntent = new Intent();
@@ -162,19 +146,15 @@ public class OngoingItem extends SidebarItem {
         context.startActivity(realIntent);
         return true;
     }
-
     public boolean isSameItem(ComponentName name, int token) {
         return mToken == token && mName.equals(name);
     }
-
     public void setPendingNumbers(int pendingNumbers) {
         mPendingNumbers = pendingNumbers;
     }
-
     public void setTitle(CharSequence title) {
         mTitle = title;
     }
-
     public void sendNewData(Context context, Intent extraIntent) {
         Intent realIntent = new Intent("com.hyper.onestep.intent.action.SEND_NEW_DATA");
         realIntent.setPackage(mName.getPackageName());
@@ -182,7 +162,6 @@ public class OngoingItem extends SidebarItem {
         if(extraIntent != null){
             realIntent.putExtra(Intent.EXTRA_INTENT, extraIntent);
         }
-        //smartisan intent, processed more quickly
         context.sendBroadcast(realIntent);
     }
 }

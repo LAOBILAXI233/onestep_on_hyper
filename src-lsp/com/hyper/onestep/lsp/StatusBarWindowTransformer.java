@@ -1,14 +1,11 @@
 package com.hyper.onestep.lsp;
-
 import android.content.Context;
 import android.view.Gravity;
 import android.view.View;
 import android.view.WindowManager;
-
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.List;
-
 /** Moves SystemUI's real status-bar window into the transformed main-task area. */
 public final class StatusBarWindowTransformer {
     private static View sStatusBarRoot;
@@ -31,9 +28,8 @@ public final class StatusBarWindowTransformer {
     private static int sShadeTopHeight;
     private static int sShadeScreenHeight;
     private static boolean sShadeSidebarOnLeft;
-
     private StatusBarWindowTransformer() {}
-
+    // 将状态栏窗口布局变换到OneStep主任务区域并联动通知栏
     public static boolean apply(Context hostContext, int screenWidth, int sidebarWidth,
             int topHeight, int statusBarHeight, boolean sidebarOnLeft) {
         try {
@@ -52,7 +48,6 @@ public final class StatusBarWindowTransformer {
                 sOriginalX = params.x;
                 sOriginalY = params.y;
             }
-
             params.width = screenWidth - sidebarWidth;
             params.height = statusBarHeight;
             params.gravity = Gravity.TOP
@@ -75,7 +70,7 @@ public final class StatusBarWindowTransformer {
             return false;
         }
     }
-
+    // 恢复状态栏窗口与通知栏到原始布局
     public static boolean restore(Context hostContext) {
         boolean restored = restoreNotificationShade();
         if (sApplied && sStatusBarRoot != null) {
@@ -99,7 +94,7 @@ public final class StatusBarWindowTransformer {
         if (restored) LSPLogger.i("StatusBarWindowTransformer.restore: restored");
         return restored;
     }
-
+    // 对通知栏DecorView应用与主任务一致的缩放与平移变换
     public static boolean applyNotificationShade(int screenWidth, int sidebarWidth,
             int topHeight, int screenHeight, boolean sidebarOnLeft) {
         try {
@@ -137,11 +132,8 @@ public final class StatusBarWindowTransformer {
             return false;
         }
     }
-
     /** Re-applies the transform after SystemUI recreates the shade or a guts popup. */
     public static boolean reapplyNotificationShade() {
-        // The first apply can run before NotificationShadeWindowView is attached.
-        // Keep the requested geometry so a later touch/rebuild can attach it.
         if (sShadeScreenWidth <= 0 || sShadeSidebarWidth <= 0
                 || sShadeTopHeight <= 0 || sShadeScreenHeight <= 0) {
             return false;
@@ -149,7 +141,6 @@ public final class StatusBarWindowTransformer {
         return applyNotificationShade(sShadeScreenWidth, sShadeSidebarWidth,
                 sShadeTopHeight, sShadeScreenHeight, sShadeSidebarOnLeft);
     }
-
     private static boolean restoreNotificationShade() {
         if (!sShadeApplied || sShadeRoot == null) return false;
         sShadeRoot.setPivotX(sShadeOriginalPivotX);
@@ -161,13 +152,11 @@ public final class StatusBarWindowTransformer {
         sShadeApplied = false;
         return true;
     }
-
     private static View findStatusBarRoot() throws Exception {
         View exact = findRootByTitle("StatusBar");
         if (exact != null) return exact;
         return findRootByTitle("StatusBar1");
     }
-
     private static View findNotificationShadeRoot() throws Exception {
         String[] titles = new String[] {
                 "NotificationShade",
@@ -178,7 +167,6 @@ public final class StatusBarWindowTransformer {
             View root = findRootByTitle(title);
             if (root != null) return root;
         }
-
         Class<?> globalClass = Class.forName("android.view.WindowManagerGlobal");
         Method getInstance = globalClass.getDeclaredMethod("getInstance");
         getInstance.setAccessible(true);
@@ -197,7 +185,6 @@ public final class StatusBarWindowTransformer {
         }
         return null;
     }
-
     private static View findRootByTitle(String expectedTitle) throws Exception {
         Class<?> globalClass = Class.forName("android.view.WindowManagerGlobal");
         Method getInstance = globalClass.getDeclaredMethod("getInstance");
@@ -221,7 +208,6 @@ public final class StatusBarWindowTransformer {
         }
         return null;
     }
-
     private static Field findField(Class<?> type, String name) throws Exception {
         Class<?> current = type;
         while (current != null && current != Object.class) {

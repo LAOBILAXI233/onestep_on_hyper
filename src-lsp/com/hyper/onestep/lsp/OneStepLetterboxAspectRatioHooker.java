@@ -1,14 +1,10 @@
 package com.hyper.onestep.lsp;
-
 import android.content.Context;
-
 import io.github.libxposed.api.XposedInterface;
-
 /** Uses the physical display ratio for fixed-orientation apps while OneStep is active. */
 public final class OneStepLetterboxAspectRatioHooker implements XposedInterface.Hooker {
     private static volatile Context sContext;
     private static volatile boolean sLoggedEnabled;
-
     @Override
     public Object intercept(XposedInterface.Chain chain) throws Throwable {
         Object activityRecord = null;
@@ -19,13 +15,11 @@ public final class OneStepLetterboxAspectRatioHooker implements XposedInterface.
         } catch (Throwable t) {
             LSPLogger.d("OneStepLetterboxAspectRatioHooker: activity lookup failed: " + t);
         }
-
         Context context = sContext;
         if (context == null) {
             context = findContext(activityRecord);
             if (context != null) sContext = context;
         }
-
         OneStepStateBridge.State state = OneStepStateBridge.read(context);
         if (state.canTransform() && state.screenHeight > state.screenWidth) {
             float aspectRatio = state.screenHeight / (float) state.screenWidth;
@@ -38,7 +32,6 @@ public final class OneStepLetterboxAspectRatioHooker implements XposedInterface.
         sLoggedEnabled = false;
         return chain.proceed();
     }
-
     private static Context findContext(Object target) {
         if (target == null) return null;
         try {

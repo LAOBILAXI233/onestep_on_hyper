@@ -1,12 +1,9 @@
 package com.hyper.onestep.util;
-
 import android.util.Log;
 import android.os.SystemProperties;
-
 import com.hyper.onestep.lsp.LSPLogger;
-
 import java.util.ArrayList;
-
+// 日志工具类，封装 Android Log 与 LSPLogger
 public class LOG {
     public static final String TAG = "Sidebar";
     private Class logOwner = null;
@@ -17,35 +14,28 @@ public class LOG {
     public static boolean DISABLE_INFO_LOG = false;
     public static boolean ENABLE_DEBUG = (SystemProperties.getInt("ro.debuggable", 0) == 1);
     public static final boolean IS_USER = !(SystemProperties.getInt("ro.debuggable", 0) == 1);
-
     public static void openLog() {
         ENABLE_DEBUG = true;
     }
-
     private boolean close = false;
     public void close() {
         close = true;
     }
-
     public static void i(String info) {
         _info(sgetLogString(info));
     }
-
     public static void e(String info) {
         _error(sgetLogString(info));
     }
-
     public static void i(String tag, String info) {
         if (DISABLE_INFO_LOG) {
             return;
         }
         _info(sgetLogString(tag + " : " + info));
     }
-
     public static void e(String tag, String info) {
         _error(sgetLogString(tag + " : " + info));
     }
-
     private static String sgetLogString(String info) {
         if(ENABLE_DETAIL_INFO) {
             return getDetail(info);
@@ -53,7 +43,6 @@ public class LOG {
             return info;
         }
     }
-
     private LOG(Class owner) {
         if(owner == null) {
             throw new IllegalArgumentException("LOG must be init by class object");
@@ -61,7 +50,6 @@ public class LOG {
         logOwner = owner;
         className = getClassName(logOwner);
     }
-
     private String getClassName(Class c) {
         if(c == null) {
             return null;
@@ -69,34 +57,18 @@ public class LOG {
         String cName = c.getName();
         return cName.substring(cName.lastIndexOf(".") + 1);
     }
-
     public static LOG getInstance(Class owner) {
         return new LOG(owner);
     }
-
-    /**
-     * if enableDetailGlobal true, all LOG out info will print detail log, set false to close it
-     * @param flag
-     */
     public static void enableDetailGlobal(boolean flag) {
         ENABLE_DETAIL_INFO = flag;
     }
-
-    /**
-     * if enableDetailByClass true, this LOG object will print detail log, set false to close it.
-     * @param flag
-     */
     public void enableDetailByClass(boolean flag) {
         ENABLE_DETAIL_INFO_BY_CLASS = flag;
     }
-
     public static void trace() {
         trace("");
     }
-
-    /**
-     * trace method, if you want know who call this method.
-     */
     public static void trace(String traceName) {
         if(!ENABLE_TRACE) {return;}
         Exception ex = new Exception();
@@ -107,7 +79,6 @@ public class LOG {
         }
         _error("########## trace finish ##########");
     }
-
     private static ArrayList getLogTrace() {
         ArrayList list = null;
         StackTraceElement[] traceArr = (new Exception()).getStackTrace();
@@ -124,7 +95,6 @@ public class LOG {
         traceArr = null;
         return list;
     }
-
     private static String getDetail(String info) {
         StringBuffer buf = new StringBuffer();
         ArrayList details = getLogTrace();
@@ -139,7 +109,6 @@ public class LOG {
         buf.append(info);
         return buf.toString();
     }
-
     public static String getLogDetail() {
         StringBuffer buf = new StringBuffer();
         ArrayList details = getLogTrace();
@@ -152,7 +121,6 @@ public class LOG {
         }
         return buf.toString();
     }
-
     private String getLogString(String info) {
         if(ENABLE_DETAIL_INFO || ENABLE_DETAIL_INFO_BY_CLASS) {
             return getDetail(info);
@@ -163,7 +131,6 @@ public class LOG {
             return info;
         }
     }
-
     public void info(String info) {
         if (DISABLE_INFO_LOG) {
             return;
@@ -171,7 +138,6 @@ public class LOG {
         if (close) { return; }
         _info(getLogString(info));
     }
-
     public void info(String tag, String info) {
         if (DISABLE_INFO_LOG) {
             return;
@@ -179,17 +145,14 @@ public class LOG {
         if (close) { return; }
         _info(getLogString(tag + " : " + info));
     }
-
     public void error(String info) {
         if (close) { return; }
         _error(getLogString(info));
     }
-
     public void error(String tag, String info) {
         if (close) { return; }
         _error(getLogString(tag + " : " + info));
     }
-
     private static void _info(String info) {
         if (DISABLE_INFO_LOG) {
             return;
@@ -199,31 +162,24 @@ public class LOG {
         } else {
             Log.i(TAG, info);
         }
-        // LSP：同步写入 /sdcard 日志文件
         LSPLogger.i("[Sidebar] " + info);
     }
-
     private static void _error(String info) {
         Log.e(TAG, info);
-        // LSP：同步写入 /sdcard 日志文件
         LSPLogger.e("[Sidebar] " + info);
     }
-
     public void d(String info) {
         if (DISABLE_INFO_LOG) { return; }
         if (close) {return;}
         _d(getLogString(info));
     }
-
     public void d(String tag, String info) {
         if (DISABLE_INFO_LOG) { return; }
         if (close) {return;}
         _d(tag + " : " + info);
     }
-
     private static void _d(String info) {
         Log.d(TAG, info);
-        // LSP：同步写入 /sdcard 日志文件
         LSPLogger.d("[Sidebar] " + info);
     }
 }

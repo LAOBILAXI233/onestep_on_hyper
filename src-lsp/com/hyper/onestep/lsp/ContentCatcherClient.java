@@ -1,5 +1,4 @@
 package com.hyper.onestep.lsp;
-
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.os.Binder;
@@ -8,7 +7,6 @@ import android.os.IBinder;
 import android.os.Parcel;
 import android.os.ParcelFileDescriptor;
 import android.os.RemoteException;
-
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -27,19 +25,16 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-
 /** One-shot asynchronous client for HyperOS page-XML extraction. */
 public final class ContentCatcherClient {
     private static final String SECURITY_SERVICE = "security";
     private static final String SECURITY_DESCRIPTOR = "miui.security.ISecurityManager";
     private static final String CALLBACK_DESCRIPTOR = "miui.security.IUIAgentCallback";
-
     private static final int SECURITY_ON_UI_AGENT_EVENT = 129;
     private static final int CALLBACK_ON_RESULT = 1;
     private static final int UI_AGENT_CAPTURE_SCREEN_CONTENT = 0;
     private static final int RESULT_SUCCESS = 0;
     private static final int MAX_XML_BYTES = 16 * 1024 * 1024;
-
     private static final String KEY_UI_AGENT_TYPE = "uiAgentType";
     private static final String KEY_PACKAGE_NAMES = "packageNames";
     private static final String KEY_CODE = "code";
@@ -49,34 +44,20 @@ public final class ContentCatcherClient {
     private static final String KEY_VERSION = "version";
     private static final String KEY_CALLBACK_COUNT = "callbackCount";
     private static final String KEY_CONTENT = "content";
-
     private static final AtomicLong NEXT_REQUEST_ID = new AtomicLong();
-
     private ContentCatcherClient() {}
-
     /** Receives exactly one terminal result. */
     public interface Callback {
         void onSuccess(String xml);
-
         /** {@code stage} identifies service lookup, request, result, read, or timeout failure. */
         void onError(String stage, Throwable error);
     }
-
     public static Request capture(Context context, String packageName, long timeoutMs,
             Executor callbackExecutor, Callback callback) {
         Objects.requireNonNull(packageName, "packageName");
         return capture(context, new String[] { packageName }, timeoutMs,
                 callbackExecutor, callback);
     }
-
-    /**
-     * Requests page XML from the ContentCatcher listener registered for {@code packageNames}.
-     *
-     * <p>HyperOS only permits platform callers to use this endpoint. OneStep invokes it from its
-     * {@code system_server} hook; an app-process call reports the vendor {@link SecurityException}
-     * through {@link Callback#onError}. Plain package names are converted to the vendor listener
-     * token format {@code packageName~uid}; callers may also pass an already-qualified token.</p>
-     */
     public static Request capture(Context context, String[] packageNames, long timeoutMs,
             Executor callbackExecutor, Callback callback) {
         Objects.requireNonNull(context, "context");
@@ -89,7 +70,6 @@ public final class ContentCatcherClient {
         if (packageNames.length == 0) {
             throw new IllegalArgumentException("packageNames must not be empty");
         }
-
         String[] packageNamesCopy = packageNames.clone();
         for (int i = 0; i < packageNamesCopy.length; i++) {
             String packageName = packageNamesCopy[i];
@@ -99,7 +79,6 @@ public final class ContentCatcherClient {
             }
             packageNamesCopy[i] = packageName.trim();
         }
-
         Context appContext = context.getApplicationContext();
         Request request = new Request(appContext == null ? context : appContext,
                 packageNamesCopy, timeoutMs, callbackExecutor, callback,
@@ -107,19 +86,16 @@ public final class ContentCatcherClient {
         request.start();
         return request;
     }
-
     public static Request capture(Context context, String packageName, long timeoutMs,
             Callback callback) {
         Objects.requireNonNull(context, "context");
         return capture(context, packageName, timeoutMs, context.getMainExecutor(), callback);
     }
-
     public static Request capture(Context context, String[] packageNames, long timeoutMs,
             Callback callback) {
         Objects.requireNonNull(context, "context");
         return capture(context, packageNames, timeoutMs, context.getMainExecutor(), callback);
     }
-
     /** Handle for cancellation and terminal-state observation of a one-shot capture request. */
     public static final class Request {
         private final Context mContext;
@@ -134,11 +110,9 @@ public final class ContentCatcherClient {
                 new AtomicReference<>();
         private final Object mServiceLock = new Object();
         private final ResultCallbackBinder mResultCallback = new ResultCallbackBinder();
-
         private volatile ScheduledFuture<?> mTimeoutFuture;
         private IBinder mSecurityBinder;
         private boolean mDeathLinked;
-
         private final IBinder.DeathRecipient mDeathRecipient = new IBinder.DeathRecipient() {
             @Override
             public void binderDied() {
@@ -146,7 +120,6 @@ public final class ContentCatcherClient {
                         new RemoteException("HyperOS security service Binder died"));
             }
         };
-
         private Request(Context context, String[] packageNames, long timeoutMs,
                 Executor callbackExecutor, Callback callback, long requestId) {
             mContext = context;
@@ -159,7 +132,6 @@ public final class ContentCatcherClient {
             mWorker.setRemoveOnCancelPolicy(true);
             mWorker.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
         }
-
         private void start() {
             mTimeoutFuture = mWorker.schedule(new Runnable() {
                 @Override
@@ -175,20 +147,16 @@ public final class ContentCatcherClient {
                 }
             });
         }
-
         /** Cancels the request and reports a terminal {@code cancel} error to the callback. */
         public void cancel() {
             finishError("cancel",
                     new CancellationException("ContentCatcher request cancelled"));
         }
-
         public boolean isDone() {
             return mFinished.get();
         }
-
         private void sendRequest() {
             if (mFinished.get()) return;
-
             final IBinder security;
             try {
                 security = getSecurityService();
@@ -202,7 +170,6 @@ public final class ContentCatcherClient {
                         "HyperOS security service is unavailable"));
                 return;
             }
-
             synchronized (mServiceLock) {
                 if (mFinished.get()) return;
                 try {
@@ -215,7 +182,6 @@ public final class ContentCatcherClient {
                     return;
                 }
             }
-
             final String[] listenerTokens;
             try {
                 listenerTokens = resolveListenerTokens();
@@ -224,11 +190,9 @@ public final class ContentCatcherClient {
                         "Could not resolve ContentCatcher listener token", error));
                 return;
             }
-
             Bundle request = new Bundle();
             request.putInt(KEY_UI_AGENT_TYPE, UI_AGENT_CAPTURE_SCREEN_CONTENT);
             request.putStringArray(KEY_PACKAGE_NAMES, listenerTokens);
-
             Parcel data = Parcel.obtain();
             Parcel reply = Parcel.obtain();
             try {
@@ -250,14 +214,12 @@ public final class ContentCatcherClient {
                 data.recycle();
             }
         }
-
         private void acceptResult(Bundle result) {
             if (result == null) {
                 finishError("result", new IllegalStateException(
                         "ContentCatcher returned a null result Bundle"));
                 return;
             }
-
             final ResultEnvelope envelope;
             try {
                 result.setClassLoader(ParcelFileDescriptor.class.getClassLoader());
@@ -274,7 +236,6 @@ public final class ContentCatcherClient {
                         "Could not decode ContentCatcher result Bundle", error));
                 return;
             }
-
             if (mFinished.get() || !mResultClaimed.compareAndSet(false, true)) {
                 closeQuietly(envelope.content);
                 return;
@@ -296,7 +257,6 @@ public final class ContentCatcherClient {
                 finishError("result-dispatch", error);
             }
         }
-
         private void handleResult(ResultEnvelope result) {
             if (result.content != null
                     && mPendingContent.get() != result.content) {
@@ -320,7 +280,6 @@ public final class ContentCatcherClient {
                                     + ", version=" + result.version));
                     return;
                 }
-
                 final String xml;
                 try {
                     xml = readXml(result.content);
@@ -335,7 +294,6 @@ public final class ContentCatcherClient {
                 closeQuietly(result.content);
             }
         }
-
         private void finishSuccess(final String xml) {
             if (!mFinished.compareAndSet(false, true)) return;
             cancelTimeout();
@@ -350,7 +308,6 @@ public final class ContentCatcherClient {
             mWorker.shutdownNow();
             LSPLogger.i("ContentCatcherClient: capture completed, chars=" + xml.length());
         }
-
         private void finishError(final String stage, final Throwable error) {
             if (!mFinished.compareAndSet(false, true)) return;
             cancelTimeout();
@@ -365,12 +322,10 @@ public final class ContentCatcherClient {
             mWorker.shutdownNow();
             LSPLogger.w("ContentCatcherClient: failed at stage=" + stage, error);
         }
-
         private void cancelTimeout() {
             ScheduledFuture<?> timeout = mTimeoutFuture;
             if (timeout != null) timeout.cancel(false);
         }
-
         private void cleanupService() {
             synchronized (mServiceLock) {
                 if (mSecurityBinder != null && mDeathLinked) {
@@ -383,11 +338,9 @@ public final class ContentCatcherClient {
                 mDeathLinked = false;
             }
         }
-
         private void closePendingContent() {
             closeQuietly(mPendingContent.getAndSet(null));
         }
-
         private void dispatchCallback(Runnable callback) {
             try {
                 mCallbackExecutor.execute(callback);
@@ -396,7 +349,6 @@ public final class ContentCatcherClient {
                         error);
             }
         }
-
         private void postWorker(final String stage, final Runnable action) {
             try {
                 mWorker.execute(new Runnable() {
@@ -414,7 +366,6 @@ public final class ContentCatcherClient {
                 finishError(stage + "-dispatch", error);
             }
         }
-
         private String[] resolveListenerTokens() throws PackageManager.NameNotFoundException {
             String[] listenerTokens = new String[mRequestedPackageNames.length];
             for (int i = 0; i < mRequestedPackageNames.length; i++) {
@@ -428,12 +379,10 @@ public final class ContentCatcherClient {
             }
             return listenerTokens;
         }
-
         private final class ResultCallbackBinder extends Binder {
             ResultCallbackBinder() {
                 attachInterface(null, CALLBACK_DESCRIPTOR);
             }
-
             @Override
             protected boolean onTransact(int code, Parcel data, Parcel reply, int flags)
                     throws RemoteException {
@@ -452,7 +401,6 @@ public final class ContentCatcherClient {
             }
         }
     }
-
     private static boolean isListenerToken(String value) {
         int separator = value.lastIndexOf('~');
         if (separator <= 0 || separator == value.length() - 1) return false;
@@ -463,7 +411,6 @@ public final class ContentCatcherClient {
             return false;
         }
     }
-
     private static IBinder getSecurityService() throws Exception {
         Class<?> serviceManager = Class.forName("android.os.ServiceManager");
         Method getService = serviceManager.getDeclaredMethod("getService", String.class);
@@ -476,7 +423,6 @@ public final class ContentCatcherClient {
         }
         return (IBinder) service;
     }
-
     private static String readXml(ParcelFileDescriptor descriptor) throws IOException {
         try (InputStream input = new ParcelFileDescriptor.AutoCloseInputStream(descriptor);
                 ByteArrayOutputStream output = new ByteArrayOutputStream(8192)) {
@@ -494,7 +440,6 @@ public final class ContentCatcherClient {
             return output.toString(StandardCharsets.UTF_8.name());
         }
     }
-
     private static void closeQuietly(ParcelFileDescriptor descriptor) {
         if (descriptor == null) return;
         try {
@@ -502,7 +447,6 @@ public final class ContentCatcherClient {
         } catch (Throwable ignored) {
         }
     }
-
     private static final class ResultEnvelope {
         final int code;
         final String reason;
@@ -511,7 +455,6 @@ public final class ContentCatcherClient {
         final int version;
         final int callbackCount;
         final ParcelFileDescriptor content;
-
         ResultEnvelope(int code, String reason, String token, int status, int version,
                 int callbackCount, ParcelFileDescriptor content) {
             this.code = code;
@@ -523,15 +466,12 @@ public final class ContentCatcherClient {
             this.content = content;
         }
     }
-
     private static final class ContentCatcherThreadFactory implements ThreadFactory {
         private final long mRequestId;
         private int mThreadNumber;
-
         ContentCatcherThreadFactory(long requestId) {
             mRequestId = requestId;
         }
-
         @Override
         public synchronized Thread newThread(Runnable runnable) {
             Thread thread = new Thread(runnable,

@@ -1,47 +1,34 @@
 package com.hyper.onestep.util.anim;
-
-
 import android.animation.Animator;
 import android.animation.ObjectAnimator;
 import android.animation.AnimatorSet;
 import android.view.View;
-
 import com.hyper.onestep.util.LOG;
-
 import java.util.ArrayList;
 import java.util.List;
-
 import android.os.Process;
-
+// 单个属性动画封装，基于 ObjectAnimator
 public class Anim {
     private static final LOG log = LOG.getInstance(Anim.class);
     private static final boolean DBG_ANIM = true;
     static {
         if (!DBG_ANIM) {log.close();}
     }
-
     public final static int QUAD_IN      = AnimInterpolator.QUAD_IN;
     public final static int QUAD_OUT     = AnimInterpolator.QUAD_OUT;
     public final static int QUAD_IN_OUT  = AnimInterpolator.QUAD_IN_OUT;
-
     public final static int CIRC_IN      = AnimInterpolator.CIRC_IN;
     public final static int CIRC_OUT     = AnimInterpolator.CIRC_OUT;
     public final static int CIRC_IN_OUT  = AnimInterpolator.CIRC_IN_OUT;
-
     public final static int CUBIC_IN     = AnimInterpolator.CUBIC_IN;
     public final static int CUBIC_OUT    = AnimInterpolator.CUBIC_OUT;
     public final static int CUBIC_IN_OUT = AnimInterpolator.CUBIC_IN_OUT;
-
     public final static int QUART_IN     = AnimInterpolator.QUART_IN;
     public final static int QUART_OUT    = AnimInterpolator.QUART_OUT;
     public final static int QUART_IN_OUT = AnimInterpolator.QUART_IN_OUT;
-
     public final static int QUINT_IN     = AnimInterpolator.QUINT_IN;
     public final static int QUINT_OUT    = AnimInterpolator.QUINT_OUT;
     public final static int QUINT_IN_OUT = AnimInterpolator.QUINT_IN_OUT;
-
-
-    //Android anim name
     public static final String X           = "x";
     public static final String Y           = "y";
     public static final String TRANSLATE_X = "translationX";
@@ -52,16 +39,13 @@ public class Anim {
     public static final String SCALE_X     = "scaleX";
     public static final String SCALE_Y     = "scaleY";
     public static final String ALPHA       = "alpha";
-
     public static final int TRANSLATE   = 1001;
     public static final int ROTATE      = 1002;
     public static final int SCALE       = 1003;
     public static final int TRANSPARENT = 1004;
     public static final int MOVE        = 1005;
-
     public static final int ANIM_FINISH_TYPE_COMPLETE = 1;
     public static final int ANIM_FINISH_TYPE_CANCELED = 2;
-
     private View mView;
     private int animType;
     private int duration;
@@ -69,16 +53,12 @@ public class Anim {
     private int mInOut;
     private Vector3f mFrom;
     private Vector3f mTo;
-
     private AnimListener mListener;
     private AnimatorSet mAnimationSet;
-
     private List<Animator> mAnimList;
-
     public Anim(View view, int type, int time, int easeInOut, Vector3f from, Vector3f to) {
         this(view, type, time, 0, easeInOut, from, to);
     }
-
     public Anim(View view, int type, int time, int delay, int easeInOut, Vector3f from, Vector3f to) {
         if (type != TRANSLATE
                 && type != ROTATE
@@ -162,23 +142,18 @@ public class Anim {
             }
         }
     }
-
     public Vector3f getFrom() {
         return mFrom;
     }
-
     public Vector3f getTo() {
         return mTo;
     }
-
     public int getAnimType() {
         return animType;
     }
-
     public View getView() {
         return mView;
     }
-
     public void setDelay(long delay) {
         if (mAnimList == null) {
             return;
@@ -190,13 +165,11 @@ public class Anim {
             animator.setStartDelay(delay);
         }
     }
-
     public void setAnimCallbackListener() {
         if (mAnimList == null || mAnimList.size() == 0) {
             return;
         }
         if (mListener != null) {
-            //need do some callback
             long totalTime = 0;
             Animator lastAnim = null;
             for (Animator animator : mAnimList) {
@@ -214,10 +187,8 @@ public class Anim {
             }
         }
     }
-
     public boolean start() {
         if (mAnimList == null || mAnimList.size() == 0) {
-//            throw new IllegalArgumentException("anim size is 0");
             log.error("anim array is empty !");
             LOG.trace();
             return false;
@@ -228,7 +199,6 @@ public class Anim {
         mAnimationSet.start();
         return true;
     }
-
     public List<ObjectAnimator> getAnimatorList() {
         if (mAnimList == null || mAnimList.size() == 0) {
             return null;
@@ -243,48 +213,39 @@ public class Anim {
         }
         return list;
     }
-
     private class AnimatorCallbackListener implements Animator.AnimatorListener {
         private AnimListener mAnimListener;
-
         public AnimatorCallbackListener(AnimListener listener) {
             mAnimListener = listener;
         }
-
         @Override
         public void onAnimationStart(Animator animator) {
             if (mAnimListener != null) {
                 mAnimListener.onStart();
             }
         }
-
         @Override
         public void onAnimationEnd(Animator animator) {
             if (mAnimListener != null) {
                 mAnimListener.onComplete(ANIM_FINISH_TYPE_COMPLETE);
             }
         }
-
         @Override
         public void onAnimationCancel(Animator animator) {
             if (mAnimListener != null) {
                 mAnimListener.onComplete(ANIM_FINISH_TYPE_CANCELED);
             }
         }
-
         @Override
         public void onAnimationRepeat(Animator animator) {
-
         }
     }
-
     public void cancel() {
         if (mAnimationSet == null) {
             return;
         }
         mAnimationSet.cancel();
     }
-
     public void setListener(AnimListener l) {
         mListener = l;
     }

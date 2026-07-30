@@ -1,5 +1,4 @@
 package com.hyper.onestep.lsp;
-
 import android.app.ActivityManager;
 import android.content.Context;
 import android.content.ComponentName;
@@ -13,7 +12,6 @@ import android.content.res.Configuration;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.Display;
-
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -31,53 +29,26 @@ import java.util.Locale;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
-
-/**
- * LSP 模块统一日志工具。
- *
- * 同时输出到：
- *   1. Logcat（TAG = "OneStepLSP"）
- *   2. /sdcard/OneStep/onestep.log（主路径）
- *   3. /data/local/tmp/onestep.log（兜底，主路径写入失败时启用）
- *
- * 使用场景：
- *   - SystemUI 进程内 hook 执行流程追踪
- *   - SidebarController 状态机变化
- *   - 兼容层（OneStepCompat/DragHelper）调用与异常
- *   - 模块配置 Activity 用户操作
- *
- * 文件策略：
- *   - 单文件最大 5MB，超过后轮转为 onestep.log.old
- *   - 同步写入 + ReentrantLock，保证多线程顺序一致
- *   - 进程启动时打印分隔线便于区分多次运行
- */
+// 跨进程共享的 OneStep 日志工具
 public final class LSPLogger {
     public static final String TAG = "OneStepLSP";
-
     private static final String PRIMARY_DIR = "/sdcard/OneStep";
     private static final String PRIMARY_LOG = PRIMARY_DIR + "/onestep.log";
     private static final String PRIMARY_LOG_OLD = PRIMARY_DIR + "/onestep.log.old";
     /** Shared across the GUI APK, SystemUI, Launcher and system_server. */
     private static final String ENABLE_SETTING =
             "smartisanos_onestep_logging_enabled";
-
     private static final String FALLBACK_DIR = "/data/local/tmp";
     private static final String FALLBACK_LOG = FALLBACK_DIR + "/onestep.log";
     private static final String FALLBACK_LOG_OLD = FALLBACK_DIR + "/onestep.log.old";
-
-    // SystemUI 进程是 uid=1000 (system)，可以写 /data/system
     private static final String SYSTEM_DIR = "/data/system/onestep";
     private static final String SYSTEM_LOG = SYSTEM_DIR + "/onestep.log";
     private static final String SYSTEM_LOG_OLD = SYSTEM_DIR + "/onestep.log.old";
-
-    // 本模块 APK 数据目录，SystemUI 进程(uid=1000) 可访问
     private static final String APPDATA_DIR = "/data/data/com.hyper.onestep/files/onestep";
     private static final String APPDATA_LOG = APPDATA_DIR + "/onestep.log";
     private static final String APPDATA_LOG_OLD = APPDATA_DIR + "/onestep.log.old";
-
     /** 单文件最大 5MB */
     private static final long MAX_FILE_SIZE = 5 * 1024 * 1024;
-
     private static final ReentrantLock sLock = new ReentrantLock();
     private static volatile boolean sPrimaryAvailable = true;
     private static volatile boolean sFallbackAvailable = true;
@@ -93,18 +64,10 @@ public final class LSPLogger {
     private static long sLastConfigWarnUptime;
     private static final AtomicLong sSequence = new AtomicLong();
     private static volatile Context sContext;
-
     private static final SimpleDateFormat sDateFormat =
             new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.US);
-
     private LSPLogger() {}
-
-    // ==================== Public API ====================
-
-    /**
-     * Stores a usable Context for Settings.Global reads. This is deliberately optional:
-     * early Xposed callbacks can happen before ActivityThread exposes an application.
-     */
+    // 初始化Logger的应用上下文以便跨进程读取设置
     public static void initialize(Context context) {
         if (context == null) return;
         try {
@@ -114,39 +77,32 @@ public final class LSPLogger {
             sContext = context;
         }
     }
-
     public static void d(String msg) {
         if (!isEnabled()) return;
         Log.d(TAG, msg);
         write("D", msg, null);
     }
-
     public static void i(String msg) {
         if (!isEnabled()) return;
         Log.i(TAG, msg);
         write("I", msg, null);
     }
-
     public static void w(String msg) {
         Log.w(TAG, msg);
         if (isEnabled()) write("W", msg, null);
     }
-
     public static void w(String msg, Throwable t) {
         Log.w(TAG, msg, t);
         if (isEnabled()) write("W", msg, t);
     }
-
     public static void e(String msg) {
         Log.e(TAG, msg);
         if (isEnabled()) write("E", msg, null);
     }
-
     public static void e(String msg, Throwable t) {
         Log.e(TAG, msg, t);
         if (isEnabled()) write("E", msg, t);
     }
-
     /** Cross-process switch backed by Settings.Global. Defaults to enabled. */
     public static boolean isEnabled() {
         long now = SystemClock.uptimeMillis();
@@ -161,11 +117,6 @@ public final class LSPLogger {
                             ENABLE_SETTING, 1) != 0;
                     sNextConfigCheck = now + CONFIG_REFRESH_MS;
                 } catch (Throwable t) {
-                    // Hooked third-party processes often cannot read this key
-                    // (SecurityException: Package android does not belong to <uid>).
-                    // Previously this retried every second and dumped a full stack
-                    // trace on the app's main thread — right in the middle of its
-                    // configuration-change handling. Back off for a minute instead.
                     sNextConfigCheck = now + CONFIG_FAILURE_BACKOFF_MS;
                     if (now - sLastConfigWarnUptime >= CONFIG_FAILURE_BACKOFF_MS) {
                         sLastConfigWarnUptime = now;
@@ -179,7 +130,6 @@ public final class LSPLogger {
             return sEnabled;
         }
     }
-
     /** Persists the diagnostic switch for every hooked process. */
     public static boolean setEnabled(boolean enabled) {
         synchronized (LSPLogger.class) {
@@ -211,7 +161,6 @@ public final class LSPLogger {
             return true;
         }
     }
-
     private static boolean writeSettingAsRoot(boolean enabled) {
         java.lang.Process process = null;
         try {
@@ -232,7 +181,6 @@ public final class LSPLogger {
             return false;
         }
     }
-
     private static boolean readSetting(boolean expected) {
         Context context = resolveContext();
         if (context == null) return false;
@@ -244,7 +192,6 @@ public final class LSPLogger {
             return false;
         }
     }
-
     /** 进程启动时打印一条醒目分隔线，便于在日志中区分多次运行 */
     public static void logBoot() {
         if (!isEnabled()) return;
@@ -268,7 +215,6 @@ public final class LSPLogger {
           .append("==========================================================");
         i(sb.toString());
     }
-
     /** Writes a portable device/display snapshot before reproducing a compatibility bug. */
     public static void logDeviceSnapshot(Context context, String reason) {
         initialize(context);
@@ -324,12 +270,7 @@ public final class LSPLogger {
                 + " freeMemory=" + runtime.freeMemory());
         i("DIAG_SNAPSHOT_END reason=" + safe(reason));
     }
-
-    /**
-     * Captures the state that is otherwise lost when a task is moved between displays.
-     * This is intentionally event/periodic based instead of shell based so it works on
-     * devices where dumpsys is restricted from the SystemUI process.
-     */
+    // 输出运行时显示、任务、进程及关键设置的诊断快照
     public static void logRuntimeSnapshot(Context context, String reason) {
         initialize(context);
         if (!isEnabled()) return;
@@ -349,7 +290,6 @@ public final class LSPLogger {
         } catch (Throwable t) {
             w("DIAG_HOST_CONFIG unavailable", t);
         }
-
         if (context != null) {
             logDisplayState(context);
             logTaskState(context);
@@ -369,7 +309,6 @@ public final class LSPLogger {
         }
         i("DIAG_RUNTIME_END reason=" + tag);
     }
-
     private static void logDisplayState(Context context) {
         try {
             DisplayManager manager = (DisplayManager) context.getSystemService(
@@ -396,7 +335,6 @@ public final class LSPLogger {
             w("DIAG_RUNTIME_DISPLAY unavailable", t);
         }
     }
-
     private static void logTaskState(Context context) {
         try {
             ActivityManager manager = (ActivityManager) context.getSystemService(
@@ -437,7 +375,6 @@ public final class LSPLogger {
             w("DIAG_RUNTIME_TASK unavailable", t);
         }
     }
-
     private static void logProcessState(Context context) {
         try {
             ActivityManager manager = (ActivityManager) context.getSystemService(
@@ -457,7 +394,6 @@ public final class LSPLogger {
             w("DIAG_RUNTIME_PROCESS unavailable", t);
         }
     }
-
     private static Object readObject(Object object, String fieldName) {
         if (object == null) return null;
         try {
@@ -474,22 +410,18 @@ public final class LSPLogger {
             }
         }
     }
-
     private static int readInt(Object object, String fieldName, int fallback) {
         Object value = readObject(object, fieldName);
         return value instanceof Number ? ((Number) value).intValue() : fallback;
     }
-
     private static boolean readBoolean(Object object, String fieldName, boolean fallback) {
         Object value = readObject(object, fieldName);
         return value instanceof Boolean ? (Boolean) value : fallback;
     }
-
     private static ComponentName readComponent(Object object, String fieldName) {
         Object value = readObject(object, fieldName);
         return value instanceof ComponentName ? (ComponentName) value : null;
     }
-
     private static Rect readRect(Object object, String methodName, String fieldName) {
         if (object == null) return null;
         try {
@@ -502,17 +434,14 @@ public final class LSPLogger {
             return value instanceof Rect ? new Rect((Rect) value) : null;
         }
     }
-
     private static String componentName(ComponentName component) {
         return component == null ? "null" : component.flattenToShortString();
     }
-
     private static String orientationName(int orientation) {
         if (orientation == Configuration.ORIENTATION_PORTRAIT) return "portrait";
         if (orientation == Configuration.ORIENTATION_LANDSCAPE) return "landscape";
         return "undefined";
     }
-
     /** 清空当前日志文件（配置 Activity 提供按钮调用） */
     public static void clear() {
         sLock.lock();
@@ -535,7 +464,6 @@ public final class LSPLogger {
         }
         if (isEnabled()) i("log cleared by user");
     }
-
     /** 获取当前日志文件路径（用于 UI 展示） */
     public static String getLogFilePath() {
         if (sActiveLogPath != null) {
@@ -552,18 +480,13 @@ public final class LSPLogger {
         }
         return FALLBACK_LOG;
     }
-
     public static long getLogFileSize() {
         File file = new File(getLogFilePath());
         return file.isFile() ? file.length() : 0L;
     }
-
     public static String getEnableConfigPath() {
         return "Settings.Global:" + ENABLE_SETTING;
     }
-
-    // ==================== Internal ====================
-
     private static void write(String level, String msg, Throwable t) {
         sLock.lock();
         try {
@@ -582,12 +505,10 @@ public final class LSPLogger {
                     FALLBACK_DIR, FALLBACK_LOG, FALLBACK_LOG_OLD, line)) return;
             sFallbackAvailable = false;
         } catch (Throwable ignored) {
-            // 日志本身不能影响业务流程
         } finally {
             sLock.unlock();
         }
     }
-
     private static String formatLine(String level, String msg, Throwable t) {
         StringBuilder sb = new StringBuilder(256);
         sb.append(sDateFormat.format(new Date()))
@@ -603,7 +524,6 @@ public final class LSPLogger {
         sb.append('\n');
         return sb.toString();
     }
-
     private static String stackTraceToString(Throwable t) {
         StringWriter sw = new StringWriter();
         PrintWriter pw = new PrintWriter(sw);
@@ -611,7 +531,6 @@ public final class LSPLogger {
         pw.flush();
         return sw.toString();
     }
-
     private static boolean appendToActivePath(String line) {
         String path = sActiveLogPath;
         if (path == null) return false;
@@ -630,7 +549,6 @@ public final class LSPLogger {
         sActiveLogPath = null;
         return false;
     }
-
     private static boolean appendAndSelect(String dir, String path, String oldPath,
             String line) {
         if (!appendToFile(dir, path, oldPath, line)) return false;
@@ -638,12 +556,6 @@ public final class LSPLogger {
         Log.i(TAG, "LSPLogger active path: " + path);
         return true;
     }
-
-    /**
-     * 追加写一行到指定日志文件，超过 MAX_FILE_SIZE 时轮转。
-     *
-     * @return true 写入成功；false 写入失败（调用方应切换兜底路径）
-     */
     private static boolean appendToFile(String dir, String path, String oldPath, String line) {
         File dirFile = new File(dir);
         try {
@@ -662,13 +574,11 @@ public final class LSPLogger {
                 FileLock ignored = channel.lock()) {
             return appendUnlocked(path, oldPath, line);
         } catch (IOException ioe) {
-            // Some emulated-storage implementations do not support file locks.
             return appendUnlocked(path, oldPath, line);
         } catch (Throwable t) {
             return false;
         }
     }
-
     private static boolean appendUnlocked(String path, String oldPath, String line) {
         File file = new File(path);
         try {
@@ -687,12 +597,10 @@ public final class LSPLogger {
             return false;
         }
     }
-
     private static String safe(String value) {
         if (value == null) return "null";
         return value.replace('\n', ' ').replace('\r', ' ');
     }
-
     private static String sProcessNameCache;
     private static String getProcessName() {
         if (sProcessNameCache != null && !"unknown".equals(sProcessNameCache)) {
@@ -722,7 +630,6 @@ public final class LSPLogger {
         sProcessNameCache = "unknown";
         return sProcessNameCache;
     }
-
     private static Context resolveContext() {
         Context context = sContext;
         if (context != null) return context;
@@ -735,9 +642,6 @@ public final class LSPLogger {
             }
         } catch (Throwable ignored) {
         }
-        // The getSystemContext() fallback carries package "android". In a third-party
-        // app process that attribution makes every Settings.Global read throw
-        // SecurityException, so only use it in the system (uid 1000) process itself.
         if (Process.myUid() != Process.SYSTEM_UID) return null;
         try {
             Class<?> activityThread = Class.forName("android.app.ActivityThread");

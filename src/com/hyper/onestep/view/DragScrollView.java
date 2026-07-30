@@ -1,34 +1,26 @@
 package com.hyper.onestep.view;
-
 import com.hyper.onestep.R;
-
 import android.content.Context;
 import android.util.AttributeSet;
 import android.view.DragEvent;
 import android.view.MotionEvent;
 import android.widget.ScrollView;
-
+// 支持拖拽时自动滚动的 ScrollView
 public class DragScrollView extends ScrollView {
-
     private ScrollController mScrollController;
-
     public DragScrollView(Context context) {
         this(context, null);
     }
-
     public DragScrollView(Context context, AttributeSet attrs) {
         this(context, attrs, 0);
     }
-
     public DragScrollView(Context context, AttributeSet attrs, int defStyle) {
         super(context, attrs, defStyle);
         mScrollController = new ScrollController(this);
     }
-
     public void scrollByMotionEvent(MotionEvent event) {
         mScrollController.scrollByMotionEvent(event);
     }
-
     @Override
     public boolean dispatchDragEvent(DragEvent event) {
         boolean intercept = mScrollController.onDragEvent(event);
@@ -37,17 +29,12 @@ public class DragScrollView extends ScrollView {
         }
         return super.dispatchDragEvent(event);
     }
-
     private class ScrollController {
-
-        // 50 times on second !
         private static final int DELAY = 20;
         private static final int NUMBS = 200;
-
         private static final int DIRECTION_DOWN = -1;
         private static final int DIRECTION_NONE = 0;
         private static final int DIRECTION_UP = 1;
-
         private ScrollView mView;
         private DragEvent mEvent;
         private float mRate = 1.0f;
@@ -60,15 +47,12 @@ public class DragScrollView extends ScrollView {
             mTopArea = getResources().getDimensionPixelSize(R.dimen.drag_scroll_view_top_area);
             mBottomArea = getResources().getDimensionPixelSize(R.dimen.drag_scroll_view_bottom_area);
         }
-
         private float getInterpolation(float rate) {
             return rate * rate;
         }
-
         private void setRate(float rate) {
             mRate = 1.0f + getInterpolation(rate) * 3;
         }
-
         public boolean scrollByMotionEvent(MotionEvent event) {
             int action = event.getAction();
             float rawX = event.getRawX();
@@ -96,7 +80,6 @@ public class DragScrollView extends ScrollView {
             scroll(DIRECTION_NONE);
             return false;
         }
-
         public boolean onDragEvent(DragEvent event){
             int action = event.getAction();
             if(action ==  DragEvent.ACTION_DRAG_LOCATION){
@@ -118,22 +101,18 @@ public class DragScrollView extends ScrollView {
             scroll(DIRECTION_NONE);
             return false;
         }
-
         private void setEvent(DragEvent event) {
             mEvent = event;
         }
-
         private boolean isScrollUp(){
             return mView.getScrollY() == 0;
         }
-
         private boolean isScrollBottom(){
             if(mView.getChildCount() <= 0){
                 return true;
             }
             return mView.getChildAt(0).getMeasuredHeight() <= mView.getScrollY() + mView.getHeight();
         }
-
         private void scroll(int direction) {
             if (mScrollDirection == direction) {
                 return;
@@ -148,7 +127,6 @@ public class DragScrollView extends ScrollView {
                 mView.post(mScrollRunnable);
             }
         }
-
         private Runnable mScrollRunnable = new Runnable() {
             @Override
             public void run() {
@@ -160,5 +138,4 @@ public class DragScrollView extends ScrollView {
             }
         };
     }
-
 }

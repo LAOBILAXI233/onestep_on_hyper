@@ -1,5 +1,4 @@
 package com.hyper.onestep.lsp;
-
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.animation.AnimatorSet;
@@ -21,20 +20,16 @@ import android.view.animation.DecelerateInterpolator;
 import android.view.animation.OvershootInterpolator;
 import android.widget.ScrollView;
 import android.widget.TextView;
-
 import com.hyper.onestep.R;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-
 /** Wrapping chip layout with tap toggling, range swipe selection and long-press dragging. */
 public final class TextBoomChipLayout extends ViewGroup {
     public interface Listener {
         void onSelectionChanged(int selectedCount, String selectedText);
         boolean onTextDragRequested(View anchor, String selectedText);
     }
-
     /** Chips outside the viewport by more than this are snapped instead of animated. */
     private static final int BOOM_IN_VIEWPORT_MARGIN_ROWS = 2;
     /** Upper bound on simultaneously animated chips, so huge captures stay smooth. */
@@ -43,7 +38,6 @@ public final class TextBoomChipLayout extends ViewGroup {
     private static final float BOOM_IN_START_SCALE = 0.0f;
     private static final float PRESS_SCALE = 0.92f;
     private static final float SELECT_POP_SCALE = 1.06f;
-
     private final int mChipGap;
     private final int mRowGap;
     private final int mHorizontalPadding;
@@ -51,11 +45,9 @@ public final class TextBoomChipLayout extends ViewGroup {
     private final int mVerticalPadding;
     private final int mTouchSlop;
     private final int mEdgeScrollSize;
-
     private final int mBoomInDuration;
     private final int mPressDuration;
     private final int mSelectPopDuration;
-
     private String mSource = "";
     private List<TextBoomTokenizer.Token> mTokens = Collections.emptyList();
     private boolean[] mSelected = new boolean[0];
@@ -63,11 +55,9 @@ public final class TextBoomChipLayout extends ViewGroup {
     private Animator[] mChipAnimators = new Animator[0];
     private Listener mListener;
     private ScrollView mScrollHost;
-
     private boolean mBoomInPending;
     private int mBoomOriginScreenX = -1;
     private int mBoomOriginScreenY = -1;
-
     private int mDownIndex = -1;
     private int mCurrentIndex = -1;
     private int mPressedIndex = -1;
@@ -76,14 +66,10 @@ public final class TextBoomChipLayout extends ViewGroup {
     private boolean mRangeSelectValue;
     private boolean mMoved;
     private boolean mDragStarted;
-
-
     private final Runnable mLongPress = new Runnable() {
         @Override
         public void run() {
             if (mDownIndex < 0 || mMoved || mListener == null) return;
-            // A normal tap toggles a selected chip off, but a long press on that same chip should
-            // drag the selection that existed when the gesture began.
             if (mSelectionAtDown[mDownIndex]) {
                 System.arraycopy(mSelectionAtDown, 0, mSelected, 0, mSelected.length);
                 syncChildSelection();
@@ -97,11 +83,9 @@ public final class TextBoomChipLayout extends ViewGroup {
             mDragStarted = mListener.onTextDragRequested(anchor, selectedText);
         }
     };
-
     public TextBoomChipLayout(Context context) {
         this(context, null);
     }
-
     public TextBoomChipLayout(Context context, AttributeSet attrs) {
         super(context, attrs);
         Resources resources = context.getResources();
@@ -121,15 +105,12 @@ public final class TextBoomChipLayout extends ViewGroup {
         setClipToPadding(false);
         setFocusable(true);
     }
-
     public void setListener(Listener listener) {
         mListener = listener;
     }
-
     public void setScrollHost(ScrollView scrollHost) {
         mScrollHost = scrollHost;
     }
-
     public void setText(String source, List<TextBoomTokenizer.Token> tokens) {
         cancelChipAnimations();
         removeAllViews();
@@ -140,7 +121,6 @@ public final class TextBoomChipLayout extends ViewGroup {
         mSelectionAtDown = new boolean[mTokens.size()];
         mChipAnimators = new Animator[mTokens.size()];
         mBoomInPending = !mTokens.isEmpty() && animationsEnabled();
-
         int maxChipWidth = getResources().getDisplayMetrics().widthPixels
                 - getResources().getDimensionPixelSize(R.dimen.text_boom_content_horizontal) * 2;
         for (int i = 0; i < mTokens.size(); i++) {
@@ -148,7 +128,6 @@ public final class TextBoomChipLayout extends ViewGroup {
             TextBoomTokenizer.Token token = mTokens.get(i);
             TextView chip = new TextView(getContext());
             chip.setText(token.textFrom(mSource));
-            // Punctuation reads faded and hugs its mark; words carry the full-ink label.
             chip.setTextColor(getResources().getColorStateList(
                     token.punctuation ? R.color.text_boom_punctuation_text
                             : R.color.text_boom_chip_text,
@@ -167,7 +146,6 @@ public final class TextBoomChipLayout extends ViewGroup {
                     : R.drawable.text_boom_chip_background);
             chip.setContentDescription(token.textFrom(mSource));
             if (mBoomInPending) {
-                // Start hidden so the chips never flash at full size before the boom-in runs.
                 chip.setAlpha(0f);
                 chip.setScaleX(BOOM_IN_START_SCALE);
                 chip.setScaleY(BOOM_IN_START_SCALE);
@@ -185,7 +163,6 @@ public final class TextBoomChipLayout extends ViewGroup {
         requestLayout();
         notifySelectionChanged();
     }
-
     public void selectTokenContaining(int utf16Index) {
         if (utf16Index < 0) return;
         for (int i = 0; i < mTokens.size(); i++) {
@@ -197,18 +174,15 @@ public final class TextBoomChipLayout extends ViewGroup {
             }
         }
     }
-
     public int getSelectedCount() {
         int count = 0;
         for (boolean selected : mSelected) if (selected) count++;
         return count;
     }
-
     public String getSelectedText() {
         int selectedCount = getSelectedCount();
         if (selectedCount == 0) return "";
         if (selectedCount == mTokens.size()) return mSource;
-
         StringBuilder result = new StringBuilder();
         int previous = -1;
         for (int i = 0; i < mTokens.size(); i++) {
@@ -224,13 +198,11 @@ public final class TextBoomChipLayout extends ViewGroup {
         }
         return result.toString();
     }
-
     @Override
     public boolean onInterceptTouchEvent(MotionEvent event) {
         return event.getActionMasked() == MotionEvent.ACTION_DOWN
                 && findChip(event.getX(), event.getY(), false) >= 0;
     }
-
     @Override
     public boolean onTouchEvent(MotionEvent event) {
         switch (event.getActionMasked()) {
@@ -250,7 +222,6 @@ public final class TextBoomChipLayout extends ViewGroup {
                 animatePress(mPressedIndex, true);
                 postDelayed(mLongPress, ViewConfiguration.getLongPressTimeout());
                 return true;
-
             case MotionEvent.ACTION_MOVE:
                 if (mDownIndex < 0) return false;
                 float dx = event.getX() - mDownX;
@@ -258,7 +229,6 @@ public final class TextBoomChipLayout extends ViewGroup {
                 if (!mMoved && dx * dx + dy * dy > mTouchSlop * mTouchSlop) {
                     mMoved = true;
                     removeCallbacks(mLongPress);
-                    // The finger has left the chip, so drop the pressed-in look.
                     releasePress();
                 }
                 autoScroll(event.getRawY());
@@ -268,7 +238,6 @@ public final class TextBoomChipLayout extends ViewGroup {
                     applyRange(mDownIndex, mCurrentIndex);
                 }
                 return true;
-
             case MotionEvent.ACTION_UP:
                 removeCallbacks(mLongPress);
                 getParent().requestDisallowInterceptTouchEvent(false);
@@ -276,32 +245,27 @@ public final class TextBoomChipLayout extends ViewGroup {
                 if (!mMoved && !mDragStarted) performClick();
                 resetTouch();
                 return true;
-
             case MotionEvent.ACTION_CANCEL:
                 removeCallbacks(mLongPress);
                 getParent().requestDisallowInterceptTouchEvent(false);
                 releasePress();
                 resetTouch();
                 return true;
-
             default:
                 return super.onTouchEvent(event);
         }
     }
-
     @Override
     public boolean performClick() {
         super.performClick();
         return true;
     }
-
     private void resetTouch() {
         mDownIndex = -1;
         mCurrentIndex = -1;
         mMoved = false;
         mDragStarted = false;
     }
-
     private void applyRange(int first, int second) {
         System.arraycopy(mSelectionAtDown, 0, mSelected, 0, mSelected.length);
         int start = Math.min(first, second);
@@ -310,7 +274,6 @@ public final class TextBoomChipLayout extends ViewGroup {
         syncChildSelection();
         notifySelectionChanged();
     }
-
     private void setSelected(int index, boolean selected) {
         if (index < 0 || index >= mSelected.length) return;
         mSelected[index] = selected;
@@ -320,46 +283,31 @@ public final class TextBoomChipLayout extends ViewGroup {
             animateSelectPop(index);
         }
     }
-
     private void syncChildSelection() {
         for (int i = 0; i < mSelected.length; i++) {
             View child = getChildAt(i);
-            // Only the chips that actually flipped get a pop, so dragging a range reads as a
-            // wave travelling under the finger instead of every chip twitching each frame.
             if (child.isSelected() != mSelected[i]) {
                 child.setSelected(mSelected[i]);
                 animateSelectPop(i);
             }
         }
     }
-
     private void notifySelectionChanged() {
         if (mListener != null) {
             mListener.onSelectionChanged(getSelectedCount(), getSelectedText());
         }
     }
-
     /** Sets the explosion origin in screen coordinates; pass a negative value to use the centre. */
     public void setBoomOrigin(int screenX, int screenY) {
-        // Kept in screen space on purpose: this is called from onCreate, long before this view has
-        // been laid out, so it cannot be converted to local coordinates yet.
         mBoomOriginScreenX = screenX;
         mBoomOriginScreenY = screenY;
     }
-
     private final Runnable mBoomInRunner = new Runnable() {
         @Override
         public void run() {
             playBoomIn();
         }
     };
-
-    /**
-     * Blows the chips into place, faithful to the original BigBang: every chip collapses onto the
-     * touch point (scale 0, alpha 0, translated to the origin) and expands back to its grid slot,
-     * all at once. The outward flight is the translation animating back to zero — without it the
-     * chips would merely grow in place instead of bursting from the touch point.
-     */
     private void playBoomIn() {
         int count = getChildCount();
         if (count == 0) return;
@@ -367,15 +315,11 @@ public final class TextBoomChipLayout extends ViewGroup {
             resetChipVisuals();
             return;
         }
-
         Rect viewport = new Rect();
         if (!getLocalVisibleRect(viewport)) {
             viewport.set(0, 0, getWidth(), getHeight());
         }
         viewport.inset(0, -BOOM_IN_VIEWPORT_MARGIN_ROWS * (mRowGap + mVerticalPadding * 2));
-
-        // Offscreen chips snap straight to their final state; a long capture can hold thousands
-        // of them and animating every one would drop frames for no visible benefit.
         List<Integer> animated = new ArrayList<>();
         for (int i = 0; i < count; i++) {
             View child = getChildAt(i);
@@ -387,7 +331,6 @@ public final class TextBoomChipLayout extends ViewGroup {
             }
         }
         if (animated.isEmpty()) return;
-
         float originX = getWidth() / 2f;
         float originY = viewport.centerY();
         if (mBoomOriginScreenX >= 0 && mBoomOriginScreenY >= 0) {
@@ -396,26 +339,20 @@ public final class TextBoomChipLayout extends ViewGroup {
             originX = mBoomOriginScreenX - location[0];
             originY = mBoomOriginScreenY - location[1];
         }
-
-        // No per-chip stagger: the original master AnimatorSet plays every chip together.
         for (int i = 0; i < animated.size(); i++) {
             int index = animated.get(i);
             startChipAnimator(index, makeBoomInAnimator(getChildAt(index), originX, originY));
         }
     }
-
     private Animator makeBoomInAnimator(View child, float originX, float originY) {
         float fromTranslationX = originX - (child.getLeft() + child.getWidth() / 2f);
         float fromTranslationY = originY - (child.getTop() + child.getHeight() / 2f);
         centerPivot(child);
-        // Collapse onto the origin up front so even the first frame reads as bursting from the
-        // touch point rather than fading in at rest.
         child.setTranslationX(fromTranslationX);
         child.setTranslationY(fromTranslationY);
         child.setScaleX(0f);
         child.setScaleY(0f);
         child.setAlpha(0f);
-        // scale 0->1 + alpha 0->1 + translation->0, together, one ease-out with no overshoot.
         ObjectAnimator anim = ObjectAnimator.ofPropertyValuesHolder(child,
                 PropertyValuesHolder.ofFloat(View.SCALE_X, 0f, 1f),
                 PropertyValuesHolder.ofFloat(View.SCALE_Y, 0f, 1f),
@@ -426,7 +363,6 @@ public final class TextBoomChipLayout extends ViewGroup {
         anim.setDuration(mBoomInDuration);
         return anim;
     }
-
     private void animatePress(int index, boolean pressed) {
         if (index < 0 || index >= getChildCount()) return;
         View child = getChildAt(index);
@@ -435,7 +371,6 @@ public final class TextBoomChipLayout extends ViewGroup {
             return;
         }
         centerPivot(child);
-        // A chip touched mid boom-in must not stay half transparent.
         child.setAlpha(1f);
         float target = pressed ? PRESS_SCALE : 1f;
         ObjectAnimator anim = ObjectAnimator.ofPropertyValuesHolder(child,
@@ -446,13 +381,11 @@ public final class TextBoomChipLayout extends ViewGroup {
                 : new OvershootInterpolator(2.2f));
         startChipAnimator(index, anim);
     }
-
     private void animateSelectPop(int index) {
         if (index < 0 || index >= getChildCount() || !animationsEnabled()) return;
         View child = getChildAt(index);
         centerPivot(child);
         child.setAlpha(1f);
-        // Start from wherever the chip currently sits so a pop right after a press does not jump.
         float from = child.getScaleX();
         ObjectAnimator anim = ObjectAnimator.ofPropertyValuesHolder(child,
                 PropertyValuesHolder.ofKeyframe(View.SCALE_X,
@@ -467,14 +400,12 @@ public final class TextBoomChipLayout extends ViewGroup {
         anim.setInterpolator(new DecelerateInterpolator(1.5f));
         startChipAnimator(index, anim);
     }
-
     private void releasePress() {
         if (mPressedIndex >= 0) {
             animatePress(mPressedIndex, false);
             mPressedIndex = -1;
         }
     }
-
     private void startChipAnimator(final int index, Animator animator) {
         cancelChipAnimator(index);
         if (index >= 0 && index < mChipAnimators.length) mChipAnimators[index] = animator;
@@ -489,7 +420,6 @@ public final class TextBoomChipLayout extends ViewGroup {
         });
         animator.start();
     }
-
     private void cancelChipAnimator(int index) {
         if (index < 0 || index >= mChipAnimators.length) return;
         Animator running = mChipAnimators[index];
@@ -498,19 +428,16 @@ public final class TextBoomChipLayout extends ViewGroup {
             running.cancel();
         }
     }
-
     private void cancelChipAnimations() {
         for (int i = 0; i < mChipAnimators.length; i++) cancelChipAnimator(i);
         removeCallbacks(mBoomInRunner);
         mBoomInPending = false;
         mPressedIndex = -1;
     }
-
     private void centerPivot(View child) {
         child.setPivotX(child.getWidth() / 2f);
         child.setPivotY(child.getHeight() / 2f);
     }
-
     private void snapChip(View child) {
         child.setAlpha(1f);
         child.setScaleX(1f);
@@ -518,11 +445,9 @@ public final class TextBoomChipLayout extends ViewGroup {
         child.setTranslationX(0f);
         child.setTranslationY(0f);
     }
-
     private void resetChipVisuals() {
         for (int i = 0; i < getChildCount(); i++) snapChip(getChildAt(i));
     }
-
     private boolean animationsEnabled() {
         try {
             return Settings.Global.getFloat(getContext().getContentResolver(),
@@ -531,13 +456,11 @@ public final class TextBoomChipLayout extends ViewGroup {
             return true;
         }
     }
-
     @Override
     protected void onDetachedFromWindow() {
         cancelChipAnimations();
         super.onDetachedFromWindow();
     }
-
     private int findChip(float x, float y, boolean nearest) {
         int nearestIndex = -1;
         float nearestDistance = Float.MAX_VALUE;
@@ -561,7 +484,6 @@ public final class TextBoomChipLayout extends ViewGroup {
         }
         return nearestIndex;
     }
-
     private void autoScroll(float rawY) {
         if (mScrollHost == null) return;
         int[] location = new int[2];
@@ -574,7 +496,6 @@ public final class TextBoomChipLayout extends ViewGroup {
             mScrollHost.scrollBy(0, mRowGap * 2);
         }
     }
-
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
         int width = MeasureSpec.getSize(widthMeasureSpec);
@@ -582,7 +503,6 @@ public final class TextBoomChipLayout extends ViewGroup {
         int x = 0;
         int y = getPaddingTop();
         int rowHeight = 0;
-
         for (int i = 0; i < getChildCount(); i++) {
             View child = getChildAt(i);
             measureChildWithMargins(child, widthMeasureSpec, 0, heightMeasureSpec, 0);
@@ -600,7 +520,6 @@ public final class TextBoomChipLayout extends ViewGroup {
         setMeasuredDimension(resolveSize(width, widthMeasureSpec),
                 resolveSize(desiredHeight, heightMeasureSpec));
     }
-
     @Override
     protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
         int available = Math.max(0, right - left - getPaddingLeft() - getPaddingRight());
@@ -621,29 +540,23 @@ public final class TextBoomChipLayout extends ViewGroup {
             x += childWidth + mChipGap;
             rowHeight = Math.max(rowHeight, childHeight);
         }
-
         if (mBoomInPending && getChildCount() > 0) {
-            // Children now have final bounds, so the radial delays can be measured.
             mBoomInPending = false;
             post(mBoomInRunner);
         }
     }
-
     @Override
     protected LayoutParams generateDefaultLayoutParams() {
         return new MarginLayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT);
     }
-
     @Override
     public LayoutParams generateLayoutParams(AttributeSet attrs) {
         return new MarginLayoutParams(getContext(), attrs);
     }
-
     @Override
     protected LayoutParams generateLayoutParams(LayoutParams params) {
         return new MarginLayoutParams(params);
     }
-
     @Override
     protected boolean checkLayoutParams(LayoutParams params) {
         return params instanceof MarginLayoutParams;

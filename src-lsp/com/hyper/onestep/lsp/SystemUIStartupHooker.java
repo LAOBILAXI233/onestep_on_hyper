@@ -1,14 +1,8 @@
 package com.hyper.onestep.lsp;
-
 import io.github.libxposed.api.XposedInterface;
-
-/**
- * CentralSurfacesImpl.startCentralSurfaces 的 hooker。
- *
- * 在原方法执行完毕后，调用 SidebarController.init() 初始化侧边栏窗口。
- */
+// 拦截 SystemUI 启动并接入 OneStep 初始化
 public class SystemUIStartupHooker implements XposedInterface.Hooker {
-
+    // 拦截SystemUI启动并在原方法返回后初始化侧边栏控制器
     @Override
     public Object intercept(XposedInterface.Chain chain) throws Throwable {
         LSPLogger.i("SystemUIStartupHooker.intercept: BEFORE proceed");
@@ -21,8 +15,6 @@ public class SystemUIStartupHooker implements XposedInterface.Hooker {
         } catch (Throwable t) {
             LSPLogger.e("SystemUIStartupHooker.intercept: getThisObject failed", t);
         }
-
-        // 先执行原方法，确保 SystemUI 自身初始化完成
         Object result;
         try {
             result = chain.proceed();
@@ -31,14 +23,11 @@ public class SystemUIStartupHooker implements XposedInterface.Hooker {
             LSPLogger.e("SystemUIStartupHooker.intercept: original method threw", t);
             throw t;
         }
-
         try {
             if (thisObject == null) {
                 LSPLogger.e("SystemUIStartupHooker.intercept: thisObject null, skip sidebar init");
                 return result;
             }
-
-            // 反射获取 CentralSurfacesImpl 内的 mContext
             android.content.Context context = extractContext(thisObject);
             if (context == null) {
                 LSPLogger.e("SystemUIStartupHooker.intercept: extractContext returned null, "
@@ -48,16 +37,12 @@ public class SystemUIStartupHooker implements XposedInterface.Hooker {
             LSPLogger.i("SystemUIStartupHooker.intercept: context extracted="
                     + context + " pkg=" + context.getPackageName());
             LSPLogger.initialize(context);
-
-            // 先初始化 SidebarApplication stub，让 CalendarIcon / NetworkHandler
-            // 等遗留调用方通过 SidebarApplication.getInstance() 拿到可用 Context
             try {
                 com.hyper.onestep.SidebarApplication.setInstance(context);
             } catch (Throwable t) {
                 LSPLogger.w("SystemUIStartupHooker.intercept: "
                         + "SidebarApplication.setInstance failed: " + t.getMessage());
             }
-
             LSPLogger.i("SystemUIStartupHooker.intercept: calling SidebarController.init()");
             com.hyper.onestep.SidebarController controller =
                     com.hyper.onestep.SidebarController.getInstance(context);
@@ -65,15 +50,9 @@ public class SystemUIStartupHooker implements XposedInterface.Hooker {
             LSPLogger.i("SystemUIStartupHooker.intercept: SidebarController.init() returned");
         } catch (Throwable t) {
             LSPLogger.e("SystemUIStartupHooker.intercept: sidebar init failed", t);
-            // 不让 hook 异常影响 SystemUI 启动
         }
-
         return result;
     }
-
-    /**
-     * 从 CentralSurfacesImpl 实例反射获取 Context。
-     */
     private android.content.Context extractContext(Object obj) {
         LSPLogger.d("extractContext: scanning class hierarchy for mContext field");
         Class<?> c = obj.getClass();
@@ -98,8 +77,6 @@ public class SystemUIStartupHooker implements XposedInterface.Hooker {
             depth++;
         }
         LSPLogger.w("extractContext: mContext not found in hierarchy, scanning by type");
-
-        // 兜底：扫描所有字段，找第一个 Context 类型实例
         c = obj.getClass();
         while (c != null && c != Object.class) {
             for (java.lang.reflect.Field f : c.getDeclaredFields()) {

@@ -1,5 +1,4 @@
 package com.hyper.onestep.util;
-
 import java.io.File;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -8,7 +7,6 @@ import java.util.Calendar;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
 import android.app.ActivityManager;
 import android.app.ActivityManager.RunningTaskInfo;
 import android.content.ActivityNotFoundException;
@@ -31,16 +29,13 @@ import android.provider.MediaStore;
 import android.view.DragEvent;
 import android.view.View;
 import android.view.ViewGroup;
-
 import com.hyper.onestep.R;
 import com.hyper.onestep.SidebarController;
 import com.hyper.onestep.lsp.DragHelper;
 import com.hyper.onestep.lsp.LSPLogger;
-
+// 通用工具类，提供系统调用/剪贴板/包管理等辅助方法
 public class Utils {
     static void sendCloseSystemWindows(Context context, String reason) {
-        // Android 16 已移除 ActivityManagerNative.getDefault() / isSystemReady()
-        // 改用反射调用 IActivityManager.closeSystemDialogs（hidden API）
         try {
             Object iam = getIActivityManager();
             if (iam != null) {
@@ -49,7 +44,6 @@ public class Utils {
                 m.invoke(iam, reason);
             }
         } catch (Throwable t) {
-            // 降级：发送广播（效果弱于 closeSystemDialogs，但不会崩溃）
             try {
                 Intent intent = new Intent(Intent.ACTION_CLOSE_SYSTEM_DIALOGS);
                 intent.putExtra("reason", reason);
@@ -59,10 +53,6 @@ public class Utils {
             }
         }
     }
-
-    /**
-     * 获取 IActivityManager 实例（Android 16 兼容）。
-     */
     private static Object getIActivityManager() {
         try {
             java.lang.reflect.Method m = ActivityManager.class
@@ -82,7 +72,7 @@ public class Utils {
         }
         return null;
     }
-
+    // 恢复侧边栏到正常状态：恢复顶栏、关闭内容面板、终止拖拽
     public static void resumeSidebar(Context context){
         LSPLogger.i("Utils.resumeSidebar: begin");
         try {
@@ -100,14 +90,12 @@ public class Utils {
             LSPLogger.e("Utils.resumeSidebar: failed", t);
         }
     }
-
+    // 关闭所有系统对话框并恢复侧边栏
     public static void dismissAllDialog(Context context) {
         resumeSidebar(context);
         sendCloseSystemWindows(context, null);
     }
-
     public static void setAlwaysCanAcceptDrag(View view, boolean can){
-        // NA
         try {
             Method setAlwaysCanAcceptDrag = view.getClass().getMethod("setAlwaysCanAcceptDrag", boolean.class);
             try {
@@ -123,7 +111,7 @@ public class Utils {
             e.printStackTrace();
         }
     }
-
+    // 递归地为视图及其所有子视图设置是否可接收拖拽
     public static void setAlwaysCanAcceptDragForAll(View view, boolean can) {
         setAlwaysCanAcceptDrag(view, can);
         if (view instanceof ViewGroup) {
@@ -133,7 +121,7 @@ public class Utils {
             }
         }
     }
-
+    // 复制文本到系统剪贴板
     public static void copyText(Context context, CharSequence cs, boolean inHistory){
         ClipboardManager cm  = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
         try {
@@ -153,19 +141,15 @@ public class Utils {
         }
         cm.setPrimaryClip(ClipData.newPlainText(null, cs));
     }
-
     public static boolean isPackageInstalled(Context context, String packageName){
         try {
             context.getPackageManager().getPackageInfo(packageName, 0);
             return true;
         } catch (NameNotFoundException e) {
-            // NA
         }
         return false;
     }
-
     private static final String LAUNCHER_NAME = "com.smartisanos.launcher.Launcher";
-
     public static boolean inArea(float rawX, float rawY, View view) {
         int[] loc = new int[2];
         view.getLocationOnScreen(loc);
@@ -182,7 +166,6 @@ public class Utils {
         }
         return false;
     }
-
     public static String debugDrag(DragEvent event) {
         StringBuffer buffer = new StringBuffer();
         int action = event.getAction();
@@ -214,7 +197,6 @@ public class Utils {
         }
         return buffer.toString();
     }
-
     public static boolean isNetworkConnected(Context context) {
         if (context == null) {
             return false;
@@ -229,7 +211,6 @@ public class Utils {
         } catch (Exception e) {}
         return connected;
     }
-
     public static boolean isWifiConnected(Context context) {
         if (context == null) {
             return false;
@@ -238,11 +219,10 @@ public class Utils {
         NetworkInfo wifi = cm.getNetworkInfo(ConnectivityManager.TYPE_WIFI);
         return wifi != null && wifi.isConnected();
     }
-
+    // 从 HTML 内容中解析出标题文本
     public static String parseTitle(String content) {
         String title = null;
         try {
-            //html code, may include <!-- -->
             List<int[]> invisibleContent = parseContent("(?s)/<[!]--.*-->/", content);
             List<int[]> titleContent = parseContent("<title>(.*)</title>", content);
             int[] region = null;
@@ -250,7 +230,6 @@ public class Utils {
             for (int i = 0; i < size; i++) {
                 int[] charIndex = titleContent.get(i);
                 if (invisibleContent.size() == 0) {
-                    //match first
                     region = charIndex;
                     break;
                 }
@@ -282,7 +261,6 @@ public class Utils {
         }
         return title;
     }
-
     private static List<int[]> parseContent(String expression, String content) {
         List<int[]> list = new ArrayList<int[]>();
         try {
@@ -299,7 +277,7 @@ public class Utils {
         }
         return list;
     }
-
+    // 将时间戳转换为相对日期标签（今天/昨天/上周/上月/更早）
     public static String convertDateToLabel(Context context, long currentTime, long time) {
         long day = 24 * 60 * 60 * 1000;
         long delta = currentTime - time;
@@ -311,16 +289,12 @@ public class Utils {
         String label = null;
         if (interval <= 30) {
             if (interval == 0) {
-                //today
                 label = resources.getString(R.string.date_label_today);
             } else if (interval == 1) {
-                //yesterday
                 label = resources.getString(R.string.date_label_yesterday);
             } else if (interval <= 7) {
-                //last 7 days
                 label = resources.getString(R.string.date_label_last_week);
             } else {
-                //last 30 days
                 label = resources.getString(R.string.date_label_last_month);
             }
         } else {
@@ -328,7 +302,7 @@ public class Utils {
         }
         return label;
     }
-
+    // 查询系统中所有可启动的 Launcher 应用信息
     public static List<ResolveInfo> getAllAppsInfo(Context context) {
         Intent launcherIntent = new Intent(Intent.ACTION_MAIN);
         launcherIntent.addCategory(Intent.CATEGORY_LAUNCHER);
@@ -358,7 +332,6 @@ public class Utils {
             return new ArrayList<ResolveInfo>();
         }
     }
-
     public static String toDate(long time) {
         Calendar cal = Calendar.getInstance();
         cal.setTimeInMillis(time);
@@ -370,7 +343,6 @@ public class Utils {
         int second = cal.get(Calendar.SECOND);
         return year + "." + month + "." + day + " " + hour + ":" + minute + ":" + second;
     }
-
     public static String objectName(Object object) {
         if (object == null) {
             return null;
@@ -381,15 +353,13 @@ public class Utils {
         }
         return name;
     }
-
     public static int getUidFromIntent(Intent intent) {
         return 0;
     }
-
     public static boolean isDoppelgangerIntent(Intent intent) {
         return false;
     }
-
+    // 启动最近任务列表中的上一个任务
     public static void launchPreviousApp(Context context) {
         ActivityManager am = (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
         List<ActivityManager.RecentTaskInfo> recentTasks = am.getRecentTasks(2, ActivityManager.RECENT_IGNORE_UNAVAILABLE);
@@ -403,14 +373,12 @@ public class Utils {
                     intent.addFlags(Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY
                             | Intent.FLAG_ACTIVITY_TASK_ON_HOME
                             | Intent.FLAG_ACTIVITY_NEW_TASK);
-                    // SDK 36 已移除 Context.startActivityAsUser(Intent, UserHandle)，
-                    // 兜底使用普通 startActivity（intent 已加 FLAG_ACTIVITY_NEW_TASK）
                     context.startActivity(intent);
                 }
             }
         }
     }
-
+    // 打开系统图库应用
     public static void openGallery(Context context) {
         if (context == null) {
             return;
@@ -436,7 +404,7 @@ public class Utils {
             LSPLogger.e("Utils.openGallery: no gallery handler", t);
         }
     }
-
+    // 使用默认应用打开指定媒体文件
     public static void openMediaWithDefaultApp(Context context, ImageInfo info) {
         try {
             if (context == null || info == null) {
@@ -458,7 +426,7 @@ public class Utils {
             LSPLogger.e("Utils.openMediaWithDefaultApp: no media viewer", t);
         }
     }
-
+    // 使用默认应用打开指定文件
     public static void openFile(Context context, FileInfo info) {
         try {
             if (context == null || info == null || info.filePath == null
@@ -472,7 +440,6 @@ public class Utils {
                 LSPLogger.w("Utils.openFile: no content URI for " + file);
                 return;
             }
-
             Intent intent = new Intent(Intent.ACTION_VIEW);
             intent.addCategory(Intent.CATEGORY_DEFAULT);
             intent.setDataAndType(uri, info.mimeType);
@@ -484,52 +451,42 @@ public class Utils {
             LSPLogger.e("Utils.openFile: failed", t);
         }
     }
-
     public static boolean isSwitchAppAvailable(Context context) {
         return Config.getValue(context, "switch_app");
     }
-
     public static void setSwitchAppAvailable(Context context, boolean available) {
         Config.setValue(context, "switch_app", available);
     }
-
     public static final class Config {
         private static final String CONFIG_NAME = "config";
-
         public static void setValue(Context context, String key, boolean value) {
             SharedPreferences sp = context.getSharedPreferences(CONFIG_NAME, 0);
             SharedPreferences.Editor editor = sp.edit();
             editor.putBoolean(key, value);
             editor.commit();
         }
-
         public static boolean getValue(Context context, String key) {
             return context.getSharedPreferences(CONFIG_NAME, 0).getBoolean(key, false);
         }
-
         public static void setIntValue(Context context, String key, int value) {
             SharedPreferences sp = context.getSharedPreferences(CONFIG_NAME, 0);
             SharedPreferences.Editor editor = sp.edit();
             editor.putInt(key, value);
             editor.commit();
         }
-
         public static int getIntValue(Context context, String key) {
             return context.getSharedPreferences(CONFIG_NAME, 0).getInt(key, 0);
         }
-
         public static void setStringValue(Context context, String key, String value) {
             SharedPreferences sp = context.getSharedPreferences(CONFIG_NAME, 0);
             SharedPreferences.Editor editor = sp.edit();
             editor.putString(key, value);
             editor.commit();
         }
-
         public static String getStringValue(Context context, String key) {
             return context.getSharedPreferences(CONFIG_NAME, 0).getString(key, "");
         }
     }
-
     public static final class Interval {
         public static int getInterval(long currentTime, long time) {
             int curDay = (int) (currentTime / (24L * 60 * 60 * 1000));
@@ -540,12 +497,9 @@ public class Utils {
                     return i;
                 }
             }
-            // should never go here !
             return DAY_INTERVAL.length - 1;
         }
-
         public static final int[] DAY_INTERVAL = new int[] { 0, 1, 7, 30, Integer.MAX_VALUE };
-
         public static final int[] LABEL_INTERVAL = new int[] {
                 R.string.date_label_today,
                 R.string.date_label_yesterday,

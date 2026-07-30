@@ -1,5 +1,4 @@
 package com.hyper.onestep.util;
-
 import java.lang.ref.SoftReference;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -7,10 +6,8 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-
 import com.hyper.onestep.PendingDragEventTask;
 import com.hyper.onestep.lsp.TaskResizer;
-
 import android.content.ClipDescription;
 import android.content.ComponentName;
 import android.content.Context;
@@ -23,20 +20,17 @@ import android.graphics.Bitmap;
 import android.graphics.drawable.Drawable;
 import android.text.TextUtils;
 import android.view.DragEvent;
-
+// 分享目标应用分组项，聚合同包 ComponentName
 public class ResolveInfoGroup extends SidebarItem {
     private static final String TAG = ResolveInfoGroup.class.getName();
-
     private Context mContext;
     private List<ComponentName> mNames = new ArrayList<ComponentName>();
     private SoftReference<Drawable> mAvatar = null;
     private ResolveInfo mPrimaryResolveInfo;
-
     public ResolveInfoGroup(Context context){
         super();
         mContext = context;
     }
-
     public String getPackageName(){
         if(size() > 0){
             return mNames.get(0).getPackageName();
@@ -44,8 +38,6 @@ public class ResolveInfoGroup extends SidebarItem {
             return null;
         }
     }
-
-    //format : name_1|name_2| .. |name_n
     public String getComponentNames(){
         if (size() <= 0) {
             return null;
@@ -62,7 +54,6 @@ public class ResolveInfoGroup extends SidebarItem {
         }
         return sb.toString();
     }
-
     @Override
     public Drawable getAvatar() {
         Drawable ret;
@@ -78,19 +69,16 @@ public class ResolveInfoGroup extends SidebarItem {
         }
         return ret;
     }
-
     public void clearAvatarCache() {
         if (mAvatar != null) {
             mAvatar.clear();
             mAvatar = null;
         }
     }
-
     private Drawable loadIcon() {
         if (size() <= 0 || mContext == null) {
             return null;
         }
-
         PackageManager packageManager = mContext.getPackageManager();
         if (mPrimaryResolveInfo != null) {
             try {
@@ -101,7 +89,6 @@ public class ResolveInfoGroup extends SidebarItem {
             } catch (RuntimeException ignored) {
             }
         }
-
         ComponentName name = mNames.get(0);
         try {
             Drawable drawable = IconRedirect.getRedirectIcon(
@@ -111,7 +98,6 @@ public class ResolveInfoGroup extends SidebarItem {
             }
         } catch (RuntimeException ignored) {
         }
-
         ActivityInfo activityInfo = getPrimaryActivityInfo(packageManager);
         if (activityInfo != null) {
             try {
@@ -134,14 +120,12 @@ public class ResolveInfoGroup extends SidebarItem {
         }
         return packageManager.getDefaultActivityIcon();
     }
-
     @Override
     public CharSequence getDisplayName() {
         String packageName = getPackageName();
         if (TextUtils.isEmpty(packageName) || mContext == null) {
             return "";
         }
-
         PackageManager packageManager = mContext.getPackageManager();
         if (mPrimaryResolveInfo != null) {
             try {
@@ -159,7 +143,6 @@ public class ResolveInfoGroup extends SidebarItem {
             } catch (RuntimeException ignored) {
             }
         }
-
         ActivityInfo activityInfo = getPrimaryActivityInfo(packageManager);
         if (activityInfo != null) {
             try {
@@ -178,7 +161,6 @@ public class ResolveInfoGroup extends SidebarItem {
         }
         return packageName;
     }
-
     private ActivityInfo getPrimaryActivityInfo(PackageManager packageManager) {
         if (size() <= 0 || packageManager == null) {
             return null;
@@ -191,21 +173,18 @@ public class ResolveInfoGroup extends SidebarItem {
             return null;
         }
     }
-
     public void onIconChanged() {
         if (mAvatar != null) {
             mAvatar.clear();
             mAvatar = null;
         }
     }
-
     public boolean acceptDragEvent(Context context, DragEvent event) {
         if (event == null || event.getClipDescription() == null
                 || event.getClipDescription().getMimeTypeCount() <= 0
                 || size() <= 0) {
             return false;
         }
-
         String mimeType = MimeUtils.getCommonMimeType(event);
         if (TextUtils.isEmpty(mimeType)) {
             return false;
@@ -248,14 +227,12 @@ public class ResolveInfoGroup extends SidebarItem {
         }
         return false;
     }
-
     public boolean handleDragEvent(Context context, DragEvent event){
         Tracker.dragSuccess(0, getPackageName());
         boolean isPending = PendingDragEventTask.tryPending(context, event, this);
         if(isPending){
             return true;
         }
-
         if (event == null || event.getClipData() == null
                 || event.getClipData().getItemCount() <= 0
                 || event.getClipDescription() == null
@@ -263,7 +240,6 @@ public class ResolveInfoGroup extends SidebarItem {
                 || size() <= 0) {
             return false;
         }
-
         String mimeType = MimeUtils.getCommonMimeType(event);
         if (TextUtils.isEmpty(mimeType)) {
             return false;
@@ -311,7 +287,6 @@ public class ResolveInfoGroup extends SidebarItem {
                 intent.setAction(Intent.ACTION_SEND);
                 intent.putExtra(Intent.EXTRA_STREAM, event.getClipData().getItemAt(0).getUri());
             }
-
             List<ResolveInfo> infos = context.getPackageManager().queryIntentActivities(intent, 0);
             if (infos != null) {
                 for (ComponentName name : mNames) {
@@ -329,13 +304,10 @@ public class ResolveInfoGroup extends SidebarItem {
         }
         return false;
     }
-
     @Override
     public boolean openUI(Context context) {
-        // don't support this action
         return false;
     }
-
     public boolean containsComponent(ComponentName cn) {
         for (ComponentName name : mNames) {
             if (name.equals(cn)) {
@@ -344,7 +316,6 @@ public class ResolveInfoGroup extends SidebarItem {
         }
         return false;
     }
-
     public void add(ResolveInfo ri) {
         if (ri == null || ri.activityInfo == null) {
             return;
@@ -354,19 +325,15 @@ public class ResolveInfoGroup extends SidebarItem {
         }
         mNames.add(new ComponentName(ri.activityInfo.packageName, ri.activityInfo.name));
     }
-
     public int size() {
         return mNames.size();
     }
-
     public ComponentName get(int i) {
         return mNames.get(i);
     }
-
     public boolean isValid() {
         return fromData(mContext, getPackageName(), getComponentNames()) != null;
     }
-
     public static ResolveInfoGroup fromData(Context context, String pkgName, String componentNames) {
         List<ResolveInfoGroup> rigs = ResolveInfoManager.getInstance(context).getAllResolveInfoGroupByPackageName(pkgName);
         if (rigs != null) {
@@ -379,7 +346,6 @@ public class ResolveInfoGroup extends SidebarItem {
         }
         return null;
     }
-
     public static boolean sameComponet(ResolveInfo ri1, ResolveInfo ri2){
         if(ri1.activityInfo == null || ri2.activityInfo == null){
             return false;
@@ -387,9 +353,7 @@ public class ResolveInfoGroup extends SidebarItem {
         return ri1.activityInfo.packageName.equals(ri2.activityInfo.packageName) &&
                 ri1.activityInfo.name.equals(ri2.activityInfo.name);
     }
-
     public static class IndexComparator implements Comparator<ResolveInfoGroup> {
-
         @Override
         public int compare(ResolveInfoGroup lhs, ResolveInfoGroup rhs) {
             if (lhs.getIndex() > rhs.getIndex()) {
@@ -401,7 +365,6 @@ public class ResolveInfoGroup extends SidebarItem {
             return 0;
         }
     }
-
     public static class SameGroupComparator implements Comparator<ResolveInfo> {
         private static Set<String> sPACKAGES;
         private static List<String> sPACKAGE_ORDER;
@@ -417,16 +380,9 @@ public class ResolveInfoGroup extends SidebarItem {
             sPACKAGE_ORDER.add("com.android.mms");
             sPACKAGE_ORDER.add("com.android.calendar");
         }
-
         public static boolean notNeedSplit(String packageName) {
-            /**
-            if (sPACKAGES.contains(packageName)) {
-                return true;
-            }
-            */
             return packageName.startsWith("com.smartisan");
         }
-
         public final int compare(ResolveInfo a, ResolveInfo b) {
             String pkgA = a.activityInfo.packageName;
             String pkgB = b.activityInfo.packageName;
@@ -463,7 +419,6 @@ public class ResolveInfoGroup extends SidebarItem {
                 return 0;
             }
         }
-
         public static final int getLabel(ResolveInfo ri) {
             if (ri.labelRes != 0) {
                 return ri.labelRes;
@@ -477,7 +432,6 @@ public class ResolveInfoGroup extends SidebarItem {
             return 0;
         }
     }
-
     @Override
     public boolean equals(Object o) {
         ResolveInfoGroup rig = (ResolveInfoGroup) o;
@@ -489,7 +443,6 @@ public class ResolveInfoGroup extends SidebarItem {
         }
         return true;
     }
-
     @Override
     public void delete() {
         ResolveInfoManager.getInstance(mContext).delete(this);

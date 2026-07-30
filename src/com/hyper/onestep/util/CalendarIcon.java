@@ -1,5 +1,4 @@
 package com.hyper.onestep.util;
-
 import android.content.res.AssetManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -7,30 +6,24 @@ import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.Rect;
 import android.graphics.RectF;
-
 import com.hyper.onestep.SidebarApplication;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Calendar;
-
+// 日历图标生成工具，合成日期与背景
 public class CalendarIcon {
-
     private final static String CALENDAR_DAY_PREFIX = "calendar/";
     private final static String CALENDAR_BG = "calendar/bg.png";
     private final static String CALENDAR_FLIP = "calendar/flip.png";
     private final static String CALENDAR_RING = "calendar/ring.png";
-
     private static int calendar_back_size   = 192;
     private static int calendar_day_offsetx = 45;
     private static int calendar_day_offsety = 72;
     private static int calendar_day_w       = 102;
     private static int calendar_day_h       = 78;
-
     private static int mCurrentDay = -1;
     private static Bitmap mCalendarIcon;
     private static Bitmap mOldIcon;
-
     public static void generateIcon() {
         int currentDay = getCurrentDay();
         if (mCalendarIcon == null) {
@@ -42,19 +35,16 @@ public class CalendarIcon {
             }
         }
     }
-
     public static void releaseOldIcon() {
         if (mOldIcon != null) {
             mOldIcon.recycle();
             mOldIcon = null;
         }
     }
-
     public static Bitmap getCalendarIconBitmap() {
         generateIcon();
         return mCalendarIcon;
     }
-
     private static Bitmap createComposedBitmap(int currentDay) {
         Bitmap bgBitmap = getBitmap(CALENDAR_BG);
         Bitmap ringBitmap = getBitmap(CALENDAR_RING);
@@ -82,18 +72,15 @@ public class CalendarIcon {
         day.recycle();
         return newBitmap;
     }
-
     private static int getCurrentDay() {
         Calendar calendar = Calendar.getInstance();
         calendar.setTimeInMillis(System.currentTimeMillis());
         int day = calendar.get(Calendar.DAY_OF_MONTH);
         return day;
     }
-
     private static String getDayImageName(int day) {
         return CALENDAR_DAY_PREFIX + (day - 1) + ".png";
     }
-
     private static Bitmap getBitmap(String path) {
         Bitmap bmap = null;
         try {

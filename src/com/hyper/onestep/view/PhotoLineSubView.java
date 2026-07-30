@@ -1,5 +1,4 @@
 package com.hyper.onestep.view;
-
 import android.content.Context;
 import android.content.res.Configuration;
 import android.graphics.Bitmap;
@@ -17,51 +16,41 @@ import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
-
 import com.hyper.onestep.R;
 import com.hyper.onestep.util.ImageInfo;
 import com.hyper.onestep.util.ImageLoader;
 import com.hyper.onestep.util.Tracker;
 import com.hyper.onestep.util.Utils;
-
 import java.io.File;
-
-
+// 照片子视图，展示单张图片及加载失败态
 public class PhotoLineSubView extends FrameLayout {
     private static final int IMAGE_COLOR = Color.parseColor("#9a404040");
-
     ImageView photoImageView;
     ImageView mediaTypeBadge;
     TextView loadFailedText;
     RelativeLayout openGallery;
     RelativeLayout showMorePhoto;
-
     private ImageInfo imageInfo;
     private ImageLoader mImageLoader;
     private ImageLoaderCallBack mCallBack;
     private Handler mHandler;
     private Context mContext;
-
     public PhotoLineSubView(Context context) {
         this(context, null);
     }
-
     public PhotoLineSubView(Context context, AttributeSet attrs) {
         this(context, attrs, 0);
     }
-
     public PhotoLineSubView(Context context, AttributeSet attrs,
             int defStyleAttr) {
         this(context, attrs, defStyleAttr, 0);
     }
-
     public PhotoLineSubView(Context context, AttributeSet attrs,
             int defStyleAttr, int defStyleRes) {
         super(context, attrs, defStyleAttr, defStyleRes);
         mContext = context;
         mHandler = new Handler(Looper.getMainLooper());
     }
-
     @Override
     protected void onFinishInflate() {
         super.onFinishInflate();
@@ -77,7 +66,6 @@ public class PhotoLineSubView extends FrameLayout {
             }
         });
     }
-
     @Override
     protected void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
@@ -87,11 +75,9 @@ public class PhotoLineSubView extends FrameLayout {
         moreText.setText(R.string.load_more);
         loadFailedText.setText(R.string.fail_to_load_image);
     }
-
     public void setImageLoader(ImageLoader imageLoader) {
         mImageLoader = imageLoader;
     }
-
     public void reset() {
         stopPreviewAnimation();
         if (mCallBack != null) {
@@ -103,11 +89,9 @@ public class PhotoLineSubView extends FrameLayout {
         openGallery.setVisibility(View.INVISIBLE);
         showMorePhoto.setVisibility(View.INVISIBLE);
     }
-
     public void showPhoto(ImageInfo info) {
         showPhoto(info, true);
     }
-
     public void showPhoto(ImageInfo info, boolean loadPreview) {
         photoImageView.setVisibility(View.VISIBLE);
         loadFailedText.setVisibility(View.INVISIBLE);
@@ -122,7 +106,6 @@ public class PhotoLineSubView extends FrameLayout {
                 Tracker.onClick(Tracker.EVENT_OPEN_PIC, "type", "1");
             }
         });
-
         photoImageView.setOnLongClickListener(new View.OnLongClickListener() {
             @Override
             public boolean onLongClick(View v) {
@@ -136,7 +119,6 @@ public class PhotoLineSubView extends FrameLayout {
                 return true;
             }
         });
-
         if(mCallBack != null) {
             mCallBack.setValid(false);
         }
@@ -152,14 +134,12 @@ public class PhotoLineSubView extends FrameLayout {
             loadPreviewIfNeeded();
         }
     }
-
     public void pausePreviewWork() {
         if (mCallBack != null) {
             mCallBack.setValid(false);
         }
         stopPreviewAnimation();
     }
-
     public void loadPreviewIfNeeded() {
         if (imageInfo == null || mImageLoader == null
                 || photoImageView.getVisibility() != View.VISIBLE) {
@@ -176,26 +156,22 @@ public class PhotoLineSubView extends FrameLayout {
         mImageLoader.loadImage(imageInfo.filePath, imageInfo.mimeType,
                 mCallBack = new ImageLoaderCallBack());
     }
-
     public void showMorePhoto(View.OnClickListener listener) {
         reset();
         showMorePhoto.setVisibility(View.VISIBLE);
         showMorePhoto.setOnClickListener(listener);
     }
-
     public void showOpenGallery() {
         if (openGallery.getVisibility() != View.VISIBLE) {
             openGallery.setVisibility(View.VISIBLE);
         }
     }
-
     public void updateBitmap(Bitmap bmp) {
         if (photoImageView.getVisibility() != View.VISIBLE) {
             return;
         }
         replacePreviewDrawable(new BitmapDrawable(mContext.getResources(), bmp));
     }
-
     public void updateDrawable(Drawable drawable) {
         if (photoImageView.getVisibility() != View.VISIBLE) {
             stopDrawable(drawable);
@@ -206,7 +182,6 @@ public class PhotoLineSubView extends FrameLayout {
             ((Animatable) drawable).start();
         }
     }
-
     private void replacePreviewDrawable(Drawable drawable) {
         Drawable old = photoImageView.getDrawable();
         if (old == drawable) {
@@ -215,30 +190,23 @@ public class PhotoLineSubView extends FrameLayout {
         stopDrawable(old);
         photoImageView.setImageDrawable(drawable);
     }
-
     private void stopPreviewAnimation() {
         stopDrawable(photoImageView.getDrawable());
     }
-
     private static void stopDrawable(Drawable drawable) {
         if (drawable instanceof Animatable) {
             ((Animatable) drawable).stop();
         }
     }
-
     class ImageLoaderCallBack implements ImageLoader.Callback {
-
         private volatile boolean mValid = true;
-
         public void setValid(boolean valid) {
             mValid = valid;
         }
-
         @Override
         public boolean valid() {
             return mValid;
         }
-
         @Override
         public void onLoadComplete(final String filePath, Bitmap bitmap) {
             if (!mValid || imageInfo.filePath == null || !imageInfo.filePath.equals(filePath)) {
@@ -249,7 +217,6 @@ public class PhotoLineSubView extends FrameLayout {
             }
             mHandler.post(new SetBitmapTask(bitmap, imageInfo.filePath, this));
         }
-
         @Override
         public void onLoadDrawableComplete(final String filePath, final Drawable drawable) {
             if (!mValid || imageInfo.filePath == null || !imageInfo.filePath.equals(filePath)) {
@@ -280,7 +247,6 @@ public class PhotoLineSubView extends FrameLayout {
             });
         }
     }
-
     class SetBitmapTask implements Runnable {
         private Bitmap mBitmap;
         private String mFilePath;
@@ -290,7 +256,6 @@ public class PhotoLineSubView extends FrameLayout {
             mFilePath = filePath;
             mOwner = owner;
         }
-
         @Override
         public void run() {
             if (mOwner.valid() && imageInfo.filePath != null

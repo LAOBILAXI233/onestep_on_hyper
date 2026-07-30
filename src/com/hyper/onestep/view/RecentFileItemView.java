@@ -1,12 +1,9 @@
 package com.hyper.onestep.view;
-
 import java.io.File;
-
 import com.hyper.onestep.R;
 import com.hyper.onestep.util.FileInfo;
 import com.hyper.onestep.util.Tracker;
 import com.hyper.onestep.util.Utils;
-
 import android.content.Context;
 import android.content.res.Configuration;
 import android.util.AttributeSet;
@@ -16,8 +13,7 @@ import com.hyper.onestep.lsp.DragHelper;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
-
-
+// 最近文件列表条目视图
 public class RecentFileItemView extends LinearLayout {
     private TextView mDateText;
     private View mFileItemGroup;
@@ -25,41 +21,33 @@ public class RecentFileItemView extends LinearLayout {
     private TextView mFileName;
     private TextView mMoreLabel;
     private Context mContext;
-
     public RecentFileItemView(Context context) {
         this(context, null);
     }
-
     public RecentFileItemView(Context context, AttributeSet attrs) {
         this(context, attrs, 0);
     }
-
     public RecentFileItemView(Context context, AttributeSet attrs,
             int defStyleAttr) {
         this(context, attrs, defStyleAttr, 0);
     }
-
     public RecentFileItemView(Context context, AttributeSet attrs,
             int defStyleAttr, int defStyleRes) {
         super(context, attrs, defStyleAttr, defStyleRes);
         mContext = context;
-        //set layout
         setOrientation(LinearLayout.VERTICAL);
         LayoutInflater.from(context).inflate(R.layout.recent_file_item, this, true);
-        // find view
         mDateText = (TextView) findViewById(R.id.date_content);
         mFileItemGroup = findViewById(R.id.recent_file_item);
         mFileName = (TextView) findViewById(R.id.file_name);
         mIcon = (ImageView) findViewById(R.id.file_icon);
         mMoreLabel = (TextView) findViewById(R.id.more_label);
     }
-
     @Override
     protected void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
         mMoreLabel.setText(R.string.load_more);
     }
-
     public void reset() {
         mMoreLabel.setVisibility(View.GONE);
         mDateText.setVisibility(View.GONE);
@@ -67,7 +55,6 @@ public class RecentFileItemView extends LinearLayout {
         setOnClickListener(null);
         setOnLongClickListener(null);
     }
-
     public void showItem(final FileInfo info) {
         mFileName.setText(new File(info.filePath).getName());
         mIcon.setImageResource(info.getIconId());
@@ -87,12 +74,10 @@ public class RecentFileItemView extends LinearLayout {
             }
         });
     }
-
     public void showDate(int resId) {
         mDateText.setText(resId);
         mDateText.setVisibility(View.VISIBLE);
     }
-
     public void showMoreTag(View.OnClickListener listener) {
         mMoreLabel.setVisibility(View.VISIBLE);
         setOnClickListener(listener);

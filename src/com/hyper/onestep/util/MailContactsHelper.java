@@ -1,10 +1,8 @@
 package com.hyper.onestep.util;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
 import android.content.Context;
 import android.database.ContentObserver;
 import android.database.Cursor;
@@ -14,7 +12,7 @@ import android.os.Handler;
 import android.os.Message;
 import android.provider.ContactsContract;
 import android.text.TextUtils;
-
+// 邮箱联系人辅助类，查询 ContactsContract 并缓存
 public class MailContactsHelper {
     private volatile static MailContactsHelper sInstance;
     public synchronized static MailContactsHelper getInstance(Context context){
@@ -27,29 +25,24 @@ public class MailContactsHelper {
         }
         return sInstance;
     }
-
     private Context mContext = null;
     private ContentObserver mContentObserver = null;
     private Map<String, List<Contact>> mContactsMap = new HashMap<String, List<Contact>>();
     private ContactRefreshAsyncTask mGenerateContactTask;
-
     private MailContactsHelper(Context context) {
         mContext = context;
         sendLoadingContactMessage();
         registerContentObserver();
     }
-
     private void registerContentObserver() {
         mContentObserver = new ContactsObserver(mHandler);
         mContext.getContentResolver().registerContentObserver(ContactsContract.CommonDataKinds.Email.CONTENT_URI, true, mContentObserver);
     }
-
     public boolean isContact(String address) {
         synchronized (MailContactsHelper.class) {
             return mContactsMap.containsKey(address);
         }
     }
-
     public long getContactId(String address) {
         synchronized (MailContactsHelper.class) {
             if (TextUtils.isEmpty(address) || mContactsMap.isEmpty()
@@ -58,28 +51,23 @@ public class MailContactsHelper {
             return getContectNameList(address).get(0).id;
         }
     }
-
     private List<Contact> getContectNameList(String address) {
         synchronized (MailContactsHelper.class) {
             return mContactsMap.get(address);
         }
     }
-
     private void sendLoadingContactMessage() {
         mHandler.removeMessages(MSG_CONTACTS_CHANGED);
         mHandler.sendMessageDelayed(mHandler.obtainMessage(MSG_CONTACTS_CHANGED), 500);
     }
-
     private void setContactsMap(Map<String, List<Contact>> contactsMap) {
         synchronized (MailContactsHelper.class) {
             mContactsMap.clear();
             mContactsMap.putAll(contactsMap);
         }
     }
-
     private static final int MSG_CONTACTS_CHANGED = 1;
     private Handler mHandler = new Handler() {
-
         @Override
         public void handleMessage(Message msg) {
             super.handleMessage(msg);
@@ -91,13 +79,11 @@ public class MailContactsHelper {
                     mGenerateContactTask = new ContactRefreshAsyncTask();
                     mGenerateContactTask.execute();
                     break;
-
                 default:
                     break;
             }
         }
     };
-
     private Map<String, List<Contact>> getAllContactsWithEmail() {
         Map<String, List<Contact>> contactsMap = new HashMap<String, List<Contact>>();
         Cursor cursor = null;
@@ -130,25 +116,21 @@ public class MailContactsHelper {
             }
         }
     }
-
     class Contact {
         public long id;
         public String email;
         public String name;
     }
-
     private class ContactsObserver extends ContentObserver {
         public ContactsObserver(final Handler handler) {
             super(handler);
         }
-
         @Override
         public void onChange(boolean selfChange, Uri uri) {
             super.onChange(selfChange, uri);
             mHandler.obtainMessage(MSG_CONTACTS_CHANGED).sendToTarget();
         }
     }
-
     private class ContactRefreshAsyncTask extends AsyncTask<Object, Object, Void> {
         @Override
         protected Void doInBackground(Object... params) {

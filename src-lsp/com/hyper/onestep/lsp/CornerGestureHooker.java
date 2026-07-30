@@ -1,15 +1,11 @@
 package com.hyper.onestep.lsp;
-
 import android.content.res.Resources;
 import android.os.SystemClock;
 import android.util.DisplayMetrics;
 import android.view.MotionEvent;
-
 import com.hyper.onestep.SidebarController;
 import com.hyper.onestep.SidebarMode;
-
 import io.github.libxposed.api.XposedInterface;
-
 /** Detects a horizontal inward swipe that starts at either top corner. */
 public final class CornerGestureHooker implements XposedInterface.Hooker {
     private static final int NONE = 0;
@@ -19,18 +15,15 @@ public final class CornerGestureHooker implements XposedInterface.Hooker {
     private static float sDownX;
     private static float sDownY;
     private static long sLastTriggerTime;
-
+    // 拦截状态栏触摸，识别顶部角落内滑手势并维持通知栏坐标变换
     @Override
     public Object intercept(XposedInterface.Chain chain) throws Throwable {
         Object arg = chain.getArg(0);
         MotionEvent event = arg instanceof MotionEvent ? (MotionEvent) arg : null;
         if (event != null) handleMotionEvent(event);
-
         SidebarController controller = SidebarController.peekInstance();
         if (event != null && controller != null && controller.isInOneStepMode()
                 && event.getActionMasked() != MotionEvent.ACTION_CANCEL) {
-            // NotificationGuts is inflated after the shade opens. Reattach the
-            // transform before mapping the same event into the main task area.
             controller.reapplyNotificationShadeTransform();
         }
         Object target = chain.getThisObject();
@@ -44,7 +37,6 @@ public final class CornerGestureHooker implements XposedInterface.Hooker {
             if (mapped) controller.mapNotificationShadeTouchToScreen(event);
         }
     }
-
     private static void handleMotionEvent(MotionEvent event) {
         DisplayMetrics metrics = Resources.getSystem().getDisplayMetrics();
         float density = metrics.density;
@@ -54,7 +46,6 @@ public final class CornerGestureHooker implements XposedInterface.Hooker {
         float maxVerticalDrift = 96f * density;
         float x = event.getRawX();
         float y = event.getRawY();
-
         switch (event.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
                 sTrackingEdge = NONE;
@@ -82,13 +73,11 @@ public final class CornerGestureHooker implements XposedInterface.Hooker {
                 break;
         }
     }
-
     private static void trigger(int edge) {
         sTrackingEdge = NONE;
         long now = SystemClock.uptimeMillis();
         if (now - sLastTriggerTime < 750L) return;
         sLastTriggerTime = now;
-
         SidebarController controller = SidebarController.peekInstance();
         if (controller == null || controller.isInOneStepMode()) return;
         int mode = edge == LEFT ? SidebarMode.MODE_LEFT : SidebarMode.MODE_RIGHT;

@@ -1,5 +1,4 @@
 package com.hyper.onestep.lsp;
-
 import android.animation.Animator;
 import android.animation.ValueAnimator;
 import android.graphics.Rect;
@@ -7,19 +6,9 @@ import android.graphics.Matrix;
 import android.util.SparseArray;
 import android.view.SurfaceControl;
 import android.view.animation.PathInterpolator;
-
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
-
-/**
- * Uses SystemUI's already-registered ShellTaskOrganizer to transform a task leash.
- *
- * HyperOS keeps the organizer in:
- * SystemUIAppComponentFactoryBase.systemUIInitializer -> WMComponentImpl
- * -> provideShellTaskOrganizerProvider -> ShellTaskOrganizer.mTasks.
- * Registering another TaskOrganizer would race with WMShell and can steal task callbacks,
- * so this class only reads the existing organizer.
- */
+// 通过 SurfaceControl 旋转与裁剪任务 Surface
 final class TaskSurfaceTransformer {
     private static final String SYSTEMUI_FACTORY =
             "com.android.systemui.SystemUIAppComponentFactoryBase";
@@ -28,7 +17,6 @@ final class TaskSurfaceTransformer {
             "provideShellTaskOrganizerProvider";
     private static final String TASKS_FIELD = "mTasks";
     private static final String LOCK_FIELD = "mLock";
-
     private static SurfaceControl sLeash;
     private static int sTaskId = -1;
     private static boolean sRotated;
@@ -63,14 +51,12 @@ final class TaskSurfaceTransformer {
     private static float sCurrentDsdy = 1f;
     private static float sCurrentPositionX;
     private static float sCurrentPositionY;
-
     private TaskSurfaceTransformer() {}
-
+    // 设置宿主进程的ClassLoader用于反射查找任务leash
     static void setHostClassLoader(ClassLoader classLoader) {
         sHostClassLoader = classLoader;
         LSPLogger.d("TaskSurfaceTransformer.setHostClassLoader: " + classLoader);
     }
-
     static String getDebugState() {
         return "taskId=" + sTaskId
                 + " rotated=" + sRotated
@@ -85,18 +71,12 @@ final class TaskSurfaceTransformer {
                 + " swapSelected=" + sSwapSelectedTaskId
                 + " swapOld=" + sSwapOldTaskId;
     }
-
+    // 缩放任务Surface到OneStep主区域并平移到指定位置
     static boolean shrink(int taskId, int sidebarWidth, int screenWidth,
                           int topHeight, int screenHeight, boolean sidebarOnLeft) {
         return shrink(taskId, sidebarWidth, screenWidth, topHeight, screenHeight,
                 sidebarOnLeft, false);
     }
-
-    /**
-     * Rewrites the portrait presentation when a framework transition has reset the task
-     * leash behind our back. The caller must keep {@code force} bounded; otherwise this
-     * would turn the normal idempotent reconcile path into continuous SurfaceFlinger work.
-     */
     static boolean shrink(int taskId, int sidebarWidth, int screenWidth,
                           int topHeight, int screenHeight, boolean sidebarOnLeft,
                           boolean force) {
@@ -108,20 +88,14 @@ final class TaskSurfaceTransformer {
                     + " top=" + topHeight);
             return false;
         }
-
         SurfaceControl leash = findTaskLeash(taskId);
         if (leash == null || !leash.isValid()) {
             LSPLogger.w("TaskSurfaceTransformer.shrink: no valid leash for taskId=" + taskId);
             return false;
         }
-
         float scaleX = (screenWidth - sidebarWidth) / (float) screenWidth;
         float scaleY = (screenHeight - topHeight) / (float) screenHeight;
         float positionX = sidebarOnLeft ? sidebarWidth : 0f;
-        // Idempotence: the 120 ms reconcile loop re-invokes shrink for the settled
-        // task. Re-issuing the same SurfaceControl.Transaction costs a binder
-        // round-trip and a SurfaceFlinger merge each time — that was the constant
-        // "rotate90 applied" spam in device logs and a direct source of jank.
         if (!force && sTaskId == taskId && !sRotated && leash == sLeash
                 && Math.abs(sFinalDsdx - scaleX) < 0.0001f
                 && Math.abs(sFinalDtdx) < 0.0001f && Math.abs(sFinalDtdy) < 0.0001f
@@ -131,11 +105,7 @@ final class TaskSurfaceTransformer {
             return true;
         }
         try (SurfaceControl.Transaction transaction = new SurfaceControl.Transaction()) {
-            // rotate90() crops the full-screen task to WMS's fixed-orientation content.
-            // A portrait re-entry must clear that crop before applying its regular scale.
             setWindowCrop(transaction, leash, null);
-            // Write the complete matrix every time. setScale alone can preserve stale
-            // off-diagonal rotation terms after a fullscreen exit or task swap.
             if (!setLayerMatrix(transaction, leash, scaleX, 0f, 0f, scaleY)) {
                 transaction.setScale(leash, scaleX, scaleY);
             }
@@ -166,7 +136,6 @@ final class TaskSurfaceTransformer {
             return false;
         }
     }
-
     /** A small settle for non-slot task changes (launch/reconcile paths). */
     static void animateReveal(final int taskId) {
         animateToFinal(taskId,
@@ -174,12 +143,7 @@ final class TaskSurfaceTransformer {
                 sFinalDtdy * 0.965f, sFinalDsdy * 0.965f,
                 sFinalPositionX + 12f, sFinalPositionY + 8f, 0.68f, 240L);
     }
-
-    /**
-     * Animates a task from the selected side slot into the main area.
-     * Portrait geometry is exact; landscape keeps the proven reveal path because
-     * its fixed-orientation matrix is owned by the rotation hook.
-     */
+    // 从槽位位置动画展开任务Surface到OneStep主区域
     static void animateRevealFromSlot(final int taskId, int slotIndex,
             int sidebarWidth, int screenWidth, int topHeight, int screenHeight,
             boolean sidebarOnLeft) {
@@ -197,12 +161,6 @@ final class TaskSurfaceTransformer {
         animateToFinal(taskId, slotScaleX, 0f, 0f, slotScaleY,
                 slotPositionX, slotPositionY, 1f, 280L);
     }
-
-    /**
-     * Captures the presentation currently applied to a task.  This is deliberately
-     * separate from the final presentation: a second tap may interrupt the first
-     * transition and should continue from the frame that is actually on screen.
-     */
     static float[] capturePresentation(int taskId) {
         if (taskId <= 0 || sTaskId != taskId) return null;
         return new float[] {
@@ -210,7 +168,6 @@ final class TaskSurfaceTransformer {
                 sCurrentPositionX, sCurrentPositionY
         };
     }
-
     /** Computes the matrix/position for a clockwise 90 degree fit into a destination. */
     static float[] rotatedPresentation(Rect source, Rect destination) {
         if (source == null || destination == null
@@ -231,13 +188,7 @@ final class TaskSurfaceTransformer {
                 top - source.left * scale
         };
     }
-
-    /**
-     * Animates both real task surfaces in one choreographer-driven timeline.  The
-     * selected task grows from its slot while the old main task shrinks into that
-     * exact slot.  The old task is moved to its virtual display by the completion
-     * callback only after it reaches the hand-off frame.
-     */
+    // 动画交换两个任务Surface的位置并完成主任务交接
     static boolean animateSwap(final int selectedTaskId, final int oldTaskId,
             float[] selectedStart, float[] oldStart, float[] oldFinal,
             final Runnable onFinished) {
@@ -256,7 +207,6 @@ final class TaskSurfaceTransformer {
                     + selectedTaskId + " old=" + oldTaskId);
             return false;
         }
-
         final float[] selectedFinal = new float[] {
                 sFinalDsdx, sFinalDtdx, sFinalDtdy, sFinalDsdy,
                 sFinalPositionX, sFinalPositionY
@@ -271,7 +221,6 @@ final class TaskSurfaceTransformer {
         sSwapOldFinal = oldFinal.clone();
         sSwapFinishCallback = onFinished;
         sSwapActive = true;
-
         if (!applyPresentationPair(selected, selectedStart, old, oldStart)) {
             clearSwapState();
             return false;
@@ -302,18 +251,13 @@ final class TaskSurfaceTransformer {
                 LSPLogger.d("TaskSurfaceTransformer.animateSwap: start selected="
                         + selectedTaskId + " old=" + oldTaskId);
             }
-
             @Override
             public void onAnimationEnd(Animator animation) {
                 if (sSwapActive) completeSwapAnimation();
             }
-
             @Override
             public void onAnimationCancel(Animator animation) {
-                // A new tap calls finishSwapAnimation(), which commits both end frames
-                // before the next swap starts.  Do not invoke the callback twice here.
             }
-
             @Override
             public void onAnimationRepeat(Animator animation) {
             }
@@ -321,17 +265,14 @@ final class TaskSurfaceTransformer {
         animator.start();
         return true;
     }
-
     static boolean isSwapAnimating() {
         return sSwapActive;
     }
-
     /** Commits the hand-off frame immediately when another tap interrupts the curve. */
     static void finishSwapAnimation() {
         if (!sSwapActive) return;
         completeSwapAnimation();
     }
-
     private static void completeSwapAnimation() {
         if (!sSwapActive) return;
         sSwapActive = false;
@@ -355,7 +296,6 @@ final class TaskSurfaceTransformer {
         if (callback != null) callback.run();
         LSPLogger.d("TaskSurfaceTransformer.animateSwap: end");
     }
-
     private static float[] interpolate(float[] start, float[] end, float progress) {
         float[] result = new float[6];
         for (int i = 0; i < result.length; i++) {
@@ -363,7 +303,6 @@ final class TaskSurfaceTransformer {
         }
         return result;
     }
-
     private static void animateToFinal(final int taskId,
             final float startDsdx, final float startDtdx,
             final float startDtdy, final float startDsdy,
@@ -376,7 +315,6 @@ final class TaskSurfaceTransformer {
                     + taskId);
             return;
         }
-
         final float finalDsdx = sFinalDsdx;
         final float finalDtdx = sFinalDtdx;
         final float finalDtdy = sFinalDtdy;
@@ -385,7 +323,6 @@ final class TaskSurfaceTransformer {
         final float finalPositionY = sFinalPositionY;
         final ValueAnimator animator = ValueAnimator.ofFloat(0f, 1f);
         animator.setDuration(duration);
-        // Material standard-decelerate: quick response, long soft settle.
         animator.setInterpolator(new PathInterpolator(0.22f, 1f, 0.36f, 1f));
         sTransitionAnimator = animator;
         sTransitionTaskId = taskId;
@@ -426,24 +363,19 @@ final class TaskSurfaceTransformer {
             public void onAnimationStart(Animator animation) {
                 LSPLogger.d("TaskSurfaceTransformer.animateReveal: start taskId=" + taskId);
             }
-
             @Override
             public void onAnimationEnd(Animator animation) {
                 finishTransition(taskId);
             }
-
             @Override
             public void onAnimationCancel(Animator animation) {
-                // onAnimationEnd follows cancel(); finishTransition is idempotent.
             }
-
             @Override
             public void onAnimationRepeat(Animator animation) {
             }
         });
         animator.start();
     }
-
     /** Cancels a running reveal and leaves its leash fully visible. */
     static void cancelTransition() {
         if (sSwapActive) finishSwapAnimation();
@@ -460,7 +392,6 @@ final class TaskSurfaceTransformer {
         sTransitionAnimator = null;
         sTransitionTaskId = -1;
     }
-
     private static void finishTransition(int taskId) {
         SurfaceControl leash = sTaskId == taskId ? sLeash : findTaskLeash(taskId);
         if (leash != null && leash.isValid()) {
@@ -473,20 +404,10 @@ final class TaskSurfaceTransformer {
         }
         LSPLogger.d("TaskSurfaceTransformer.animateReveal: end taskId=" + taskId);
     }
-
     /** Rotates a landscape task into the portrait OneStep main area without non-uniform scaling. */
     static boolean rotate90(int taskId, Rect source, Rect destination) {
         return rotate90(taskId, source, destination, false);
     }
-
-    /**
-     * @param force true to bypass the idempotence guard. WMS resets the leash matrix on
-     *              its own (in-task activity transitions, relayout after config dispatch);
-     *              the steady low-rate refresh must rewrite it even when OUR bookkeeping
-     *              says the transform is already applied — otherwise the task renders in
-     *              the raw letterbox position, hidden behind the OneStep top bar, and the
-     *              main area goes black (the regression the continuous spam used to mask).
-     */
     static boolean rotate90(int taskId, Rect source, Rect destination, boolean force) {
         if (source == null || destination == null
                 || source.width() <= 0 || source.height() <= 0
@@ -495,19 +416,14 @@ final class TaskSurfaceTransformer {
                     + " source=" + source + " destination=" + destination);
             return false;
         }
-
         SurfaceControl leash = sTaskId == taskId ? sLeash : findTaskLeash(taskId);
         if (leash == null || !leash.isValid()) {
-            // The cached leash can go stale across an in-task activity transition
-            // (e.g. a game splash -> Unity player). Re-resolve before giving up;
-            // falling through to the portrait shrink path here was a wrong-state trap.
             leash = findTaskLeash(taskId);
         }
         if (leash == null || !leash.isValid()) {
             LSPLogger.w("TaskSurfaceTransformer.rotate90: no valid leash for taskId=" + taskId);
             return false;
         }
-
         float scale = Math.min(
                 destination.width() / (float) source.height(),
                 destination.height() / (float) source.width());
@@ -517,8 +433,6 @@ final class TaskSurfaceTransformer {
         float top = destination.top + (destination.height() - rotatedHeight) * 0.5f;
         float positionX = left + source.bottom * scale;
         float positionY = top - source.left * scale;
-
-        // Idempotence: skip when this exact rotation is already on the leash.
         if (!force && sTaskId == taskId && sRotated && leash == sLeash
                 && Math.abs(sFinalDtdx - scale) < 0.0001f
                 && Math.abs(sFinalDtdy + scale) < 0.0001f
@@ -526,19 +440,11 @@ final class TaskSurfaceTransformer {
                 && Math.abs(sFinalPositionY - positionY) < 0.5f) {
             return true;
         }
-
         try (SurfaceControl.Transaction transaction = new SurfaceControl.Transaction()) {
-            // SurfaceControl's float overload orders the off-diagonal values as
-            // (dtdx, dtdy), producing [dsdx dtdy; dtdx dsdy].
-            // Clockwise 90 degrees: x' = -scale*y + H*scale, y' = scale*x.
             if (!setLayerMatrix(transaction, leash, 0f, scale, -scale, 0f)) {
                 LSPLogger.w("TaskSurfaceTransformer.rotate90: setMatrix unavailable");
                 return false;
             }
-            // The matrix is calculated from the fixed-orientation letterbox, not from the
-            // full portrait task leash. Crop to that same source or the unused 1440x3200
-            // area is rotated as well, bleeds under the side rail and hides edge controls.
-            // shrink()/restore() always clear this crop before a portrait presentation.
             boolean cropApplied = setWindowCrop(transaction, leash, source);
             transaction.setPosition(leash, positionX, positionY);
             transaction.apply();
@@ -568,7 +474,6 @@ final class TaskSurfaceTransformer {
             return false;
         }
     }
-
     private static boolean setLayerMatrix(SurfaceControl.Transaction transaction,
             SurfaceControl leash, float dsdx, float dtdx, float dtdy, float dsdy) {
         try {
@@ -578,12 +483,10 @@ final class TaskSurfaceTransformer {
             method.invoke(transaction, leash, dsdx, dtdx, dtdy, dsdy);
             return true;
         } catch (NoSuchMethodException ignored) {
-            // Android 16 also ships a Matrix overload on some framework builds.
         } catch (Throwable t) {
             LSPLogger.w("TaskSurfaceTransformer.setLayerMatrix(float) failed", t);
             return false;
         }
-
         try {
             Method method = SurfaceControl.Transaction.class.getDeclaredMethod("setMatrix",
                     SurfaceControl.class, Matrix.class, float[].class);
@@ -601,7 +504,6 @@ final class TaskSurfaceTransformer {
             return false;
         }
     }
-
     /** Sets or clears the leash-local crop across Android SurfaceControl API variants. */
     private static boolean setWindowCrop(SurfaceControl.Transaction transaction,
             SurfaceControl leash, Rect crop) {
@@ -615,14 +517,11 @@ final class TaskSurfaceTransformer {
             return false;
         }
     }
-
     private static boolean applyPresentation(SurfaceControl leash,
             float dsdx, float dtdx, float dtdy, float dsdy,
             float positionX, float positionY, float alpha) {
         try (SurfaceControl.Transaction transaction = new SurfaceControl.Transaction()) {
             if (!setLayerMatrix(transaction, leash, dsdx, dtdx, dtdy, dsdy)) {
-                // A matrix is required for landscape. Portrait can fall back to setScale
-                // on framework builds that omit the hidden matrix overload.
                 if (Math.abs(dtdx) > 0.0001f || Math.abs(dtdy) > 0.0001f) return false;
                 transaction.setScale(leash, dsdx, dsdy);
             }
@@ -635,7 +534,6 @@ final class TaskSurfaceTransformer {
             return false;
         }
     }
-
     private static boolean applyPresentationPair(SurfaceControl first, float[] firstFrame,
             SurfaceControl second, float[] secondFrame) {
         if (first == null || second == null || !first.isValid() || !second.isValid()
@@ -653,7 +551,6 @@ final class TaskSurfaceTransformer {
             return false;
         }
     }
-
     private static boolean applyPresentationToTransaction(SurfaceControl.Transaction transaction,
             SurfaceControl leash, float[] frame) {
         if (!setLayerMatrix(transaction, leash, frame[0], frame[1], frame[2], frame[3])) {
@@ -664,7 +561,6 @@ final class TaskSurfaceTransformer {
         setWindowCrop(transaction, leash, null);
         return setAlpha(transaction, leash, 1f);
     }
-
     private static void setCurrentPresentation(float dsdx, float dtdx, float dtdy,
             float dsdy, float positionX, float positionY) {
         sCurrentDsdx = dsdx;
@@ -674,7 +570,6 @@ final class TaskSurfaceTransformer {
         sCurrentPositionX = positionX;
         sCurrentPositionY = positionY;
     }
-
     private static void clearSwapState() {
         sSwapSelectedLeash = null;
         sSwapOldLeash = null;
@@ -686,7 +581,6 @@ final class TaskSurfaceTransformer {
         sSwapOldFinal = null;
         sSwapFinishCallback = null;
     }
-
     private static boolean setAlpha(SurfaceControl.Transaction transaction,
             SurfaceControl leash, float alpha) {
         Method method = resolveSetAlphaMethod();
@@ -699,7 +593,6 @@ final class TaskSurfaceTransformer {
             return false;
         }
     }
-
     private static Method resolveSetAlphaMethod() {
         if (sSetAlphaMethodResolved) return sSetAlphaMethod;
         synchronized (TaskSurfaceTransformer.class) {
@@ -716,7 +609,6 @@ final class TaskSurfaceTransformer {
             return sSetAlphaMethod;
         }
     }
-
     private static Method resolveWindowCropMethod() {
         if (sWindowCropMethodResolved) return sWindowCropMethod;
         synchronized (TaskSurfaceTransformer.class) {
@@ -744,7 +636,7 @@ final class TaskSurfaceTransformer {
             return sWindowCropMethod;
         }
     }
-
+    // 恢复任务Surface到原始无变换状态
     static boolean restore(int taskId) {
         cancelTransition();
         SurfaceControl leash = sTaskId == taskId ? sLeash : null;
@@ -756,7 +648,6 @@ final class TaskSurfaceTransformer {
             clearState();
             return false;
         }
-
         try (SurfaceControl.Transaction transaction = new SurfaceControl.Transaction()) {
             setWindowCrop(transaction, leash, null);
             setAlpha(transaction, leash, 1f);
@@ -775,16 +666,7 @@ final class TaskSurfaceTransformer {
             return false;
         }
     }
-
-    /**
-     * Resets a task leash to identity before it is reparented to another display.
-     *
-     * Unlike {@link #restore(int)}, this never touches the tracked presentation of the
-     * current main task. swapMainTaskWithDisplay() neutralizes the outgoing main leash
-     * AFTER the incoming task was already transformed; calling restore() there wiped
-     * sTaskId/sLeash/sFinal* through clearState(), and the next 120 ms reconcile then
-     * re-applied the main transform from scratch (visible flicker + transaction spam).
-     */
+    // 重置非主任务Surface的变换，不影响主任务状态
     static boolean neutralize(int taskId) {
         if (taskId == sTaskId) {
             return restore(taskId);
@@ -809,7 +691,6 @@ final class TaskSurfaceTransformer {
             return false;
         }
     }
-
     private static SurfaceControl findTaskLeash(int taskId) {
         try {
             ClassLoader classLoader = sHostClassLoader;
@@ -824,28 +705,24 @@ final class TaskSurfaceTransformer {
                 LSPLogger.w("TaskSurfaceTransformer.findTaskLeash: initializer is null");
                 return null;
             }
-
             Method getWmComponent = findMethod(initializer.getClass(), "getWMComponent");
             Object wmComponent = getWmComponent.invoke(initializer);
             if (wmComponent == null) {
                 LSPLogger.w("TaskSurfaceTransformer.findTaskLeash: WMComponent is null");
                 return null;
             }
-
             Field providerField = findField(wmComponent.getClass(), ORGANIZER_PROVIDER_FIELD);
             Object provider = providerField.get(wmComponent);
             if (provider == null) {
                 LSPLogger.w("TaskSurfaceTransformer.findTaskLeash: organizer provider is null");
                 return null;
             }
-
             Method providerGet = findMethod(provider.getClass(), "get");
             Object organizer = providerGet.invoke(provider);
             if (organizer == null) {
                 LSPLogger.w("TaskSurfaceTransformer.findTaskLeash: organizer is null");
                 return null;
             }
-
             Field tasksField = findField(organizer.getClass(), TASKS_FIELD);
             Object tasksObject = tasksField.get(organizer);
             if (!(tasksObject instanceof SparseArray)) {
@@ -853,13 +730,11 @@ final class TaskSurfaceTransformer {
                         + tasksObject);
                 return null;
             }
-
             Object lock = organizer;
             try {
                 lock = findField(organizer.getClass(), LOCK_FIELD).get(organizer);
             } catch (Throwable ignored) {
             }
-
             Object appearedInfo;
             synchronized (lock != null ? lock : organizer) {
                 appearedInfo = ((SparseArray<?>) tasksObject).get(taskId);
@@ -869,7 +744,6 @@ final class TaskSurfaceTransformer {
                         + taskId + " taskCount=" + ((SparseArray<?>) tasksObject).size());
                 return null;
             }
-
             Method getLeash = findMethod(appearedInfo.getClass(), "getLeash");
             Object leash = getLeash.invoke(appearedInfo);
             if (leash instanceof SurfaceControl) {
@@ -883,7 +757,6 @@ final class TaskSurfaceTransformer {
         }
         return null;
     }
-
     private static Field findField(Class<?> type, String name) throws NoSuchFieldException {
         Class<?> current = type;
         while (current != null && current != Object.class) {
@@ -897,7 +770,6 @@ final class TaskSurfaceTransformer {
         }
         throw new NoSuchFieldException(type.getName() + "." + name);
     }
-
     private static Method findMethod(Class<?> type, String name) throws NoSuchMethodException {
         Class<?> current = type;
         while (current != null && current != Object.class) {
@@ -911,7 +783,6 @@ final class TaskSurfaceTransformer {
         }
         throw new NoSuchMethodException(type.getName() + "#" + name + "()");
     }
-
     private static void clearState() {
         sLeash = null;
         sTaskId = -1;

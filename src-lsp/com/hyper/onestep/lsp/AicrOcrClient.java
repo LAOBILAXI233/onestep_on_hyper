@@ -1,5 +1,4 @@
 package com.hyper.onestep.lsp;
-
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -12,7 +11,6 @@ import android.os.Parcel;
 import android.os.Parcelable;
 import android.os.Process;
 import android.os.RemoteException;
-
 import java.lang.reflect.Field;
 import java.util.Objects;
 import java.util.concurrent.CancellationException;
@@ -25,20 +23,12 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-
-/**
- * One-shot asynchronous client for HyperOS AICR OCR.
- *
- * <p>The AICR interfaces intentionally stay out of this module's compile-time class path. Binder
- * requests are encoded from the vendor AIDL wire contract, and the result Parcelable is decoded by
- * the {@code CREATOR} loaded from the installed AICR package.</p>
- */
+// 小米 AICR OCR 服务的异步调用封装
 public final class AicrOcrClient {
     private static final String AICR_PACKAGE = "com.xiaomi.aicr";
     private static final String AICR_SERVICE =
             "com.xiaomi.aicr.access.AiCrCoreService";
     private static final String AICR_ACTION = "com.xiaomi.aicr.access.AICR_ENGINE";
-
     private static final String CORE_DESCRIPTOR = "com.xiaomi.aicr.IAiCrCoreService";
     private static final String CORE_CALLBACK_DESCRIPTOR =
             "com.xiaomi.aicr.ICoreServiceCallback";
@@ -46,7 +36,6 @@ public final class AicrOcrClient {
             "com.xiaomi.aicr.plugin.IVisionService";
     private static final String OCR_RESULT_CLASS =
             "com.xiaomi.aicr.vision.ocr.OCRRes$OCRResult";
-
     private static final int CORE_GET_PLUGIN_BINDER = 1;
     private static final int CORE_RELEASE_CONNECT = 2;
     private static final int CALLBACK_ON_DOWNLOAD = 1;
@@ -55,31 +44,19 @@ public final class AicrOcrClient {
     private static final int VISION_DO_OCR_DETECT = 3;
     private static final int VISION_DO_OCR_RECOGNIZE = 4;
     private static final int VISION_GET_OCR_VERSION = 5;
-
     private static final String PLUGIN_STATUS_KEY = "Status";
     private static final int PLUGIN_STATUS_OK = 0;
     private static final int PLUGIN_STATUS_DOWNLOADING_FIRST_USE = 1;
     private static final int PLUGIN_STATUS_UNKNOWN = Integer.MIN_VALUE;
     private static final String OCR_VERSION_V2 = "V2";
-
     private static final AtomicLong NEXT_REQUEST_ID = new AtomicLong();
-
     private AicrOcrClient() {}
-
     /** Receives exactly one terminal result. An image with no recognized text returns {@code ""}. */
     public interface Callback {
         void onSuccess(String text);
-
         /** {@code stage} identifies the failed bind, Binder transaction, parse, or timeout step. */
         void onError(String stage, Throwable error);
     }
-
-    /**
-     * Starts one OCR request and dispatches its terminal callback on {@code callbackExecutor}.
-     *
-     * <p>The caller retains ownership of {@code bitmap}. It must remain valid until the callback and
-     * may be recycled afterwards. All AICR Binder work is performed on private worker threads.</p>
-     */
     public static Request recognize(Context context, Bitmap bitmap, long timeoutMs,
             Executor callbackExecutor, Callback callback) {
         Objects.requireNonNull(context, "context");
@@ -92,21 +69,18 @@ public final class AicrOcrClient {
         if (bitmap.isRecycled()) {
             throw new IllegalArgumentException("bitmap is already recycled");
         }
-
         Context appContext = context.getApplicationContext();
         Request request = new Request(appContext == null ? context : appContext, bitmap,
                 timeoutMs, callbackExecutor, callback, NEXT_REQUEST_ID.incrementAndGet());
         request.start();
         return request;
     }
-
     /** Starts one OCR request and dispatches its callback on the context main executor. */
     public static Request recognize(Context context, Bitmap bitmap, long timeoutMs,
             Callback callback) {
         Objects.requireNonNull(context, "context");
         return recognize(context, bitmap, timeoutMs, context.getMainExecutor(), callback);
     }
-
     /** Handle for cancellation and terminal-state observation of a one-shot OCR request. */
     public static final class Request {
         private final Context mContext;
@@ -120,14 +94,11 @@ public final class AicrOcrClient {
         private final AtomicBoolean mBound = new AtomicBoolean();
         private final AtomicBoolean mReleaseNeeded = new AtomicBoolean();
         private final AtomicBoolean mPluginClaimed = new AtomicBoolean();
-
         private volatile Bitmap mBitmap;
         private volatile ScheduledFuture<?> mTimeoutFuture;
         private volatile IBinder mCoreBinder;
         private volatile IBinder mPluginBinder;
-
         private final CoreCallbackBinder mCoreCallback = new CoreCallbackBinder();
-
         private final IBinder.DeathRecipient mCoreDeathRecipient =
                 new IBinder.DeathRecipient() {
                     @Override
@@ -141,7 +112,6 @@ public final class AicrOcrClient {
                         });
                     }
                 };
-
         private final IBinder.DeathRecipient mPluginDeathRecipient =
                 new IBinder.DeathRecipient() {
                     @Override
@@ -155,32 +125,27 @@ public final class AicrOcrClient {
                         });
                     }
                 };
-
         private final ServiceConnection mConnection = new ServiceConnection() {
             @Override
             public void onServiceConnected(ComponentName name, IBinder service) {
                 handleCoreConnected(service);
             }
-
             @Override
             public void onServiceDisconnected(ComponentName name) {
                 finishError("core-disconnected",
                         new RemoteException("AICR core service disconnected: " + name));
             }
-
             @Override
             public void onBindingDied(ComponentName name) {
                 finishError("core-death",
                         new RemoteException("AICR core binding died: " + name));
             }
-
             @Override
             public void onNullBinding(ComponentName name) {
                 finishError("bind-core",
                         new IllegalStateException("AICR returned a null binding: " + name));
             }
         };
-
         private Request(Context context, Bitmap bitmap, long timeoutMs, Executor callbackExecutor,
                 Callback callback, long requestId) {
             mContext = context;
@@ -189,9 +154,6 @@ public final class AicrOcrClient {
             mCallbackExecutor = callbackExecutor;
             mCallback = callback;
             mClientAddress = "com.hyper.onestep:" + Process.myPid() + ":" + requestId;
-            // Every Binder transaction and lifecycle transition runs on this one lane. In
-            // particular, timeout/cancel cannot publish the terminal callback while setImage is
-            // still marshalling the caller-owned Bitmap.
             mWorker = new ScheduledThreadPoolExecutor(1,
                     new AicrThreadFactory(requestId));
             mWorker.setRemoveOnCancelPolicy(true);
@@ -203,7 +165,6 @@ public final class AicrOcrClient {
                 }
             };
         }
-
         private void start() {
             mTimeoutFuture = mWorker.schedule(new Runnable() {
                 @Override
@@ -219,7 +180,6 @@ public final class AicrOcrClient {
                 }
             });
         }
-
         /** Cancels the request and reports a terminal {@code cancel} error to the callback. */
         public void cancel() {
             postWorker("cancel", new Runnable() {
@@ -230,11 +190,9 @@ public final class AicrOcrClient {
                 }
             });
         }
-
         public boolean isDone() {
             return mFinished.get();
         }
-
         private void bindCoreService() {
             if (mFinished.get()) return;
             Intent intent = new Intent(AICR_ACTION)
@@ -254,7 +212,6 @@ public final class AicrOcrClient {
                         "Could not bind " + intent.getComponent(), error));
             }
         }
-
         private void handleCoreConnected(IBinder core) {
             if (mFinished.get()) return;
             if (core == null) {
@@ -262,7 +219,6 @@ public final class AicrOcrClient {
                         "AICR service connected without a Binder"));
                 return;
             }
-
             mCoreBinder = core;
             if (mFinished.get()) {
                 mCoreBinder = null;
@@ -275,12 +231,10 @@ public final class AicrOcrClient {
                         "Could not watch AICR core Binder death", error));
                 return;
             }
-
             if (mFinished.get()) {
                 unlinkDeath(core, mCoreDeathRecipient);
                 return;
             }
-
             try {
                 handlePluginReply(requestVisionPlugin(core), "getPluginBinder");
             } catch (Throwable error) {
@@ -288,7 +242,6 @@ public final class AicrOcrClient {
                         "AICR getPluginBinder transaction failed", error));
             }
         }
-
         private PluginReply requestVisionPlugin(IBinder core) throws RemoteException {
             Parcel data = Parcel.obtain();
             Parcel reply = Parcel.obtain();
@@ -298,7 +251,6 @@ public final class AicrOcrClient {
                 data.writeString(mClientAddress);
                 data.writeString(VISION_DESCRIPTOR);
                 data.writeString("");
-
                 if (mFinished.get()) {
                     return new PluginReply(null, PLUGIN_STATUS_UNKNOWN);
                 }
@@ -309,9 +261,6 @@ public final class AicrOcrClient {
                 }
                 reply.readException();
                 IBinder plugin = reply.readStrongBinder();
-
-                // The Bundle parameter is AIDL 'out': no Bundle is sent in data, while the Stub
-                // always writes a presence marker followed by the returned status Bundle.
                 int status = PLUGIN_STATUS_UNKNOWN;
                 if (reply.readInt() != 0) {
                     Bundle statusBundle = new Bundle();
@@ -326,7 +275,6 @@ public final class AicrOcrClient {
                 data.recycle();
             }
         }
-
         private void handlePluginReply(PluginReply reply, String source) {
             if (reply.status == PLUGIN_STATUS_OK) {
                 acceptPlugin(reply.binder, source);
@@ -339,7 +287,6 @@ public final class AicrOcrClient {
             finishError("request-plugin", new IllegalStateException(
                     "AICR " + source + " returned plugin status " + reply.status));
         }
-
         private void handlePluginDownloaded(IBinder callbackBinder) {
             if (mFinished.get() || mPluginClaimed.get()) return;
             IBinder core = mCoreBinder;
@@ -352,26 +299,20 @@ public final class AicrOcrClient {
                 LSPLogger.d("AicrOcrClient: onDownload notified; refreshing plugin Binder");
             }
             try {
-                // HyperOS' reference ManagerBase deliberately ignores the callback Binder. The
-                // download notification means the core's plugin registry is ready to be queried
-                // again; only that second getPluginBinder result is the claimed plugin service.
                 handlePluginReply(requestVisionPlugin(core), "onDownload/getPluginBinder");
             } catch (Throwable error) {
                 finishError("request-plugin", new IllegalStateException(
                         "AICR getPluginBinder retry after onDownload failed", error));
             }
         }
-
         private static final class PluginReply {
             final IBinder binder;
             final int status;
-
             PluginReply(IBinder binder, int status) {
                 this.binder = binder;
                 this.status = status;
             }
         }
-
         private void acceptPlugin(IBinder plugin, String source) {
             if (plugin == null) {
                 finishError("request-plugin", new IllegalStateException(
@@ -379,7 +320,6 @@ public final class AicrOcrClient {
                 return;
             }
             if (mFinished.get() || !mPluginClaimed.compareAndSet(false, true)) return;
-
             mPluginBinder = plugin;
             if (mFinished.get()) {
                 mPluginBinder = null;
@@ -398,7 +338,6 @@ public final class AicrOcrClient {
             }
             performOcr(plugin);
         }
-
         private void performOcr(final IBinder plugin) {
             final String version;
             try {
@@ -413,7 +352,6 @@ public final class AicrOcrClient {
                         "AICR dedicated OCR requires V2 but returned " + version));
                 return;
             }
-
             postWorker("set-image", new Runnable() {
                 @Override
                 public void run() {
@@ -421,7 +359,6 @@ public final class AicrOcrClient {
                 }
             });
         }
-
         private void performSetImage(final IBinder plugin) {
             Bitmap bitmap = mBitmap;
             if (bitmap == null || bitmap.isRecycled()) {
@@ -429,7 +366,6 @@ public final class AicrOcrClient {
                         "Bitmap was recycled before AICR consumed it"));
                 return;
             }
-
             final int imageId;
             try {
                 imageId = setImage(plugin, bitmap);
@@ -443,9 +379,6 @@ public final class AicrOcrClient {
                         "AICR rejected the Bitmap with image id " + imageId));
                 return;
             }
-
-            // setImage is synchronous. Once it returns, AICR has consumed the Parcel payload and
-            // no later stage touches the caller-owned Bitmap.
             mBitmap = null;
             postWorker("detect", new Runnable() {
                 @Override
@@ -454,7 +387,6 @@ public final class AicrOcrClient {
                 }
             });
         }
-
         private void performOcrDetect(final IBinder plugin, final int imageId) {
             try {
                 doOcrDetect(plugin, imageId);
@@ -470,7 +402,6 @@ public final class AicrOcrClient {
                 }
             });
         }
-
         private void performOcrRecognize(IBinder plugin, int imageId) {
             Parcel data = Parcel.obtain();
             Parcel reply = Parcel.obtain();
@@ -487,7 +418,6 @@ public final class AicrOcrClient {
                             "AICR doOCRRecognize returned null"));
                     return;
                 }
-
                 final String text;
                 try {
                     text = parseTotalText(reply);
@@ -506,7 +436,6 @@ public final class AicrOcrClient {
                 data.recycle();
             }
         }
-
         private String getOcrVersion(IBinder plugin) throws RemoteException {
             Parcel data = Parcel.obtain();
             Parcel reply = Parcel.obtain();
@@ -523,7 +452,6 @@ public final class AicrOcrClient {
                 data.recycle();
             }
         }
-
         private void doOcrDetect(IBinder plugin, int imageId) throws RemoteException {
             Parcel data = Parcel.obtain();
             Parcel reply = Parcel.obtain();
@@ -535,15 +463,11 @@ public final class AicrOcrClient {
                             + VISION_DO_OCR_DETECT);
                 }
                 reply.readException();
-                // The returned Location[] is intentionally not decoded. HyperOS' reference
-                // VisionManager also discards it; completion of this synchronous call is the
-                // ordering barrier required before doOCRRecognize.
             } finally {
                 reply.recycle();
                 data.recycle();
             }
         }
-
         private int setImage(IBinder plugin, Bitmap bitmap) throws RemoteException {
             Parcel data = Parcel.obtain();
             Parcel reply = Parcel.obtain();
@@ -562,7 +486,6 @@ public final class AicrOcrClient {
                 data.recycle();
             }
         }
-
         private String parseTotalText(Parcel reply) throws Exception {
             Context vendorContext = mContext.createPackageContext(AICR_PACKAGE,
                     Context.CONTEXT_INCLUDE_CODE | Context.CONTEXT_IGNORE_SECURITY);
@@ -570,7 +493,6 @@ public final class AicrOcrClient {
             if (loader == null) {
                 throw new IllegalStateException("AICR package Context has no ClassLoader");
             }
-
             Class<?> resultClass = Class.forName(OCR_RESULT_CLASS, true, loader);
             Field creatorField = resultClass.getField("CREATOR");
             Object creatorValue = creatorField.get(null);
@@ -582,7 +504,6 @@ public final class AicrOcrClient {
             if (result == null) {
                 throw new IllegalStateException(OCR_RESULT_CLASS + ".CREATOR returned null");
             }
-
             Field textField = resultClass.getField("total_text");
             Object value = textField.get(result);
             if (value == null) return "";
@@ -592,7 +513,6 @@ public final class AicrOcrClient {
             }
             return (String) value;
         }
-
         private void finishSuccess(final String text) {
             if (!mFinished.compareAndSet(false, true)) return;
             cancelTimeout();
@@ -603,13 +523,10 @@ public final class AicrOcrClient {
                     mCallback.onSuccess(text);
                 }
             });
-            // releaseConnect is synchronous vendor Binder work. Queue/deliver the terminal result
-            // first so a slow release cannot hold the client callback or Bitmap ownership signal.
             cleanupConnection();
             mWorker.shutdown();
             LSPLogger.i("AicrOcrClient: OCR completed, chars=" + text.length());
         }
-
         private void finishError(final String stage, final Throwable error) {
             if (!mFinished.compareAndSet(false, true)) return;
             cancelTimeout();
@@ -624,21 +541,17 @@ public final class AicrOcrClient {
             mWorker.shutdown();
             LSPLogger.w("AicrOcrClient: failed at stage=" + stage, error);
         }
-
         private void cancelTimeout() {
             ScheduledFuture<?> timeout = mTimeoutFuture;
             if (timeout != null) timeout.cancel(false);
         }
-
         private void cleanupConnection() {
             IBinder plugin = mPluginBinder;
             mPluginBinder = null;
             if (plugin != null) unlinkDeath(plugin, mPluginDeathRecipient);
-
             IBinder core = mCoreBinder;
             mCoreBinder = null;
             if (core != null) unlinkDeath(core, mCoreDeathRecipient);
-
             if (mBound.getAndSet(false)) {
                 try {
                     mContext.unbindService(mConnection);
@@ -646,12 +559,10 @@ public final class AicrOcrClient {
                     LSPLogger.w("AicrOcrClient: unbind failed", error);
                 }
             }
-
             if (core != null && mReleaseNeeded.getAndSet(false)) {
                 releaseConnection(core);
             }
         }
-
         private void releaseConnection(IBinder core) {
             Parcel data = Parcel.obtain();
             Parcel reply = Parcel.obtain();
@@ -670,7 +581,6 @@ public final class AicrOcrClient {
                 data.recycle();
             }
         }
-
         private void dispatchCallback(final Runnable callback) {
             Runnable guarded = new Runnable() {
                 @Override
@@ -689,7 +599,6 @@ public final class AicrOcrClient {
                 guarded.run();
             }
         }
-
         private void postWorker(String stage, final Runnable command) {
             if (mFinished.get()) return;
             try {
@@ -703,15 +612,12 @@ public final class AicrOcrClient {
                 if (!mFinished.get()) finishError(stage, error);
             }
         }
-
         private void unlinkDeath(IBinder binder, IBinder.DeathRecipient recipient) {
             try {
                 binder.unlinkToDeath(recipient, 0);
             } catch (Throwable ignored) {
-                // The Binder may already be dead or may have died before linkToDeath completed.
             }
         }
-
         private final class CoreCallbackBinder extends Binder {
             @Override
             protected boolean onTransact(int code, Parcel data, Parcel reply, int flags)
@@ -741,15 +647,12 @@ public final class AicrOcrClient {
             }
         }
     }
-
     private static final class AicrThreadFactory implements ThreadFactory {
         private final long mRequestId;
         private int mThreadNumber;
-
         AicrThreadFactory(long requestId) {
             mRequestId = requestId;
         }
-
         @Override
         public synchronized Thread newThread(Runnable runnable) {
             Thread thread = new Thread(runnable, "OneStep-AICR-" + mRequestId + "-"

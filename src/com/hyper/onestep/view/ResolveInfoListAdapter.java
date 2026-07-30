@@ -1,8 +1,6 @@
 package com.hyper.onestep.view;
-
 import java.util.ArrayList;
 import java.util.List;
-
 import android.content.Context;
 import android.graphics.drawable.Drawable;
 import android.os.Handler;
@@ -14,7 +12,6 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.animation.AccelerateDecelerateInterpolator;
 import android.widget.ImageView;
-
 import com.hyper.onestep.R;
 import com.hyper.onestep.SidebarController;
 import com.hyper.onestep.SidebarMode;
@@ -27,11 +24,10 @@ import com.hyper.onestep.util.ResolveInfoGroup;
 import com.hyper.onestep.util.ResolveInfoManager;
 import com.hyper.onestep.util.Utils;
 import com.hyper.onestep.util.anim.AnimStatusManager;
-
+// 分享目标应用列表适配器
 public class ResolveInfoListAdapter extends SidebarAdapter {
     private static final LOG log = LOG.getInstance(ResolveInfoListAdapter.class);
     private static final float SCALE_SIZE = 1.15f;
-
     private Context mContext;
     private SidebarListView mListView;
     private List<ResolveInfoGroup> mResolveInfos;
@@ -58,7 +54,6 @@ public class ResolveInfoListAdapter extends SidebarAdapter {
                     }
                 });
     }
-
     private ResolveInfoManager.ResolveInfoUpdateListener resolveInfoUpdateListener = new ResolveInfoManager.ResolveInfoUpdateListener() {
         @Override
         public void onUpdate() {
@@ -70,7 +65,6 @@ public class ResolveInfoListAdapter extends SidebarAdapter {
             });
         }
     };
-
     public void updateData() {
         new Handler(Looper.getMainLooper()).post(new Runnable() {
             @Override
@@ -86,7 +80,6 @@ public class ResolveInfoListAdapter extends SidebarAdapter {
             }
         });
     }
-
     private void updateAcceptableResolveInfos() {
         mAcceptableResolveInfos.clear();
         for (ResolveInfoGroup rig : mResolveInfos) {
@@ -103,8 +96,6 @@ public class ResolveInfoListAdapter extends SidebarAdapter {
                 boolean multiple = mDragEvent.getClipData().getItemCount() > 1;
                 discovered = mManager.getShareTargets(mimeType, multiple);
             } else {
-                // Android exposes ClipData only for ACTION_DROP. At drag start we
-                // can still build the target list from the public MIME description.
                 discovered = mManager.getShareTargets(mimeType);
             }
             for (ResolveInfoGroup rig : discovered) {
@@ -119,34 +110,28 @@ public class ResolveInfoListAdapter extends SidebarAdapter {
         }
         notifyDataSetChanged();
     }
-
     @Override
     public void onDragStart(DragEvent event) {
         mDragEvent = event;
         updateAcceptableResolveInfos();
     }
-
     @Override
     public void onDragEnd() {
         mDragEvent = null;
         updateAcceptableResolveInfos();
     }
-
     @Override
     public int getCount() {
         return mAcceptableResolveInfos.size();
     }
-
     @Override
     public Object getItem(int position) {
         return mAcceptableResolveInfos.get(position);
     }
-
     @Override
     public long getItemId(int position) {
         return position;
     }
-
     @Override
     public void moveItemPostion(Object object, int index) {
         ResolveInfoGroup item = (ResolveInfoGroup)object;
@@ -164,14 +149,12 @@ public class ResolveInfoListAdapter extends SidebarAdapter {
         mResolveInfos.add(index, item);
         onOrderChange();
     }
-
     private void onOrderChange() {
         for(int i = 0; i < mResolveInfos.size(); ++ i){
             mResolveInfos.get(i).setIndex(mResolveInfos.size() - 1 - i);
         }
         mManager.updateOrder();
     }
-
     @Override
     public View getView(final int position, View convertView, ViewGroup parent) {
         final ViewHolder holder;
@@ -181,7 +164,6 @@ public class ResolveInfoListAdapter extends SidebarAdapter {
             ImageView iconInputDragLeft = (ImageView) view.findViewById(R.id.icon_input_drag_left);
             ImageView iconInputDragRight = (ImageView) view.findViewById(R.id.icon_input_drag_right);
             ImageView iconImage = (ImageView) view.findViewById(R.id.shareitemimageview);
-
             holder = new ViewHolder();
             holder.view = view;
             holder.context = mContext;
@@ -219,8 +201,6 @@ public class ResolveInfoListAdapter extends SidebarAdapter {
                         holder.view.animate().scaleX(1.0f).scaleY(1.0f).setDuration(100).start();
                         return true;
                     case DragEvent.ACTION_DRAG_LOCATION:
-                        // The sidebar list animates and scrolls under a stationary drag.
-                        // Keep the label aligned after ACTION_DRAG_ENTERED as its item moves.
                         FloatText.getInstance(mContext).show(
                                 v, holder.resolveInfoGroup.getDisplayName());
                         return true;
@@ -242,25 +222,21 @@ public class ResolveInfoListAdapter extends SidebarAdapter {
         });
         return holder.view;
     }
-
     public int objectIndex(ResolveInfoGroup data) {
         if (mResolveInfos == null) {
             return -1;
         }
         return mResolveInfos.indexOf(data);
     }
-
     public static class ViewHolder {
         public View view;
         public Context context;
-
         public ImageView iconInputDragLeft;
         public ImageView iconInputDragRight;
         public ImageView iconImageView;
         public Drawable icon;
         public ResolveInfoGroup resolveInfoGroup;
         public boolean isNewAdded = false;
-
         public void setInfo(ResolveInfoGroup info, boolean isLeftMode) {
             resolveInfoGroup = info;
             if (info == null) {
@@ -288,7 +264,6 @@ public class ResolveInfoListAdapter extends SidebarAdapter {
                 iconInputDragLeft.setVisibility(View.VISIBLE);
             }
         }
-
         public void restore(){
             view.animate().cancel();
             view.setScaleX(1.0f);

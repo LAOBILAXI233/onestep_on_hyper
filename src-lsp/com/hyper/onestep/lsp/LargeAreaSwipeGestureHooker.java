@@ -1,5 +1,4 @@
 package com.hyper.onestep.lsp;
-
 import android.app.ActivityManager;
 import android.app.KeyguardManager;
 import android.content.ComponentName;
@@ -17,51 +16,29 @@ import android.util.DisplayMetrics;
 import android.view.Display;
 import android.view.InputDevice;
 import android.view.MotionEvent;
-
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.List;
-
 import io.github.libxposed.api.XposedInterface;
-
 /** Observes the default display's pointer stream for a broad press and diagonal down swipe. */
 public final class LargeAreaSwipeGestureHooker implements XposedInterface.Hooker {
     private static final String SYSTEM_UI_PACKAGE = "com.android.systemui";
     private static final String ACTION_ENTER_ONE_STEP =
             "com.hyper.onestep.ACTION_ENTER_ONE_STEP";
     private static final String EXTRA_SIDEBAR_MODE = "sidebar_mode";
-
     private static final int MODE_LEFT = 1;
     private static final int MODE_RIGHT = 2;
-
-    /**
-     * HyperOS exposes its software large-contact classifier as an on-change sensor.  This is
-     * deliberately not a pressure sensor: the touch HAL classifies the raw capacitive frame and
-     * publishes a 1/0 result here, even though MotionEvent only contains the contact centroid.
-     */
     private static final int XIAOMI_LARGE_AREA_SENSOR_TYPE = 33171031;
     private static final String XIAOMI_LARGE_AREA_SENSOR_STRING_TYPE =
             "xiaomi.sensor.large_area_detect";
-
-    /**
-     * Set by scripts/onestep-touchd.sh, which uprobes the vendor touch HAL's density routine.
-     * This driver declares {@code ABS_MT_TOUCH_MAJOR} but never emits it, so the contact
-     * footprint below is the only area signal available; MotionEvent carries the centroid alone.
-     */
     private static final String DENSITY_LARGE_AREA_PROPERTY = "sys.onestep.large_area";
     private static final long DENSITY_PROPERTY_CACHE_MS = 8L;
-
     private static final float LARGE_TOUCH_MAJOR_DP = 48f;
     private static final float LARGE_NORMALIZED_SIZE = 0.055f;
     private static final long TRIGGER_COOLDOWN_MS = 1000L;
-
-    /** Max drift (per finger) tolerated during a two-finger long press before it is treated
-     * as a pinch/scroll and abandoned. */
     private static final float TWO_FINGER_MOVE_SLOP_DP = 20f;
-
     private static final GestureIntentClassifier sGestureClassifier =
             new GestureIntentClassifier();
-
     private static boolean sTracking;
     private static boolean sLargeContact;
     private static boolean sLongPressFallbackEnabled;
@@ -87,7 +64,6 @@ public final class LargeAreaSwipeGestureHooker implements XposedInterface.Hooker
     private static boolean sSystemPropertiesResolved;
     private static long sDensityPropertyReadTime;
     private static boolean sDensityLargeAreaActive;
-
     private static boolean sTwoFingerActive;
     private static long sTwoFingerDownTime;
     private static float sTwoFingerStartX0;
@@ -98,13 +74,10 @@ public final class LargeAreaSwipeGestureHooker implements XposedInterface.Hooker
     private static int sTwoFingerGeneration;
     private static String sTwoFingerPackage;
     private static Runnable sTwoFingerRunnable;
-
     private final ClassLoader mSystemServerClassLoader;
-
     LargeAreaSwipeGestureHooker(ClassLoader systemServerClassLoader) {
         mSystemServerClassLoader = systemServerClassLoader;
     }
-
     @Override
     public Object intercept(XposedInterface.Chain chain) throws Throwable {
         Object arg = chain.getArg(0);
@@ -119,17 +92,14 @@ public final class LargeAreaSwipeGestureHooker implements XposedInterface.Hooker
         }
         return chain.proceed();
     }
-
     private static void handleMotionEvent(Object listener, MotionEvent event,
             ClassLoader systemServerClassLoader) {
         if (getDisplayId(event) != Display.DEFAULT_DISPLAY
                 || !event.isFromSource(InputDevice.SOURCE_TOUCHSCREEN)) {
             return;
         }
-
         ensureLargeAreaClassifier(listener);
         handleTwoFingerLongPress(listener, event, systemServerClassLoader);
-
         int action = event.getActionMasked();
         switch (action) {
             case MotionEvent.ACTION_DOWN:
@@ -172,11 +142,9 @@ public final class LargeAreaSwipeGestureHooker implements XposedInterface.Hooker
                 break;
         }
     }
-
     private static void beginGesture(Object listener, MotionEvent event) {
         resetGesture();
         if (event.getPointerCount() != 1) return;
-
         Context context = resolveContext(listener);
         GestureSettings.Snapshot settings = GestureSettings.read(context);
         sLongPressFallbackEnabled = settings.bigBangEnabled
@@ -188,7 +156,6 @@ public final class LargeAreaSwipeGestureHooker implements XposedInterface.Hooker
                     + sForegroundPackage);
             return;
         }
-
         DisplayMetrics metrics = Resources.getSystem().getDisplayMetrics();
         sDensity = Math.max(1f, metrics.density);
         sDownX = event.getX(0);
@@ -199,17 +166,14 @@ public final class LargeAreaSwipeGestureHooker implements XposedInterface.Hooker
         processMotionSamples(event);
         scheduleLongPressFallback(listener);
     }
-
     private static void updateGesture(MotionEvent event) {
         if (!sTracking) return;
         if (event.getPointerCount() != 1) {
             resetGesture();
             return;
         }
-
         processMotionSamples(event);
     }
-
     private static void processMotionSamples(MotionEvent event) {
         int historySize = event.getHistorySize();
         for (int i = 0; i < historySize; i++) {
@@ -221,12 +185,10 @@ public final class LargeAreaSwipeGestureHooker implements XposedInterface.Hooker
                     evidence.strong,
                     evidence.source);
         }
-
         ContactEvidence evidence = observeContactArea(event, -1);
         sGestureClassifier.addSample(event.getX(0), event.getY(0), event.getEventTime(),
                 evidence.strong, evidence.source);
     }
-
     private static ContactEvidence observeContactArea(MotionEvent event, int historyIndex) {
         float touchMajor = historyIndex >= 0
                 ? event.getHistoricalTouchMajor(0, historyIndex) : event.getTouchMajor(0);
@@ -250,7 +212,6 @@ public final class LargeAreaSwipeGestureHooker implements XposedInterface.Hooker
         }
         return ContactEvidence.NONE;
     }
-
     private static void armLargeContact(String source, float touchMajor, float normalizedSize,
             int classification) {
         if (sLargeContact) return;
@@ -260,11 +221,6 @@ public final class LargeAreaSwipeGestureHooker implements XposedInterface.Hooker
                 + " size=" + normalizedSize
                 + " classification=" + classification);
     }
-
-    /**
-     * Reads the contact-density verdict published by the touch daemon. Polled per motion sample,
-     * so the value is cached briefly; the daemon only rewrites it on a state change.
-     */
     private static boolean isDensityLargeContact() {
         long now = SystemClock.uptimeMillis();
         if (now - sDensityPropertyReadTime < DENSITY_PROPERTY_CACHE_MS) {
@@ -274,7 +230,6 @@ public final class LargeAreaSwipeGestureHooker implements XposedInterface.Hooker
         sDensityLargeAreaActive = "1".equals(readSystemProperty(DENSITY_LARGE_AREA_PROPERTY));
         return sDensityLargeAreaActive;
     }
-
     private static String readSystemProperty(String key) {
         if (!sSystemPropertiesResolved) {
             sSystemPropertiesResolved = true;
@@ -294,10 +249,8 @@ public final class LargeAreaSwipeGestureHooker implements XposedInterface.Hooker
             return "";
         }
     }
-
     private static void scheduleLongPressFallback(Object listener) {
         if (!sLongPressFallbackEnabled) return;
-
         Handler handler = resolveHandler(listener);
         if (handler == null) {
             handler = new Handler(Looper.getMainLooper());
@@ -320,28 +273,22 @@ public final class LargeAreaSwipeGestureHooker implements XposedInterface.Hooker
         };
         handler.postAtTime(sLongPressFallbackRunnable, sDownTime + sLongPressDurationMs);
     }
-
     private static final class ContactEvidence {
         static final ContactEvidence NONE = new ContactEvidence(false, null);
-
         final boolean strong;
         final String source;
-
         ContactEvidence(boolean strong, String source) {
             this.strong = strong;
             this.source = source;
         }
     }
-
     private static void ensureLargeAreaClassifier(Object listener) {
         if (sLargeAreaSensorRegistrationAttempted) return;
         synchronized (LargeAreaSwipeGestureHooker.class) {
             if (sLargeAreaSensorRegistrationAttempted) return;
-
             Context context = resolveContext(listener);
             if (context == null) return;
             sLargeAreaSensorRegistrationAttempted = true;
-
             try {
                 sSensorManager = (SensorManager) context.getSystemService(
                         Context.SENSOR_SERVICE);
@@ -349,7 +296,6 @@ public final class LargeAreaSwipeGestureHooker implements XposedInterface.Hooker
                     LSPLogger.w("LargeAreaSwipeGestureHooker: SensorManager unavailable");
                     return;
                 }
-
                 sLargeAreaSensor = sSensorManager.getDefaultSensor(
                         XIAOMI_LARGE_AREA_SENSOR_TYPE);
                 if (sLargeAreaSensor == null) {
@@ -367,7 +313,6 @@ public final class LargeAreaSwipeGestureHooker implements XposedInterface.Hooker
                             + "MotionEvent compatibility path remains active");
                     return;
                 }
-
                 sLargeAreaSensorListener = new SensorEventListener() {
                     @Override
                     public void onSensorChanged(SensorEvent event) {
@@ -383,13 +328,10 @@ public final class LargeAreaSwipeGestureHooker implements XposedInterface.Hooker
                                     + active + " raw=" + raw + " tracking=" + sTracking);
                         }
                     }
-
                     @Override
                     public void onAccuracyChanged(Sensor sensor, int accuracy) {
-                        // On-change classifier has no meaningful accuracy state.
                     }
                 };
-
                 Handler callbackHandler = resolveHandler(listener);
                 if (callbackHandler == null) {
                     callbackHandler = new Handler(Looper.getMainLooper());
@@ -415,23 +357,19 @@ public final class LargeAreaSwipeGestureHooker implements XposedInterface.Hooker
             }
         }
     }
-
     private static void triggerOneStep(Object listener, float horizontalDelta) {
         long now = SystemClock.uptimeMillis();
         if (now - sLastTriggerTime < TRIGGER_COOLDOWN_MS) return;
-
         Context context = resolveContext(listener);
         if (context == null || isKeyguardLocked(context)) {
             return;
         }
         if (isCurrentForegroundBlocked(context, "OneStep")) return;
-
         int mode = horizontalDelta > 0f ? MODE_LEFT : MODE_RIGHT;
         Intent intent = new Intent(ACTION_ENTER_ONE_STEP);
         intent.setPackage(SYSTEM_UI_PACKAGE);
         intent.putExtra(EXTRA_SIDEBAR_MODE, mode);
         intent.addFlags(Intent.FLAG_RECEIVER_FOREGROUND);
-
         sLastTriggerTime = now;
         Runnable sender = new Runnable() {
             @Override
@@ -451,12 +389,10 @@ public final class LargeAreaSwipeGestureHooker implements XposedInterface.Hooker
             sender.run();
         }
     }
-
     private static void triggerBigBang(Object listener, ClassLoader systemServerClassLoader,
             String foregroundPackage, int touchX, int touchY) {
         long now = SystemClock.uptimeMillis();
         if (now - sLastTriggerTime < TRIGGER_COOLDOWN_MS) return;
-
         Context context = resolveContext(listener);
         if (context == null || isKeyguardLocked(context)) return;
         if (foregroundPackage == null || foregroundPackage.isEmpty()) {
@@ -469,13 +405,11 @@ public final class LargeAreaSwipeGestureHooker implements XposedInterface.Hooker
                 || isCurrentForegroundBlocked(context, "BigBang")) {
             return;
         }
-
         if (BigBangExtractionCoordinator.submit(context, systemServerClassLoader,
                 foregroundPackage, touchX, touchY)) {
             sLastTriggerTime = now;
         }
     }
-
     private static boolean isCurrentForegroundBlocked(Context context, String action) {
         String currentPackage = resolveForegroundPackage(context);
         if (!GestureSettings.read(context).isBlacklisted(currentPackage)) return false;
@@ -483,7 +417,6 @@ public final class LargeAreaSwipeGestureHooker implements XposedInterface.Hooker
                 + " in foreground package=" + currentPackage);
         return true;
     }
-
     private static boolean isKeyguardLocked(Context context) {
         try {
             KeyguardManager keyguardManager = (KeyguardManager) context.getSystemService(
@@ -494,7 +427,6 @@ public final class LargeAreaSwipeGestureHooker implements XposedInterface.Hooker
             return true;
         }
     }
-
     @SuppressWarnings("deprecation")
     private static String resolveForegroundPackage(Context context) {
         if (context == null) return null;
@@ -515,12 +447,10 @@ public final class LargeAreaSwipeGestureHooker implements XposedInterface.Hooker
             return null;
         }
     }
-
     private static int getTaskDisplayId(ActivityManager.RunningTaskInfo task) {
         Object value = readField(task, "displayId");
         return value instanceof Integer ? (Integer) value : Display.DEFAULT_DISPLAY;
     }
-
     private static Context resolveContext(Object listener) {
         if (sContext != null) return sContext;
         Object value = readField(listener, "mContext");
@@ -529,7 +459,6 @@ public final class LargeAreaSwipeGestureHooker implements XposedInterface.Hooker
         }
         return sContext;
     }
-
     private static Handler resolveHandler(Object listener) {
         if (sHandler != null) return sHandler;
         Object value = readField(listener, "mHandler");
@@ -538,7 +467,6 @@ public final class LargeAreaSwipeGestureHooker implements XposedInterface.Hooker
         }
         return sHandler;
     }
-
     private static Object readField(Object target, String name) {
         if (target == null) return null;
         Class<?> current = target.getClass();
@@ -556,7 +484,6 @@ public final class LargeAreaSwipeGestureHooker implements XposedInterface.Hooker
         }
         return null;
     }
-
     private static int getDisplayId(MotionEvent event) {
         if (!sDisplayIdMethodResolved) {
             sDisplayIdMethodResolved = true;
@@ -577,13 +504,6 @@ public final class LargeAreaSwipeGestureHooker implements XposedInterface.Hooker
         }
         return Display.DEFAULT_DISPLAY;
     }
-
-    /**
-     * Device-agnostic fallback: two fingers held stationary for the configured long-press
-     * duration open BigBang. Runs independently of the single-pointer swipe/large-contact state
-     * machine above, which discards multi-touch. The daemon-backed thumb press remains primary;
-     * this needs no vendor signal, only pointer geometry from the MotionEvent.
-     */
     private static void handleTwoFingerLongPress(Object listener, MotionEvent event,
             ClassLoader systemServerClassLoader) {
         switch (event.getActionMasked()) {
@@ -610,22 +530,18 @@ public final class LargeAreaSwipeGestureHooker implements XposedInterface.Hooker
                 break;
         }
     }
-
     private static void beginTwoFingerLongPress(Object listener, MotionEvent event,
             ClassLoader systemServerClassLoader) {
         cancelTwoFingerLongPress();
-
         Context context = resolveContext(listener);
         GestureSettings.Snapshot settings = GestureSettings.read(context);
         if (!settings.bigBangEnabled || !settings.twoFingerLongPressEnabled) return;
-
         String foregroundPackage = resolveForegroundPackage(context);
         if (settings.isBlacklisted(foregroundPackage)) {
             LSPLogger.d("LargeAreaSwipeGestureHooker: two-finger ignored blacklisted package="
                     + foregroundPackage);
             return;
         }
-
         DisplayMetrics metrics = Resources.getSystem().getDisplayMetrics();
         sTwoFingerSlopPx = TWO_FINGER_MOVE_SLOP_DP * Math.max(1f, metrics.density);
         sTwoFingerStartX0 = event.getX(0);
@@ -638,7 +554,6 @@ public final class LargeAreaSwipeGestureHooker implements XposedInterface.Hooker
         final int generation = ++sTwoFingerGeneration;
         final Object gestureListener = listener;
         final ClassLoader classLoader = systemServerClassLoader;
-
         Handler handler = resolveHandler(listener);
         if (handler == null) {
             handler = new Handler(Looper.getMainLooper());
@@ -654,7 +569,6 @@ public final class LargeAreaSwipeGestureHooker implements XposedInterface.Hooker
         handler.postAtTime(sTwoFingerRunnable,
                 sTwoFingerDownTime + settings.longPressDurationMs);
     }
-
     private static boolean twoFingerMovedTooFar(MotionEvent event) {
         float slopSquared = sTwoFingerSlopPx * sTwoFingerSlopPx;
         float dx0 = event.getX(0) - sTwoFingerStartX0;
@@ -664,7 +578,6 @@ public final class LargeAreaSwipeGestureHooker implements XposedInterface.Hooker
         float dy1 = event.getY(1) - sTwoFingerStartY1;
         return dx1 * dx1 + dy1 * dy1 > slopSquared;
     }
-
     private static void fireTwoFingerLongPress(Object listener,
             ClassLoader systemServerClassLoader) {
         Context context = resolveContext(listener);
@@ -680,7 +593,6 @@ public final class LargeAreaSwipeGestureHooker implements XposedInterface.Hooker
         LSPLogger.i("LargeAreaSwipeGestureHooker: two-finger long press -> BigBang");
         triggerBigBang(listener, systemServerClassLoader, foregroundPackage, touchX, touchY);
     }
-
     private static void cancelTwoFingerLongPress() {
         sTwoFingerGeneration++;
         if (sTwoFingerRunnable != null && sHandler != null) {
@@ -690,7 +602,6 @@ public final class LargeAreaSwipeGestureHooker implements XposedInterface.Hooker
         sTwoFingerActive = false;
         sTwoFingerPackage = null;
     }
-
     private static void resetGesture() {
         sGestureGeneration++;
         if (sLongPressFallbackRunnable != null && sHandler != null) {
