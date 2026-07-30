@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <merge xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:sidebar="http://schemas.android.com/apk/res/com.hyper.sidebar">
+    xmlns:sidebar="http://schemas.android.com/apk/res/com.hyper.onestep">
     <TextView
         android:id="@+id/date_content"
         android:layout_height="24dp"
@@ -10,7 +10,7 @@
         android:textSize="10dp"
         android:textColor="@color/content_view_interval_time_color"
         android:paddingLeft="15dp"/>
-    <com.hyper.sidebar.view.ListItemFrameLayout
+    <com.hyper.onestep.view.ListItemFrameLayout
         android:layout_width="match_parent"
         android:layout_height="51dp">
         <FrameLayout
@@ -76,5 +76,5 @@
             android:textSize="12dp"
             android:textColor="@color/content_view_interval_more_color"
             android:text="@string/load_more"/>
-    </com.hyper.sidebar.view.ListItemFrameLayout>
+    </com.hyper.onestep.view.ListItemFrameLayout>
 </merge>

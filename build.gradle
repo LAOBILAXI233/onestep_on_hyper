@@ -18,10 +18,11 @@ repositories {
 apply plugin: 'com.android.application'
 
 android {
-    namespace 'com.hyper.sidebar'
+    namespace 'com.hyper.onestep'
     compileSdk 36
 
     defaultConfig {
+        applicationId 'com.hyper.onestep'
         // LSPosed 模块目标：Android 13+ / HyperOS
         minSdk 33
         targetSdk 36

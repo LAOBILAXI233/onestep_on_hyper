@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Glass overlay opened by the TopView edge gesture. The custom root owns
      blur/elevation; this XML keeps the content hierarchy lightweight. -->
-<com.hyper.sidebar.view.MediaGlassPanel
+<com.hyper.onestep.view.MediaGlassPanel
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/media_glass_panel"
     android:layout_width="match_parent"
@@ -49,4 +49,4 @@
             android:showDividers="middle" />
         </ScrollView>
     </LinearLayout>
-</com.hyper.sidebar.view.MediaGlassPanel>
+</com.hyper.onestep.view.MediaGlassPanel>

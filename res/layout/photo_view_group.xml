@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<com.hyper.sidebar.view.RecentPhotoViewGroup xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:sidebar="http://schemas.android.com/apk/res/com.hyper.sidebar"
+<com.hyper.onestep.view.RecentPhotoViewGroup xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:sidebar="http://schemas.android.com/apk/res/com.hyper.onestep"
     android:id="@+id/recent_photo_view_group"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
@@ -10,4 +10,4 @@
         android:visibility="gone"/>
     <include
         layout="@layout/empty_view"/>
-</com.hyper.sidebar.view.RecentPhotoViewGroup>
+</com.hyper.onestep.view.RecentPhotoViewGroup>

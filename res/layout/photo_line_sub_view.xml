@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<com.hyper.sidebar.view.PhotoLineSubView
+<com.hyper.onestep.view.PhotoLineSubView
     xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:sidebar="http://schemas.android.com/apk/res/com.hyper.sidebar"
+    xmlns:sidebar="http://schemas.android.com/apk/res/com.hyper.onestep"
     android:paddingBottom="@dimen/recent_photo_padding_bottom"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content">
@@ -77,4 +77,4 @@
             android:textColor="@color/content_view_interval_more_color"
             android:text="@string/load_more"/>
     </RelativeLayout>
-</com.hyper.sidebar.view.PhotoLineSubView>
+</com.hyper.onestep.view.PhotoLineSubView>

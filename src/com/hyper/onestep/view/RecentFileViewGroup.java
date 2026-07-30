@@ -1,0 +1,239 @@
+package com.hyper.onestep.view;
+
+import com.hyper.onestep.R;
+import com.hyper.onestep.SidebarController;
+import com.hyper.onestep.util.IEmpty;
+import com.hyper.onestep.util.LOG;
+import com.hyper.onestep.util.RecentFileManager;
+import com.hyper.onestep.util.Tracker;
+import com.hyper.onestep.util.anim.Anim;
+import com.hyper.onestep.util.anim.AnimListener;
+import com.hyper.onestep.util.anim.AnimStatusManager;
+import com.hyper.onestep.util.anim.AnimTimeLine;
+import com.hyper.onestep.util.anim.Vector3f;
+import com.hyper.onestep.view.ContentView.ContentType;
+import com.hyper.onestep.util.ListScrollMemory;
+
+import android.content.Context;
+import android.content.res.Configuration;
+import android.util.AttributeSet;
+import android.view.View;
+import android.widget.ListView;
+import android.widget.TextView;
+
+public class RecentFileViewGroup extends RoundCornerFrameLayout implements IEmpty, ContentView.ISubView {
+    private static final LOG log = LOG.getInstance(RecentFileViewGroup.class);
+
+    private ContentView mContentView;
+
+    private EmptyView mEmptyView;
+    private View mContainer;
+    private ListView mRecentFileList;
+    private TextView mTitle;
+    private View mClearFile;
+    private RecentFileAdapter mRecentFileAdapter;
+
+    private boolean mIsEmpty = true;
+    private Context mContext;
+
+    public RecentFileViewGroup(Context context) {
+        this(context, null);
+    }
+
+    public RecentFileViewGroup(Context context, AttributeSet attrs) {
+        this(context, attrs, 0);
+    }
+
+    public RecentFileViewGroup(Context context, AttributeSet attrs,
+            int defStyleAttr) {
+        this(context, attrs, defStyleAttr, 0);
+    }
+
+    public RecentFileViewGroup(Context context, AttributeSet attrs,
+            int defStyleAttr, int defStyleRes) {
+        super(context, attrs, defStyleAttr, defStyleRes);
+        mContext = context;
+    }
+
+    @Override
+    protected void onFinishInflate() {
+        super.onFinishInflate();
+        try {
+            mEmptyView = (EmptyView)findViewById(R.id.empty_view);
+            mEmptyView.setImageView(R.drawable.file_blank);
+            mEmptyView.setText(R.string.file_empty_text);
+            mEmptyView.setHint(R.string.file_empty_hint);
+
+            mContainer = findViewById(R.id.file_container);
+            mTitle = (TextView) findViewById(R.id.title);
+            mClearFile = findViewById(R.id.clear);
+            mRecentFileList = (ListView)findViewById(R.id.recentfile_listview);
+            mRecentFileAdapter = new RecentFileAdapter(mContext, this);
+            mRecentFileList.setAdapter(mRecentFileAdapter);
+
+            mClearFile.setOnClickListener(mClearListener);
+            findViewById(R.id.scroll_to_top).setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    mRecentFileList.setSelection(0);
+                }
+            });
+
+            updateUI();
+        } catch (Throwable t) {
+            com.hyper.onestep.lsp.LSPLogger.e("RecentFileViewGroup.onFinishInflate failed", t);
+        }
+    }
+
+    private ClearListener mClearListener = new ClearListener(new Runnable() {
+        @Override
+        public void run() {
+            AnimTimeLine timeLine = new AnimTimeLine();
+            int width = mRecentFileList.getWidth();
+            Anim moveAnim = new Anim(mRecentFileList, Anim.MOVE, 100, Anim.CUBIC_OUT, new Vector3f(), new Vector3f(width, 0));
+            Anim alphaAnim = new Anim(RecentFileViewGroup.this, Anim.TRANSPARENT, 200, Anim.CUBIC_OUT, new Vector3f(0, 0, 1), new Vector3f());
+            timeLine.addAnim(moveAnim);
+            timeLine.addAnim(alphaAnim);
+            timeLine.setAnimListener(new AnimListener() {
+                @Override
+                public void onStart() {
+
+                }
+
+                @Override
+                public void onComplete(int type) {
+                    mRecentFileList.setTranslationX(0);
+                    RecentFileViewGroup.this.setAlpha(1);
+                    RecentFileViewGroup.this.setVisibility(View.GONE);
+                    RecentFileManager.getInstance(mContext).clear();
+                    Tracker.onClick(Tracker.EVENT_MAKESURE_CLEAN, "source", "1");
+                }
+            });
+            timeLine.start();
+            SidebarController.getInstance(mContext).resumeTopView();
+            mContentView.setCurrent(ContentType.NONE);
+        }
+    }, R.string.title_confirm_delete_history_file);
+
+    public void setContentView(ContentView cv){
+        mContentView = cv;
+    }
+
+    @Override
+    public void setEmpty(boolean isEmpty) {
+        if (mIsEmpty != isEmpty) {
+            mIsEmpty = isEmpty;
+            if (mIsEmpty) {
+                mContainer.setVisibility(GONE);
+                mEmptyView.setVisibility(VISIBLE);
+            } else {
+                mContainer.setVisibility(VISIBLE);
+                mEmptyView.setVisibility(GONE);
+            }
+        }
+    }
+
+    public void show(boolean anim) {
+        Tracker.onClick(Tracker.EVENT_TOPBAR, "type", "1");
+        RecentFileManager.getInstance(mContext).startSearchFile();
+        // Resume where the user last scrolled instead of snapping back to the top.
+        mRecentFileList.requestLayout();
+        ListScrollMemory.restore(mContext, "file", mRecentFileList);
+        post(new Runnable() {
+            @Override
+            public void run() {
+                RecentFileManager.getInstance(mContext).refresh();
+            }
+        });
+
+        setVisibility(VISIBLE);
+        if (anim) {
+            int time = 180;
+            AnimTimeLine timeLine = new AnimTimeLine();
+            final View view;
+            if (mIsEmpty) {
+                view = mEmptyView;
+            } else {
+                view = mRecentFileList;
+            }
+            int height = view.getHeight();
+            view.setPivotY(0);
+            Anim moveAnim = new Anim(view, Anim.MOVE, time, Anim.CUBIC_OUT, new Vector3f(0, -height / 2), new Vector3f());
+            moveAnim.setListener(new AnimListener() {
+                @Override
+                public void onStart() {
+                }
+                @Override
+                public void onComplete(int type) {
+                    view.setTranslationY(0);
+                }
+            });
+            timeLine.addAnim(moveAnim);
+            setPivotY(0);
+            Anim scaleAnim = new Anim(this, Anim.SCALE, time, Anim.CUBIC_OUT, new Vector3f(0, 0.6f), new Vector3f(0, 1));
+            timeLine.addAnim(scaleAnim);
+            timeLine.setAnimListener(new AnimListener() {
+                @Override
+                public void onStart() {
+                    AnimStatusManager.getInstance().setStatus(AnimStatusManager.ON_FILE_LIST_ANIM, true);
+                }
+
+                @Override
+                public void onComplete(int type) {
+                    AnimStatusManager.getInstance().setStatus(AnimStatusManager.ON_FILE_LIST_ANIM, false);
+                    setScaleY(1);
+                }
+            });
+            timeLine.start();
+        }
+    }
+
+    public void dismiss(boolean anim) {
+        ListScrollMemory.save(mContext, "file", mRecentFileList);
+        mClearListener.dismiss();
+        if (anim) {
+            AnimTimeLine timeLine = new AnimTimeLine();
+            final View view;
+            if (mIsEmpty) {
+                view = mEmptyView;
+            } else {
+                view = mContainer;
+            }
+            int time = 200;
+            view.setPivotY(0);
+            Anim alphaAnim = new Anim(view, Anim.TRANSPARENT, time, Anim.CUBIC_OUT, new Vector3f(0, 0, 1), new Vector3f());
+            Anim scaleAnim = new Anim(view, Anim.SCALE, time, Anim.CUBIC_OUT, new Vector3f(1, 1), new Vector3f(1, 0.6f));
+            timeLine.addAnim(alphaAnim);
+            timeLine.addAnim(scaleAnim);
+            timeLine.setAnimListener(new AnimListener() {
+                @Override
+                public void onStart() {
+                    AnimStatusManager.getInstance().setStatus(AnimStatusManager.ON_FILE_LIST_ANIM, true);
+                }
+
+                @Override
+                public void onComplete(int type) {
+                    AnimStatusManager.getInstance().setStatus(AnimStatusManager.ON_FILE_LIST_ANIM, false);
+                    view.setScaleY(1);
+                    view.setAlpha(1);
+                    setVisibility(View.GONE);
+                    mRecentFileAdapter.shrink();
+                }
+            });
+            timeLine.start();
+        } else {
+            setVisibility(View.GONE);
+        }
+    }
+
+    private void updateUI(){
+        mTitle.setText(R.string.title_file);
+    }
+
+    @Override
+    public void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        updateUI();
+        mClearListener.onConfigurationChanged(newConfig);
+    }
+}

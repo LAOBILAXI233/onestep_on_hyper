@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<com.hyper.sidebar.view.TopItemView xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:sidebar="http://schemas.android.com/apk/res/com.hyper.sidebar"
+<com.hyper.onestep.view.TopItemView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:sidebar="http://schemas.android.com/apk/res/com.hyper.onestep"
     android:layout_width="0dp"
     android:layout_height="match_parent"
     android:layout_weight="1">
@@ -53,4 +53,4 @@
         android:layout_height="match_parent"
         android:background="@color/topbar_dim_color"
         android:visibility="gone"/>
-</com.hyper.sidebar.view.TopItemView>
+</com.hyper.onestep.view.TopItemView>

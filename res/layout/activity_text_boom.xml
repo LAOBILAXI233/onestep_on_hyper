@@ -77,7 +77,7 @@
                     android:scaleType="fitCenter"
                     android:visibility="gone" />
 
-                <com.hyper.sidebar.lsp.TextBoomChipLayout
+                <com.hyper.onestep.lsp.TextBoomChipLayout
                     android:id="@+id/text_boom_chips"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"

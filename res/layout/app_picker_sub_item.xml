@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<com.hyper.sidebar.setting.AppPickerSubView xmlns:android="http://schemas.android.com/apk/res/android"
+<com.hyper.onestep.setting.AppPickerSubView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="90dp"
     android:layout_height="104dp">
     <View
@@ -34,4 +34,4 @@
         android:src="@drawable/icon_normal"
         android:layout_alignParentRight="true"
         android:layout_alignParentTop="true"/>
-</com.hyper.sidebar.setting.AppPickerSubView>
+</com.hyper.onestep.setting.AppPickerSubView>

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<com.hyper.sidebar.view.SidebarRootView xmlns:android="http://schemas.android.com/apk/res/android"
+<com.hyper.onestep.view.SidebarRootView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:smartisanos="http://schemas.android.com/apk/res/smartisanos"
     android:id="@+id/sidebar_root"
     android:layout_width="match_parent"
@@ -22,4 +22,4 @@
         android:visibility="gone"
         android:gravity="center_horizontal|bottom"
         />
-</com.hyper.sidebar.view.SidebarRootView>
+</com.hyper.onestep.view.SidebarRootView>

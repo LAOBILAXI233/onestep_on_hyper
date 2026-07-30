@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<com.hyper.sidebar.view.EmptyView xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:sidebar="http://schemas.android.com/apk/res/com.hyper.sidebar"
+<com.hyper.onestep.view.EmptyView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:sidebar="http://schemas.android.com/apk/res/com.hyper.onestep"
     android:id="@+id/empty_view"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
@@ -37,4 +37,4 @@
         android:textSize="12dp"
         android:textColor="#9affffff"
         android:visibility="gone"/>
-</com.hyper.sidebar.view.EmptyView>
+</com.hyper.onestep.view.EmptyView>

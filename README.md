@@ -126,7 +126,7 @@ JAVA_HOME="/path/to/jdk-21" ./gradlew assembleDebug
    5. 出现问题的具体描述
    6. 出现问题的具体截图
    7. 出现问题的具体日志
-   日志的获取方式:/data/data/com.hyper.sidebar/files/onestep/onestep.log
+   日志的获取方式:/data/data/com.hyper.onestep/files/onestep/onestep.log
 ### 手势操作
 1. **onestep启动**：从状态栏边缘向内滑动，即可打开侧边栏，如果安装守护进程即可触发大面积按压，大面积按压并向斜方向滑动。在侧边栏中，你可以查看最近的图片、文件和剪贴板历史，并将条目拖拽到应用图标上即可分享，或拖拽到窗口槽位即可在其中打开。![alt text](PixPin_2026-07-27_00-01-53.png)![alt text](PixPin_2026-07-27_00-02-47.png)
 2. **BigBang**：在应用中大面积按压（以安装守护进程模块）或双指长按，即可打开 BigBang。在 BigBang 中，你可以将任意文本炸裂为可点按的词语碎片，并将选区拖拽到其他应用中。

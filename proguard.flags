@@ -65,7 +65,7 @@
 }
 
 # 保留模块入口类与 lsp 包下所有 hook 相关类
--keep class com.hyper.sidebar.lsp.** { *; }
--keep class com.hyper.sidebar.SidebarController { *; }
--keep class com.hyper.sidebar.SidebarMode { *; }
--keep class com.hyper.sidebar.SidebarStatus { *; }
+-keep class com.hyper.onestep.lsp.** { *; }
+-keep class com.hyper.onestep.SidebarController { *; }
+-keep class com.hyper.onestep.SidebarMode { *; }
+-keep class com.hyper.onestep.SidebarStatus { *; }

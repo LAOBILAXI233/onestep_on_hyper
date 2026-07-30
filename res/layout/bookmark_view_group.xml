@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<com.hyper.sidebar.view.BookmarkViewGroup xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:sidebar="http://schemas.android.com/apk/res/com.hyper.sidebar"
+<com.hyper.onestep.view.BookmarkViewGroup xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:sidebar="http://schemas.android.com/apk/res/com.hyper.onestep"
     android:id="@+id/bookmark_view_group"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
@@ -11,4 +11,4 @@
         android:visibility="gone"/>
     <include
         layout="@layout/empty_view"/>
-</com.hyper.sidebar.view.BookmarkViewGroup>
+</com.hyper.onestep.view.BookmarkViewGroup>

@@ -75,7 +75,7 @@
 
         <provider
             android:name=".lsp.BigBangImageProvider"
-            android:authorities="com.hyper.sidebar.bigbang.images"
+            android:authorities="com.hyper.onestep.bigbang.images"
             android:exported="true"
             android:grantUriPermissions="true" />
 

@@ -1,7 +1,7 @@
 # Gradle 构建产物
 /build/
 /.gradle/
-
+/bin/
 # 本地环境配置（SDK 路径等，机器相关）
 /local.properties
 
@@ -21,11 +21,6 @@
 /.touchdiag/
 /window.xml
 
-
-# 参考资料与分析缓存（非工程组成部分）
-/sukisu-manager/
-/sukisu_tree.json
-/androguard.db
 
 # 从 sourceSets 排除的旧版代码存档
 /res-excluded/
