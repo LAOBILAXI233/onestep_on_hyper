@@ -33,7 +33,7 @@ Smartisan OS 已经远去，但它最好的两个创意不应被遗忘。Van Ste
 
 | 触发方式 | 工作原理 |
 | --- | --- |
-| 大面积按压 | 读取厂商触控 HAL 的接触密度信号——参见 [触控守护进程](#触控守护进程) |
+~~ | 大面积按压 | 读取厂商触控 HAL 的接触密度信号——参见 [触控守护进程](#触控守护进程) | ~~
 | 双指长按 | 纯 `MotionEvent` 几何计算 |
 | 长按回退 | 可选方案，用于面积信号不可用时 |
 | 角落 / 边缘滑动 | 可从屏幕边缘自定义入口 |
@@ -62,19 +62,9 @@ Smartisan OS 已经远去，但它最好的两个创意不应被遗忘。Van Ste
 
 3. 在 Root 管理器中授予本应用 **Root 权限**。设置通过 `su` 写入，如果没有 Root 权限，所有开关都会静默回退。
 
-### 触控守护进程
-
-大面积按压触发方式需要一个小型 Root 守护进程，因为触控驱动虽然声明了 `ABS_MT_TOUCH_MAJOR`，但从未实际发出该值——接触面积信息仅存在于厂商触控 HAL 内部。`scripts/onestep-touchd.sh` 通过 uprobe 读取该信息，并将判定结果以系统属性的形式发布。
-# 守护进程仅在mi15pro上测试成功，其他设备请自行测试/修改
-
-将其安装为 Magisk/KernelSU 模块，以便每次开机自动启动：
-
-```sh
-adb push scripts/module/module.prop scripts/module/service.sh /data/local/tmp/
-adb push scripts/onestep-touchd.sh scripts/onestep-touchd-stop.sh /data/local/tmp/
-adb push scripts/deploy-module.sh /data/local/tmp/
-adb shell su -M -c 'sh /data/local/tmp/deploy-module.sh'
-```
+### 活动调用
+su -c 'am broadcast -a com.hyper.sidebar.ACTION_TOGGLE_ONE_STEP'
+su -c 'am broadcast -a com.hyper.sidebar.ACTION_TOGGLE_ONE_STEP'
 ## 构建
 
 ```sh
