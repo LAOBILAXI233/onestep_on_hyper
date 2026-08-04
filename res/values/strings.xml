@@ -122,7 +122,8 @@
     <string name="miuix_haptics_summary">划过分享应用、命中小窗和召回小窗时提供轻触反馈</string>
     <string name="miuix_section_bigbang">BigBang (Beta)</string>
     <string name="miuix_bigbang_title">BigBang</string>
-    <string name="miuix_bigbang_summary">提取当前页面中的文字和图片，并联动拖拽分享</string>
+    <string name="miuix_bigbang_summary">维护中，暂不可用</string>
+    <string name="bigbang_maintenance_toast">bigbang维护中，暂不可用</string>
     <string name="miuix_section_fallback">兼容触发</string>
     <string name="miuix_fallback_title">静止长按</string>
     <string name="miuix_fallback_summary">默认关闭；单指保持静止，达到设定时间后触发</string>

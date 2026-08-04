@@ -43,11 +43,10 @@ public final class TextBoomActivity extends Activity implements TextBoomChipLayo
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_text_boom);
-        bindViews();
-        applySystemBarInsets();
-        bindActions();
-        readInput(getIntent());
+        // BigBang 维护中：直接打开也不允许，提示后关闭
+        Toast.makeText(this, R.string.bigbang_maintenance_toast, Toast.LENGTH_SHORT).show();
+        finish();
+        return;
     }
     @Override
     protected void onNewIntent(Intent intent) {

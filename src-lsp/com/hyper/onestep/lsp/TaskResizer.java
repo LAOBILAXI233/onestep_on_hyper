@@ -16,23 +16,11 @@ import java.util.List;
 // 在全屏与自由窗口模式间切换并校验任务尺寸
 public final class TaskResizer {
     private static final String TAG = "OneStepLSP";
-    /** Windowing mode 常量(参见 AOSP android.app.WindowConfiguration) */
-    private static final int WINDOWING_MODE_FULLSCREEN = 1;
-    private static final int WINDOWING_MODE_FREEFORM = 5;
-    private static final long FREEFORM_VERIFY_TIMEOUT_MS = 360L;
-    private static final long FREEFORM_VERIFY_INTERVAL_MS = 40L;
-    /** Resize mode 常量(参见 AOSP android.app.ActivityInfo) */
-    private static final int RESIZE_MODE_FORCE_RESIZEABLE = 2;
-    private static final String RENDER_BACKEND_SETTING =
-            "smartisanos_onestep_render_backend";
-    private static final String RENDER_BACKEND_FREEFORM = "freeform";
-    /** 记录缩窗前的状态,用于退出时恢复 */
+    /** Windowing mode constant for verifying/logging the fullscreen default. */
+    /** Records the original task bounds for diagnostics only; OneStep never resizes the task. */
     private static Integer sResizedTaskId = null;
     private static Rect sOriginalBounds = null;
-    private static int sOriginalWindowingMode = WINDOWING_MODE_FULLSCREEN;
-    private static int sOriginalResizeMode = 0;
     private static boolean sUsingSurfaceTransform = false;
-    private static boolean sUsingDefaultDisplayFreeform = false;
     private static final long TRANSFORM_REAPPLY_MS = 2000L;
     private static final long EXTERNAL_LAUNCH_WATCH_MS = 6000L;
     private static final long EXTERNAL_LAUNCH_FORCE_DELAY_MS = 360L;
@@ -53,9 +41,6 @@ public final class TaskResizer {
     private static final Handler sMainHandler = new Handler(Looper.getMainLooper());
     private static Integer sOriginalMirrorSwitchMode;
     private static int sMirrorSwitchGeneration;
-    /** TaskOrganizer 路径创建的 freeform root task id,退出时需删除 */
-    private static Integer sFreeformRootTaskId = null;
-    private static Object sTaskOrganizer = null;
     /** The task explicitly rotated by the user for the current OneStep session. */
     private static int sManualRotationTaskId = -1;
     private TaskResizer() {}
@@ -80,189 +65,39 @@ public final class TaskResizer {
                     + " is home/system, skip");
             return false;
         }
-        int left, right;
-        if (sidebarOnLeft) {
-            left = sidebarWidth;
-            right = screenWidth;
-        } else {
-            left = 0;
-            right = screenWidth - sidebarWidth;
-        }
-        Rect targetBounds = new Rect(left, 0, right, screenHeight);
         int topHeight = Math.round(screenHeight * (sidebarWidth / (float) screenWidth));
         sOriginalBounds = getTaskBounds(taskId);
-        sOriginalWindowingMode = getTaskWindowingMode(taskId);
-        sOriginalResizeMode = getTaskResizeable(taskId);
         LSPLogger.i("TaskResizer.shrinkForegroundTask: original bounds=" + sOriginalBounds
-                + " windowingMode=" + sOriginalWindowingMode
-                + " resizeMode=" + sOriginalResizeMode);
-        if (placeMainTask(context, taskId, sidebarWidth, screenWidth,
+                + " windowingMode=" + getTaskWindowingMode(taskId));
+        if (!placeMainTask(context, taskId, sidebarWidth, screenWidth,
                 topHeight, screenHeight, sidebarOnLeft)) {
-            sResizedTaskId = taskId;
-            armTransformReapply();
-            LSPLogger.i("TaskResizer.shrinkForegroundTask: main presentation applied, taskId="
-                    + taskId + " freeform=" + sUsingDefaultDisplayFreeform);
-            return true;
-        }
-        LSPLogger.w("TaskResizer.shrinkForegroundTask: main presentation failed, "
-                + "trying legacy freeform fallback");
-        if (isDefaultDisplayFreeformEnabled(context)) {
-            LSPLogger.e("TaskResizer.shrinkForegroundTask: freeform pilot and "
-                    + "surface fallback both failed; refusing display-wide mode change");
-            return false;
-        }
-        if (!setTaskResizeable(taskId, RESIZE_MODE_FORCE_RESIZEABLE)) {
-            LSPLogger.w("TaskResizer.shrinkForegroundTask: setTaskResizeable failed, continue anyway");
-        }
-        boolean inFreeform = tryMiuiEnterFreeform(taskId);
-        if (!inFreeform) {
-            LSPLogger.w("TaskResizer.shrinkForegroundTask: MIUI freeform entry failed, "
-                    + "trying TaskOrganizer path");
-            inFreeform = tryEnterFreeformViaTaskOrganizer(taskId);
-        }
-        if (!inFreeform) {
-            LSPLogger.w("TaskResizer.shrinkForegroundTask: all freeform paths failed, "
-                    + "trying setDisplayWindowingMode fallback");
-            setDisplayWindowingMode(0, WINDOWING_MODE_FREEFORM);
-        }
-        if (!resizeTask(taskId, targetBounds, 0)) {
-            LSPLogger.e("TaskResizer.shrinkForegroundTask: resizeTask failed");
+            // A failed leash transform must leave the real task untouched and fullscreen. Never
+            // attempt MIUI, TaskOrganizer, or display-wide freeform as a fallback.
+            LSPLogger.e("TaskResizer.shrinkForegroundTask: surface presentation failed; "
+                    + "leaving task fullscreen taskId=" + taskId);
             return false;
         }
         sResizedTaskId = taskId;
-        LSPLogger.i("TaskResizer.shrinkForegroundTask: success, taskId=" + taskId
-                + " targetBounds=" + targetBounds);
+        armTransformReapply();
+        LSPLogger.i("TaskResizer.shrinkForegroundTask: surface presentation applied, taskId="
+                + taskId);
         return true;
-    }
-    /** Returns the bounds reserved for the main task below the OneStep top bar. */
-    private static Rect getMainTaskBounds(int sidebarWidth, int screenWidth, int topHeight,
-            int screenHeight, boolean sidebarOnLeft) {
-        int left = sidebarOnLeft ? sidebarWidth : 0;
-        int right = sidebarOnLeft ? screenWidth : screenWidth - sidebarWidth;
-        return new Rect(left, topHeight, right, screenHeight);
     }
     private static boolean placeMainTask(Context context, int taskId, int sidebarWidth,
             int screenWidth, int topHeight, int screenHeight, boolean sidebarOnLeft) {
-        Rect taskBounds = getTaskBounds(taskId);
-        if (isDefaultDisplayFreeformEnabled(context)
-                && !isLandscapeTask(context, taskId, taskBounds)) {
-            Rect mainBounds = getMainTaskBounds(sidebarWidth, screenWidth,
-                    topHeight, screenHeight, sidebarOnLeft);
-            if (placeTaskInDefaultDisplayFreeform(taskId, mainBounds)) {
-                sUsingDefaultDisplayFreeform = true;
-                sUsingSurfaceTransform = false;
-                LSPLogger.i("TaskResizer.placeMainTask: freeform pilot taskId=" + taskId
-                        + " bounds=" + mainBounds);
-                return true;
-            }
-            LSPLogger.w("TaskResizer.placeMainTask: freeform pilot failed, "
-                    + "falling back to ShellTaskOrganizer leash");
-        }
-        if (shrinkTaskSurface(context, taskId, sidebarWidth, screenWidth,
+        // Main tasks always remain fullscreen on display 0. OneStep changes only the task leash,
+        // never the task or display windowing mode.
+        if (!shrinkTaskSurface(context, taskId, sidebarWidth, screenWidth,
                 topHeight, screenHeight, sidebarOnLeft)) {
-            sUsingDefaultDisplayFreeform = false;
-            sUsingSurfaceTransform = true;
-            return true;
-        }
-        return false;
-    }
-    /** Enters task-level freeform without changing the windowing mode of display 0. */
-    private static boolean placeTaskInDefaultDisplayFreeform(int taskId, Rect bounds) {
-        if (taskId <= 0 || bounds == null || bounds.width() <= 0 || bounds.height() <= 0) {
             return false;
         }
-        int mode = getTaskWindowingMode(taskId);
-        if (mode != WINDOWING_MODE_FREEFORM) {
-            setTaskResizeable(taskId, RESIZE_MODE_FORCE_RESIZEABLE);
-            boolean entered = tryMiuiEnterFreeform(taskId);
-            if (entered) {
-                entered = waitForFreeformMode(taskId);
-            }
-            if (!entered) {
-                LSPLogger.w("TaskResizer.placeTaskInDefaultDisplayFreeform: MIUI request did not "
-                        + "change task mode, trying TaskOrganizer taskId=" + taskId);
-                entered = tryEnterFreeformViaTaskOrganizer(taskId)
-                        && waitForFreeformMode(taskId);
-            }
-            if (!entered || getTaskWindowingMode(taskId) != WINDOWING_MODE_FREEFORM) {
-                LSPLogger.w("TaskResizer.placeTaskInDefaultDisplayFreeform: no task-level "
-                        + "freeform entry path taskId=" + taskId
-                        + " actualMode=" + getTaskWindowingMode(taskId));
-                tryMiuiExitFreeformTask(taskId);
-                setTaskResizeable(taskId, sOriginalResizeMode);
-                return false;
-            }
-        }
-        if (!resizeTask(taskId, bounds, 0)) {
-            LSPLogger.w("TaskResizer.placeTaskInDefaultDisplayFreeform: resize failed, "
-                    + "attempting freeform exit taskId=" + taskId);
-            tryMiuiExitFreeformTask(taskId);
-            setTaskResizeable(taskId, sOriginalResizeMode);
-            return false;
-        }
-        if (!waitForFreeformPlacement(taskId, bounds)) {
-            LSPLogger.w("TaskResizer.placeTaskInDefaultDisplayFreeform: resize accepted but "
-                    + "WMS did not apply freeform placement taskId=" + taskId
-                    + " actualMode=" + getTaskWindowingMode(taskId)
-                    + " actualBounds=" + getTaskBounds(taskId));
-            tryMiuiExitFreeformTask(taskId);
-            setTaskResizeable(taskId, sOriginalResizeMode);
-            return false;
-        }
-        LSPLogger.i("TaskResizer.placeTaskInDefaultDisplayFreeform: taskId=" + taskId
-                + " modeBefore=" + mode + " modeAfter=" + getTaskWindowingMode(taskId)
-                + " bounds=" + bounds);
+        sUsingSurfaceTransform = true;
         return true;
     }
-    private static boolean waitForFreeformMode(int taskId) {
-        long deadline = SystemClock.uptimeMillis() + FREEFORM_VERIFY_TIMEOUT_MS;
-        do {
-            if (getTaskWindowingMode(taskId) == WINDOWING_MODE_FREEFORM) {
-                return true;
-            }
-            SystemClock.sleep(FREEFORM_VERIFY_INTERVAL_MS);
-        } while (SystemClock.uptimeMillis() < deadline);
-        return getTaskWindowingMode(taskId) == WINDOWING_MODE_FREEFORM;
-    }
-    /** Verifies both the task mode and the bounds after resizeTask returns. */
-    private static boolean waitForFreeformPlacement(int taskId, Rect expectedBounds) {
-        long deadline = SystemClock.uptimeMillis() + FREEFORM_VERIFY_TIMEOUT_MS;
-        do {
-            int mode = getTaskWindowingMode(taskId);
-            Rect actualBounds = getTaskBounds(taskId);
-            if (mode == WINDOWING_MODE_FREEFORM
-                    && (actualBounds == null || expectedBounds.equals(actualBounds))) {
-                return true;
-            }
-            SystemClock.sleep(FREEFORM_VERIFY_INTERVAL_MS);
-        } while (SystemClock.uptimeMillis() < deadline);
-        Rect actualBounds = getTaskBounds(taskId);
-        return getTaskWindowingMode(taskId) == WINDOWING_MODE_FREEFORM
-                && (actualBounds == null || expectedBounds.equals(actualBounds));
-    }
-    private static boolean isDefaultDisplayFreeformEnabled(Context context) {
-        if (context == null) return false;
-        try {
-            String backend = Settings.Global.getString(context.getContentResolver(),
-                    RENDER_BACKEND_SETTING);
-            return RENDER_BACKEND_FREEFORM.equalsIgnoreCase(backend);
-        } catch (Throwable t) {
-            LSPLogger.d("TaskResizer.isDefaultDisplayFreeformEnabled: " + t);
-            return false;
-        }
-    }
-    /** Restores whichever presentation is currently active for a task. */
+    /** Restores only the SurfaceControl presentation; task windowing mode is never changed. */
     private static void restoreTaskPresentation(int taskId) {
         if (taskId <= 0) return;
-        if (sUsingDefaultDisplayFreeform && sResizedTaskId != null
-                && sResizedTaskId == taskId) {
-            if (sOriginalBounds != null) resizeTask(taskId, sOriginalBounds, 0);
-            if (!tryMiuiExitFreeformTask(taskId)) {
-                LSPLogger.w("TaskResizer.restoreTaskPresentation: freeform exit failed taskId="
-                        + taskId);
-            }
-            setTaskResizeable(taskId, sOriginalResizeMode);
-        } else if (sUsingSurfaceTransform) {
+        if (sUsingSurfaceTransform) {
             TaskSurfaceTransformer.restore(taskId);
         }
         if (sResizedTaskId != null && sResizedTaskId == taskId) {
@@ -272,10 +107,7 @@ public final class TaskResizer {
     private static void clearPresentationState() {
         sResizedTaskId = null;
         sOriginalBounds = null;
-        sOriginalWindowingMode = WINDOWING_MODE_FULLSCREEN;
-        sOriginalResizeMode = 0;
         sUsingSurfaceTransform = false;
-        sUsingDefaultDisplayFreeform = false;
         sTransformReapplyUntil = 0L;
         sOrientationProbeUntil = 0L;
         sLastTransformReapply = 0L;
@@ -283,253 +115,6 @@ public final class TaskResizer {
         sLastLandscapeSource = null;
         clearPendingMainTaskCandidate();
     }
-    private static boolean tryEnterFreeformViaTaskOrganizer(int taskId) {
-        LSPLogger.i("TaskResizer.tryEnterFreeformViaTaskOrganizer: taskId=" + taskId);
-        Class<?> taskOrganizerClz = null;
-        try {
-            taskOrganizerClz = Class.forName("android.window.TaskOrganizer");
-        } catch (Throwable t) {
-            LSPLogger.w("TaskResizer.tryEnterFreeformViaTaskOrganizer: TaskOrganizer class not found: " + t);
-            return false;
-        }
-        if (sTaskOrganizer == null) {
-            dumpTaskOrganizerMethods(taskOrganizerClz);
-            dumpMiuiFreeformModeControlInterface();
-        }
-        Object organizer;
-        try {
-            organizer = taskOrganizerClz.getDeclaredConstructor().newInstance();
-        } catch (Throwable t) {
-            LSPLogger.w("TaskResizer.tryEnterFreeformViaTaskOrganizer: cannot create instance: " + t);
-            return false;
-        }
-        try {
-            Method register = taskOrganizerClz.getMethod("registerOrganizer");
-            register.setAccessible(true);
-            register.invoke(organizer);
-            LSPLogger.i("TaskResizer.tryEnterFreeformViaTaskOrganizer: registered");
-        } catch (Throwable t) {
-            LSPLogger.w("TaskResizer.tryEnterFreeformViaTaskOrganizer: registerOrganizer failed: " + t);
-        }
-        Object ownerToken = null;
-        try {
-            java.lang.reflect.Field f = taskOrganizerClz.getDeclaredField("mToken");
-            f.setAccessible(true);
-            ownerToken = f.get(organizer);
-            LSPLogger.i("TaskResizer.tryEnterFreeformViaTaskOrganizer: mToken=" + ownerToken);
-        } catch (Throwable t) {
-            LSPLogger.w("TaskResizer.tryEnterFreeformViaTaskOrganizer: get mToken failed: " + t);
-        }
-        if (ownerToken == null) {
-            LSPLogger.w("TaskResizer.tryEnterFreeformViaTaskOrganizer: no mToken, fallback to new Binder");
-            ownerToken = new android.os.Binder();
-        }
-        Class<?> iBinderClz = null;
-        try {
-            iBinderClz = Class.forName("android.os.IBinder");
-        } catch (Throwable t) {
-            LSPLogger.w("TaskResizer.tryEnterFreeformViaTaskOrganizer: IBinder class not found: " + t);
-            return false;
-        }
-        try {
-            Method createRootTask = taskOrganizerClz.getMethod("createRootTask",
-                    int.class, int.class, iBinderClz);
-            createRootTask.setAccessible(true);
-            createRootTask.invoke(organizer, 0, WINDOWING_MODE_FREEFORM, ownerToken);
-            LSPLogger.i("TaskResizer.tryEnterFreeformViaTaskOrganizer: createRootTask(3-arg) invoked");
-        } catch (Throwable t) {
-            LSPLogger.w("TaskResizer.tryEnterFreeformViaTaskOrganizer: createRootTask(3-arg) failed: " + t);
-            try {
-                Method createRootTask = taskOrganizerClz.getMethod("createRootTask",
-                        int.class, int.class, iBinderClz, boolean.class);
-                createRootTask.setAccessible(true);
-                createRootTask.invoke(organizer, 0, WINDOWING_MODE_FREEFORM, ownerToken, true);
-                LSPLogger.i("TaskResizer.tryEnterFreeformViaTaskOrganizer: createRootTask(4-arg) invoked");
-            } catch (Throwable t2) {
-                LSPLogger.w("TaskResizer.tryEnterFreeformViaTaskOrganizer: createRootTask(4-arg) failed: " + t2);
-                return false;
-            }
-        }
-        Integer freeformRootTaskId = null;
-        try {
-            Method getRootTasks = taskOrganizerClz.getMethod("getRootTasks", int.class, int[].class);
-            getRootTasks.setAccessible(true);
-            int[] filter = new int[]{WINDOWING_MODE_FREEFORM};
-            Object result = getRootTasks.invoke(organizer, 0, filter);
-            if (result instanceof List) {
-                List<?> tasks = (List<?>) result;
-                LSPLogger.i("TaskResizer.tryEnterFreeformViaTaskOrganizer: freeform root tasks count=" + tasks.size());
-                if (!tasks.isEmpty()) {
-                    Object lastTask = tasks.get(tasks.size() - 1);
-                    freeformRootTaskId = readIntField(lastTask, "taskId");
-                    LSPLogger.i("TaskResizer.tryEnterFreeformViaTaskOrganizer: latest freeform root taskId=" + freeformRootTaskId);
-                }
-            }
-        } catch (Throwable t) {
-            LSPLogger.w("TaskResizer.tryEnterFreeformViaTaskOrganizer: getRootTasks failed: " + t);
-        }
-        if (freeformRootTaskId == null || freeformRootTaskId <= 0) {
-            LSPLogger.w("TaskResizer.tryEnterFreeformViaTaskOrganizer: no freeform root task, "
-                    + "MIUI freeform API may be the real path");
-            return false;
-        }
-        try {
-            Object iatm = getIActivityTaskManager();
-            Class<?> iface = getIActivityTaskManagerInterface();
-            if (iatm == null || iface == null) {
-                LSPLogger.w("TaskResizer.tryEnterFreeformViaTaskOrganizer: IATM null");
-                return false;
-            }
-            Method moveTask = iface.getDeclaredMethod("moveTaskToRootTask",
-                    int.class, int.class, boolean.class);
-            moveTask.setAccessible(true);
-            moveTask.invoke(iatm, taskId, freeformRootTaskId, true);
-            LSPLogger.i("TaskResizer.tryEnterFreeformViaTaskOrganizer: moveTaskToRootTask ok, "
-                    + "taskId=" + taskId + " rootTaskId=" + freeformRootTaskId);
-            sFreeformRootTaskId = freeformRootTaskId;
-            sTaskOrganizer = organizer;
-            return true;
-        } catch (Throwable t) {
-            LSPLogger.w("TaskResizer.tryEnterFreeformViaTaskOrganizer: moveTaskToRootTask failed: " + t);
-            return false;
-        }
-    }
-    /** dump IMiuiFreeformModeControl 接口的所有方法,并尝试通过 IWindowManager 拿实例 */
-    private static void dumpMiuiFreeformModeControlInterface() {
-        Class<?> miuiIfcClz = null;
-        String[] candidates = {
-                "miui.app.IMiuiFreeformModeControl",
-                "android.app.IMiuiFreeformModeControl",
-                "android.window.IMiuiFreeformModeControl",
-                "miui.app.MiuiFreeformModeControl"
-        };
-        for (String name : candidates) {
-            try {
-                miuiIfcClz = Class.forName(name);
-                LSPLogger.i("TaskResizer.dumpMiuiFreeformModeControl: found at " + name);
-                break;
-            } catch (Throwable ignore) {
-            }
-        }
-        if (miuiIfcClz == null) {
-            LSPLogger.w("TaskResizer.dumpMiuiFreeformModeControl: interface not found");
-            return;
-        }
-        Method[] all = miuiIfcClz.getMethods();
-        LSPLogger.d("TaskResizer.dumpMiuiFreeformModeControl: total methods=" + all.length);
-        for (Method m : all) {
-            StringBuilder sb = new StringBuilder();
-            sb.append("  ").append(m.getName()).append("(");
-            Class<?>[] params = m.getParameterTypes();
-            for (int i = 0; i < params.length; i++) {
-                if (i > 0) sb.append(",");
-                sb.append(params[i].getSimpleName());
-            }
-            sb.append(") -> ").append(m.getReturnType().getSimpleName());
-            LSPLogger.d("TaskResizer.dumpMiuiFreeformModeControl:" + sb);
-        }
-        try {
-            Class<?> iwmIfc = Class.forName("android.view.IWindowManager");
-            Method[] iwmMethods = iwmIfc.getMethods();
-            int matched = 0;
-            for (Method m : iwmMethods) {
-                String n = m.getName().toLowerCase();
-                if (n.contains("miui") || n.contains("freeform")) {
-                    StringBuilder sb = new StringBuilder();
-                    sb.append("  IWM.").append(m.getName()).append("(");
-                    Class<?>[] params = m.getParameterTypes();
-                    for (int i = 0; i < params.length; i++) {
-                        if (i > 0) sb.append(",");
-                        sb.append(params[i].getSimpleName());
-                    }
-                    sb.append(") -> ").append(m.getReturnType().getSimpleName());
-                    LSPLogger.d("TaskResizer.dumpMiuiFreeformModeControl:" + sb);
-                    matched++;
-                }
-            }
-            LSPLogger.i("TaskResizer.dumpMiuiFreeformModeControl: IWM miui/freeform methods=" + matched);
-        } catch (Throwable t) {
-            LSPLogger.w("TaskResizer.dumpMiuiFreeformModeControl: dump IWM failed: " + t);
-        }
-        try {
-            Class<?> iatmIfc = Class.forName("android.app.IActivityTaskManager");
-            Method[] iatmMethods = iatmIfc.getMethods();
-            int matched = 0;
-            for (Method m : iatmMethods) {
-                String n = m.getName().toLowerCase();
-                if (n.contains("miui") || n.contains("freeform")) {
-                    StringBuilder sb = new StringBuilder();
-                    sb.append("  IATM.").append(m.getName()).append("(");
-                    Class<?>[] params = m.getParameterTypes();
-                    for (int i = 0; i < params.length; i++) {
-                        if (i > 0) sb.append(",");
-                        sb.append(params[i].getSimpleName());
-                    }
-                    sb.append(") -> ").append(m.getReturnType().getSimpleName());
-                    LSPLogger.d("TaskResizer.dumpMiuiFreeformModeControl:" + sb);
-                    matched++;
-                }
-            }
-            LSPLogger.i("TaskResizer.dumpMiuiFreeformModeControl: IATM miui/freeform methods=" + matched);
-        } catch (Throwable t) {
-            LSPLogger.w("TaskResizer.dumpMiuiFreeformModeControl: dump IATM failed: " + t);
-        }
-        String[] managerCandidates = {
-                "miui.app.MiuiFreeformModeManager",
-                "android.app.MiuiFreeformModeManager",
-                "android.window.MiuiFreeformModeManager",
-                "miui.util.MiuiFreeformModeManager"
-        };
-        for (String name : managerCandidates) {
-            try {
-                Class<?> clz = Class.forName(name);
-                LSPLogger.i("TaskResizer.dumpMiuiFreeformModeControl: found manager class " + name);
-                Method[] ms = clz.getMethods();
-                for (Method m : ms) {
-                    if (java.lang.reflect.Modifier.isStatic(m.getModifiers())) {
-                        StringBuilder sb = new StringBuilder();
-                        sb.append("  static ").append(m.getName()).append("(");
-                        Class<?>[] params = m.getParameterTypes();
-                        for (int i = 0; i < params.length; i++) {
-                            if (i > 0) sb.append(",");
-                            sb.append(params[i].getSimpleName());
-                        }
-                        sb.append(") -> ").append(m.getReturnType().getSimpleName());
-                        LSPLogger.d("TaskResizer.dumpMiuiFreeformModeControl:" + sb);
-                    }
-                }
-            } catch (Throwable ignore) {
-            }
-        }
-    }
-    /** dump TaskOrganizer 类的所有 public 方法 */
-    private static void dumpTaskOrganizerMethods(Class<?> clz) {
-        try {
-            Method[] all = clz.getMethods();
-            LSPLogger.d("TaskResizer.dumpTaskOrganizerMethods: total=" + all.length);
-            for (Method m : all) {
-                String name = m.getName().toLowerCase();
-                if (name.contains("root") || name.contains("task") || name.contains("organize")
-                        || name.contains("window") || name.contains("register")
-                        || name.contains("create") || name.contains("delete")) {
-                    StringBuilder sb = new StringBuilder();
-                    sb.append("  ");
-                    if (java.lang.reflect.Modifier.isStatic(m.getModifiers())) sb.append("static ");
-                    sb.append(m.getName()).append("(");
-                    Class<?>[] params = m.getParameterTypes();
-                    for (int i = 0; i < params.length; i++) {
-                        if (i > 0) sb.append(",");
-                        sb.append(params[i].getSimpleName());
-                    }
-                    sb.append(") -> ").append(m.getReturnType().getSimpleName());
-                    LSPLogger.d("TaskResizer.dumpTaskOrganizerMethods:" + sb);
-                }
-            }
-        } catch (Throwable t) {
-            LSPLogger.d("TaskResizer.dumpTaskOrganizerMethods: threw: " + t);
-        }
-    }
-    // 恢复前台任务到原始窗口模式与边界
     public static boolean restoreForegroundTask() {
         LSPLogger.i("TaskResizer.restoreForegroundTask: sResizedTaskId=" + sResizedTaskId);
         clearPendingMainTaskCandidate();
@@ -541,49 +126,10 @@ public final class TaskResizer {
             return true;
         }
         int taskId = sResizedTaskId;
-        boolean ok = true;
-        if (sUsingDefaultDisplayFreeform) {
-            if (sOriginalBounds != null) {
-                ok = resizeTask(taskId, sOriginalBounds, 0) && ok;
-            }
-            if (!tryMiuiExitFreeformTask(taskId)) {
-                LSPLogger.w("TaskResizer.restoreForegroundTask: freeform exit failed; "
-                        + "leaving task bounds restored without changing display mode");
-                ok = false;
-            }
-            setTaskResizeable(taskId, sOriginalResizeMode);
-            clearPresentationState();
-            LSPLogger.i("TaskResizer.restoreForegroundTask: freeform pilot done, ok=" + ok);
-            return ok;
-        }
-        if (sUsingSurfaceTransform) {
-            ok = TaskSurfaceTransformer.restore(taskId);
-            sResizedTaskId = null;
-            sOriginalBounds = null;
-            sOriginalWindowingMode = WINDOWING_MODE_FULLSCREEN;
-            sOriginalResizeMode = 0;
-            clearPresentationState();
-            LSPLogger.i("TaskResizer.restoreForegroundTask: surface path done, ok=" + ok);
-            return ok;
-        }
-        if (sOriginalBounds != null) {
-            resizeTask(taskId, sOriginalBounds, 0);
-        }
-        if (!tryMiuiExitFreeformTask(taskId)) {
-            LSPLogger.w("TaskResizer.restoreForegroundTask: MIUI exitFreeformTask failed, "
-                    + "trying setDisplayWindowingMode fallback");
-            int targetMode = (sOriginalWindowingMode != 0)
-                    ? sOriginalWindowingMode : WINDOWING_MODE_FULLSCREEN;
-            setDisplayWindowingMode(0, targetMode);
-        }
-        setTaskResizeable(taskId, sOriginalResizeMode);
-        sResizedTaskId = null;
-        sOriginalBounds = null;
-        sOriginalWindowingMode = WINDOWING_MODE_FULLSCREEN;
-        sOriginalResizeMode = 0;
+        boolean restored = !sUsingSurfaceTransform || TaskSurfaceTransformer.restore(taskId);
         clearPresentationState();
-        LSPLogger.i("TaskResizer.restoreForegroundTask: done, ok=" + ok);
-        return ok;
+        LSPLogger.i("TaskResizer.restoreForegroundTask: surface path done, ok=" + restored);
+        return restored;
     }
     /** Returns the task currently occupying the main OneStep area. */
     public static Integer getCurrentTaskId() {
@@ -611,8 +157,6 @@ public final class TaskResizer {
             return false;
         }
         Rect originalBounds = getTaskBounds(taskId);
-        int originalWindowingMode = getTaskWindowingMode(taskId);
-        int originalResizeMode = getTaskResizeable(taskId);
         if (!placeMainTask(context, taskId, sidebarWidth, screenWidth,
                 topHeight, screenHeight, sidebarOnLeft)) {
             LSPLogger.w("TaskResizer.switchToTask: transform failed for taskId=" + taskId);
@@ -620,8 +164,6 @@ public final class TaskResizer {
         }
         sResizedTaskId = taskId;
         sOriginalBounds = originalBounds;
-        sOriginalWindowingMode = originalWindowingMode;
-        sOriginalResizeMode = originalResizeMode;
         LSPLogger.i("TaskResizer.switchToTask: previous=" + previousTaskId
                 + " current=" + taskId);
         return true;
@@ -663,15 +205,6 @@ public final class TaskResizer {
             boolean landscape = isLandscapeTask(context, actualTaskId, taskBounds);
             boolean orientationChanged = landscape
                     != (sLandscapeTransformedTaskId == actualTaskId);
-            if (sUsingDefaultDisplayFreeform) {
-                if (reapplyActive || probeActive) {
-                    Rect mainBounds = getMainTaskBounds(sidebarWidth, screenWidth,
-                            topHeight, screenHeight, sidebarOnLeft);
-                    resizeTask(actualTaskId, mainBounds, 0);
-                    sLastTransformReapply = now;
-                }
-                return true;
-            }
             Rect landscapeSource = landscape
                     ? getLandscapeSourceBounds(context, actualTaskId,
                             screenWidth, screenHeight)
@@ -714,8 +247,6 @@ public final class TaskResizer {
         }
         clearPendingMainTaskCandidate();
         Rect originalBounds = getTaskBounds(actualTaskId);
-        int originalWindowingMode = getTaskWindowingMode(actualTaskId);
-        int originalResizeMode = getTaskResizeable(actualTaskId);
         if (previousTaskId != null) restoreTaskPresentation(previousTaskId);
         if (!placeMainTask(context, actualTaskId, sidebarWidth, screenWidth,
                 topHeight, screenHeight, sidebarOnLeft)) {
@@ -727,8 +258,6 @@ public final class TaskResizer {
         }
         sResizedTaskId = actualTaskId;
         sOriginalBounds = originalBounds;
-        sOriginalWindowingMode = originalWindowingMode;
-        sOriginalResizeMode = originalResizeMode;
         armTransformReapply();
         LSPLogger.i("TaskResizer.syncMainTaskTransform: previous=" + previousTaskId
                 + " actual=" + actualTaskId);
@@ -797,7 +326,6 @@ public final class TaskResizer {
         if (taskId == null || displayId < 0) return false;
         restoreTaskPresentation(taskId);
         sResizedTaskId = null;
-        sUsingDefaultDisplayFreeform = false;
         sUsingSurfaceTransform = false;
         if (!moveRootTaskToDisplay(taskId, displayId)) {
             restoreTransformState(taskId, sidebarWidth, screenWidth, topHeight,
@@ -894,37 +422,6 @@ public final class TaskResizer {
                 + " observed=" + observed + " settled=" + settled);
         return settled;
     }
-    private static void armMirrorSwitchMode() {
-        Context context = getCurrentApplicationContext();
-        if (context == null) return;
-        try {
-            if (sOriginalMirrorSwitchMode == null) {
-                sOriginalMirrorSwitchMode = Settings.Global.getInt(
-                        context.getContentResolver(), "mirror_switch", 0);
-            }
-            Settings.Global.putInt(context.getContentResolver(), "mirror_switch", 2);
-            int generation = ++sMirrorSwitchGeneration;
-            sMainHandler.postDelayed(() -> {
-                if (generation != sMirrorSwitchGeneration) return;
-                Context current = getCurrentApplicationContext();
-                Integer original = sOriginalMirrorSwitchMode;
-                if (current == null || original == null) return;
-                try {
-                    Settings.Global.putInt(current.getContentResolver(),
-                            "mirror_switch", original);
-                    LSPLogger.i("TaskResizer.mirrorSwitch: restored=" + original);
-                } catch (Throwable t) {
-                    LSPLogger.w("TaskResizer.mirrorSwitch: restore failed", t);
-                } finally {
-                    sOriginalMirrorSwitchMode = null;
-                }
-            }, 3000L);
-            LSPLogger.i("TaskResizer.mirrorSwitch: armed mode=2 original="
-                    + sOriginalMirrorSwitchMode);
-        } catch (Throwable t) {
-            LSPLogger.w("TaskResizer.mirrorSwitch: enable failed", t);
-        }
-    }
     private static Context getCurrentApplicationContext() {
         try {
             Class<?> activityThread = Class.forName("android.app.ActivityThread");
@@ -985,7 +482,6 @@ public final class TaskResizer {
         return "resizedTaskId=" + taskId
                 + " bounds=" + bounds
                 + " usingSurfaceTransform=" + sUsingSurfaceTransform
-                + " usingDefaultDisplayFreeform=" + sUsingDefaultDisplayFreeform
                 + " landscapeTransformedTaskId=" + sLandscapeTransformedTaskId
                 + " reapplyUntil=" + sTransformReapplyUntil
                 + " transformer=" + TaskSurfaceTransformer.getDebugState();
@@ -1027,8 +523,6 @@ public final class TaskResizer {
         sResizedTaskId = slotTaskId;
         sUsingSurfaceTransform = true;
         sOriginalBounds = null;
-        sOriginalWindowingMode = WINDOWING_MODE_FULLSCREEN;
-        sOriginalResizeMode = 0;
         armTransformReapply();
         LSPLogger.i("TaskResizer.swapMainTaskWithDisplay: main=" + slotTaskId
                 + " liveDisplay=" + slotDisplayId + " parked=" + currentTaskId);
@@ -1357,276 +851,12 @@ public final class TaskResizer {
             return null;
         }
     }
-    private static Object getIWindowManager() {
-        try {
-            Class<?> wmgClz = Class.forName("android.view.WindowManagerGlobal");
-            Method m = wmgClz.getDeclaredMethod("getWindowManagerService");
-            m.setAccessible(true);
-            return m.invoke(null);
-        } catch (Throwable t) {
-            LSPLogger.w("TaskResizer.getIWindowManager: failed: " + t);
-            return null;
-        }
-    }
     private static Class<?> getIActivityTaskManagerInterface() {
         try {
             return Class.forName("android.app.IActivityTaskManager");
         } catch (Throwable t) {
             LSPLogger.w("TaskResizer.getIATMInterface: failed: " + t);
             return null;
-        }
-    }
-    private static Class<?> getIWindowManagerInterface() {
-        try {
-            return Class.forName("android.view.IWindowManager");
-        } catch (Throwable t) {
-            LSPLogger.w("TaskResizer.getIWMInterface: failed: " + t);
-            return null;
-        }
-    }
-    private static boolean resizeTask(int taskId, Rect bounds, int resizeMode) {
-        try {
-            Object iatm = getIActivityTaskManager();
-            Class<?> iface = getIActivityTaskManagerInterface();
-            if (iatm == null || iface == null) return false;
-            Method m = iface.getDeclaredMethod("resizeTask", int.class, Rect.class, int.class);
-            m.setAccessible(true);
-            m.invoke(iatm, taskId, bounds, resizeMode);
-            LSPLogger.i("TaskResizer.resizeTask: ok taskId=" + taskId
-                    + " bounds=" + bounds + " mode=" + resizeMode);
-            return true;
-        } catch (Throwable t) {
-            LSPLogger.e("TaskResizer.resizeTask: failed: " + t);
-            return false;
-        }
-    }
-    private static boolean setTaskResizeable(int taskId, int resizeMode) {
-        try {
-            Object iatm = getIActivityTaskManager();
-            Class<?> iface = getIActivityTaskManagerInterface();
-            if (iatm == null || iface == null) return false;
-            Method m = iface.getDeclaredMethod("setTaskResizeable", int.class, int.class);
-            m.setAccessible(true);
-            m.invoke(iatm, taskId, resizeMode);
-            LSPLogger.i("TaskResizer.setTaskResizeable: ok taskId=" + taskId
-                    + " mode=" + resizeMode);
-            return true;
-        } catch (Throwable t) {
-            LSPLogger.e("TaskResizer.setTaskResizeable: failed: " + t);
-            return false;
-        }
-    }
-    private static boolean tryMiuiEnterFreeform(int taskId) {
-        LSPLogger.i("TaskResizer.tryMiuiEnterFreeform: taskId=" + taskId);
-        Object control = getMiuiFreeformModeControl();
-        if (control == null) {
-            LSPLogger.w("TaskResizer.tryMiuiEnterFreeform: no IMiuiFreeformModeControl instance");
-            return false;
-        }
-        try {
-            Class<?> ifc = Class.forName("miui.app.IMiuiFreeformModeControl");
-            String[] entryMethods = {
-                    "fromFullToFreeform",
-                    "freeformFullscreenTask"
-            };
-            for (String methodName : entryMethods) {
-                try {
-                    Method m = ifc.getMethod(methodName, int.class);
-                    m.setAccessible(true);
-                    m.invoke(control, taskId);
-                    LSPLogger.i("TaskResizer.tryMiuiEnterFreeform: requested "
-                            + methodName + " taskId=" + taskId);
-                    if (waitForFreeformMode(taskId)) {
-                        LSPLogger.i("TaskResizer.tryMiuiEnterFreeform: accepted by WMS via "
-                                + methodName + " taskId=" + taskId);
-                        return true;
-                    }
-                    LSPLogger.w("TaskResizer.tryMiuiEnterFreeform: " + methodName
-                            + " was a no-op, mode=" + getTaskWindowingMode(taskId));
-                } catch (NoSuchMethodException ignored) {
-                    LSPLogger.d("TaskResizer.tryMiuiEnterFreeform: method unavailable "
-                            + methodName);
-                }
-            }
-            return false;
-        } catch (Throwable t) {
-            LSPLogger.e("TaskResizer.tryMiuiEnterFreeform: failed: " + t);
-            return false;
-        }
-    }
-    private static boolean tryMiuiExitFreeformTask(int taskId) {
-        LSPLogger.i("TaskResizer.tryMiuiExitFreeformTask: taskId=" + taskId);
-        Object control = getMiuiFreeformModeControl();
-        if (control == null) {
-            LSPLogger.w("TaskResizer.tryMiuiExitFreeformTask: no IMiuiFreeformModeControl instance");
-            return false;
-        }
-        try {
-            Class<?> ifc = Class.forName("miui.app.IMiuiFreeformModeControl");
-            Method m = ifc.getMethod("exitFreeformTask", int.class, boolean.class);
-            m.setAccessible(true);
-            m.invoke(control, taskId, false);
-            LSPLogger.i("TaskResizer.tryMiuiExitFreeformTask: ok taskId=" + taskId);
-            return true;
-        } catch (Throwable t) {
-            LSPLogger.e("TaskResizer.tryMiuiExitFreeformTask: failed: " + t);
-            try {
-                Class<?> ifc = Class.forName("miui.app.IMiuiFreeformModeControl");
-                Method m = ifc.getMethod("freeformFullscreenTask", int.class);
-                m.setAccessible(true);
-                m.invoke(control, taskId);
-                LSPLogger.i("TaskResizer.tryMiuiExitFreeformTask: freeformFullscreenTask ok taskId=" + taskId);
-                return true;
-            } catch (Throwable t2) {
-                LSPLogger.e("TaskResizer.tryMiuiExitFreeformTask: freeformFullscreenTask failed: " + t2);
-                return false;
-            }
-        }
-    }
-    private static Object sMiuiFreeformControl = null;
-    private static Object getMiuiFreeformModeControl() {
-        if (sMiuiFreeformControl != null) return sMiuiFreeformControl;
-        try {
-            Object iatm = getIActivityTaskManager();
-            Class<?> iatmIfc = getIActivityTaskManagerInterface();
-            if (iatm == null || iatmIfc == null) {
-                LSPLogger.w("TaskResizer.getMiuiFreeformModeControl: IATM null");
-                return null;
-            }
-            Method getMfs = iatmIfc.getMethod("getMiuiFreeFormManagerService");
-            getMfs.setAccessible(true);
-            Object binder = getMfs.invoke(iatm);
-            LSPLogger.i("TaskResizer.getMiuiFreeformModeControl: binder=" + binder);
-            if (binder == null) return null;
-            Class<?> ifc = Class.forName("miui.app.IMiuiFreeformModeControl");
-            Class<?> stubClz = null;
-            for (Class<?> inner : ifc.getDeclaredClasses()) {
-                if ("Stub".equals(inner.getSimpleName())) {
-                    stubClz = inner;
-                    break;
-                }
-            }
-            if (stubClz == null) {
-                LSPLogger.w("TaskResizer.getMiuiFreeformModeControl: Stub class not found");
-                return null;
-            }
-            Method asInterface = stubClz.getMethod("asInterface",
-                    Class.forName("android.os.IBinder"));
-            asInterface.setAccessible(true);
-            Object proxy = asInterface.invoke(null, binder);
-            LSPLogger.i("TaskResizer.getMiuiFreeformModeControl: proxy=" + proxy);
-            sMiuiFreeformControl = proxy;
-            return proxy;
-        } catch (Throwable t) {
-            LSPLogger.e("TaskResizer.getMiuiFreeformModeControl: failed: " + t);
-            return null;
-        }
-    }
-    private static boolean setDisplayWindowingMode(int displayId, int windowingMode) {
-        LSPLogger.i("TaskResizer.setDisplayWindowingMode: displayId=" + displayId
-                + " mode=" + windowingMode);
-        try {
-            Object iwm = getIWindowManager();
-            Class<?> iface = getIWindowManagerInterface();
-            if (iwm == null || iface == null) {
-                LSPLogger.e("TaskResizer.setDisplayWindowingMode: IWM null");
-                return false;
-            }
-            Method m = iface.getDeclaredMethod("setWindowingMode",
-                    int.class, int.class);
-            m.setAccessible(true);
-            m.invoke(iwm, displayId, windowingMode);
-            LSPLogger.i("TaskResizer.setDisplayWindowingMode: ok displayId="
-                    + displayId + " mode=" + windowingMode);
-            return true;
-        } catch (Throwable t) {
-            LSPLogger.e("TaskResizer.setDisplayWindowingMode: failed: " + t);
-            return false;
-        }
-    }
-    private static boolean setTaskWindowingMode(int taskId, int windowingMode,
-                                                 boolean freezeTaskBounds) {
-        LSPLogger.w("TaskResizer.setTaskWindowingMode: HyperOS removed this API, "
-                + "falling back to setDisplayWindowingMode(0, " + windowingMode + ")");
-        return setDisplayWindowingMode(0, windowingMode);
-    }
-    private static void dumpAtmWindowingMethods(Class<?> atmClz) {
-        try {
-            Method[] all = atmClz.getDeclaredMethods();
-            int matched = 0;
-            for (Method m : all) {
-                String name = m.getName().toLowerCase();
-                if (name.contains("windowing") || name.contains("windowmode")
-                        || name.startsWith("settask") || name.contains("resizetask")
-                        || name.contains("bounds")) {
-                    matched++;
-                }
-            }
-            LSPLogger.d("TaskResizer.dumpAtmWindowingMethods: ATM total="
-                    + all.length + " matched=" + matched);
-            for (Method m : all) {
-                String name = m.getName().toLowerCase();
-                if (name.contains("windowing") || name.contains("windowmode")
-                        || name.startsWith("settask") || name.contains("resizetask")
-                        || name.contains("bounds")) {
-                    StringBuilder sb = new StringBuilder();
-                    sb.append("  ");
-                    if (java.lang.reflect.Modifier.isStatic(m.getModifiers())) sb.append("static ");
-                    sb.append(m.getName()).append("(");
-                    Class<?>[] params = m.getParameterTypes();
-                    for (int i = 0; i < params.length; i++) {
-                        if (i > 0) sb.append(",");
-                        sb.append(params[i].getSimpleName());
-                    }
-                    sb.append(") -> ").append(m.getReturnType().getSimpleName());
-                    LSPLogger.d("TaskResizer.dumpAtmWindowingMethods: ATM" + sb);
-                }
-            }
-        } catch (Throwable t) {
-            LSPLogger.d("TaskResizer.dumpAtmWindowingMethods: threw: " + t);
-        }
-    }
-    private static void dumpWindowingMethods(String tag, Class<?> clz) {
-        try {
-            Method[] all;
-            try {
-                all = clz.getMethods();
-            } catch (Throwable t) {
-                LSPLogger.d("TaskResizer.dumpWindowingMethods: " + tag
-                        + " getMethods() threw: " + t);
-                return;
-            }
-            int matched = 0;
-            for (Method m : all) {
-                String name = m.getName().toLowerCase();
-                if (name.contains("windowing") || name.contains("windowmode")
-                        || name.startsWith("settask") || name.startsWith("settaskbounds")
-                        || name.contains("roottask") || name.contains("taskinfo")
-                        || name.contains("resizetask") || name.contains("bounds")) {
-                    matched++;
-                }
-            }
-            LSPLogger.d("TaskResizer.dumpWindowingMethods: " + tag
-                    + " total=" + all.length + " matched=" + matched);
-            for (Method m : all) {
-                String name = m.getName().toLowerCase();
-                if (name.contains("windowing") || name.contains("windowmode")
-                        || name.startsWith("settask") || name.startsWith("settaskbounds")
-                        || name.contains("roottask") || name.contains("taskinfo")
-                        || name.contains("resizetask") || name.contains("bounds")) {
-                    StringBuilder sb = new StringBuilder();
-                    sb.append("  ").append(m.getName()).append("(");
-                    Class<?>[] params = m.getParameterTypes();
-                    for (int i = 0; i < params.length; i++) {
-                        if (i > 0) sb.append(",");
-                        sb.append(params[i].getSimpleName());
-                    }
-                    sb.append(") -> ").append(m.getReturnType().getSimpleName());
-                    LSPLogger.d("TaskResizer.dumpWindowingMethods: " + tag + sb);
-                }
-            }
-        } catch (Throwable t) {
-            LSPLogger.d("TaskResizer.dumpWindowingMethods: " + tag + " threw: " + t);
         }
     }
     private static Rect getTaskBounds(int taskId) {
@@ -1672,22 +902,6 @@ public final class TaskResizer {
             }
         } catch (Throwable t) {
             LSPLogger.d("TaskResizer.getTaskWindowingMode: failed: " + t);
-        }
-        return 0;
-    }
-    private static int getTaskResizeable(int taskId) {
-        try {
-            Object iatm = getIActivityTaskManager();
-            Class<?> iface = getIActivityTaskManagerInterface();
-            if (iatm == null || iface == null) return 0;
-            Method m = iface.getDeclaredMethod("getTaskResizeableForFreeform", int.class);
-            m.setAccessible(true);
-            Object result = m.invoke(iatm, taskId);
-            if (result instanceof Integer) {
-                return (Integer) result;
-            }
-        } catch (Throwable t) {
-            LSPLogger.d("TaskResizer.getTaskResizeable: failed: " + t);
         }
         return 0;
     }
@@ -1847,4 +1061,10 @@ public final class TaskResizer {
         String pkg = component.getPackageName().toLowerCase();
         return pkg.contains("launcher") || pkg.contains("miui.home");
     }
+
+
+
+
+
+
 }

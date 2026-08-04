@@ -216,8 +216,12 @@ public class ModuleConfigActivity extends Activity {
         });
         View bigBangCompatGroup = findViewById(R.id.miuix_bigbang_compat_group);
         Switch bigBangSwitch = findViewById(R.id.miuix_switch_bigbang);
-        bigBangSwitch.setChecked(settings.bigBangEnabled);
-        setGroupEnabled(bigBangCompatGroup, settings.bigBangEnabled);
+        // BigBang 维护中：开关禁用，点击提示维护
+        bigBangSwitch.setEnabled(false);
+        bigBangSwitch.setChecked(false);
+        setGroupEnabled(bigBangCompatGroup, false);
+        bigBangSwitch.setOnClickListener(v ->
+                Toast.makeText(this, R.string.bigbang_maintenance_toast, Toast.LENGTH_SHORT).show());
         final boolean[] updatingBigBang = {false};
         bigBangSwitch.setOnCheckedChangeListener((button, checked) -> {
             if (updatingBigBang[0]) return;

@@ -1,6 +1,7 @@
 package com.hyper.onestep.util;
 
 import android.content.ComponentName;
+import android.content.Context;
 import android.graphics.drawable.Drawable;
 import android.os.Handler;
 import android.os.HandlerThread;
@@ -19,6 +20,9 @@ public final class AppIconLoader {
     private static final int WORKER_COUNT = 2;
     private static final int MAX_ATTEMPTS = 8;
     private static final long RETRY_DELAY_MS = 500L;
+    /** 冷启动时 PackageManager 可能几十秒后才就绪，快速重试耗尽后转入慢速自愈 */
+    private static final int MAX_SLOW_ATTEMPTS = 5;
+    private static final long SLOW_RETRY_DELAY_MS = 30L * 1000L;
 
     public interface Callback {
         boolean isValid();
@@ -78,27 +82,43 @@ public final class AppIconLoader {
     }
 
     private void resolve(final AppItem app, final ComponentName component, final int attempt) {
-        Drawable icon = app.resolveAvatar();
-        if (icon != null || attempt >= MAX_ATTEMPTS) {
-            if (icon == null) {
-                LSPLogger.w("AppIconLoader: unresolved after retries "
-                        + component.flattenToShortString());
-            } else {
-                LSPLogger.i("AppIconLoader: resolved " + component.flattenToShortString()
-                        + " attempt=" + attempt);
-            }
+        Drawable icon;
+        try {
+            icon = app.resolveAvatar();
+        } catch (Throwable t) {
+            // 解析异常（PM 查询/图标加载）不放弃：进入重试，避免冷启动 PM 未就绪时占位符永久停留
+            LSPLogger.w("AppIconLoader: resolve threw for "
+                    + component.flattenToShortString() + ": " + t);
+            icon = null;
+        }
+        if (icon != null) {
+            LSPLogger.i("AppIconLoader: resolved " + component.flattenToShortString()
+                    + " attempt=" + attempt);
             deliverAll(app, component, icon);
             return;
         }
-        LSPLogger.d("AppIconLoader: retry=" + attempt + " component="
-                + component.flattenToShortString());
+        if (attempt >= MAX_ATTEMPTS + MAX_SLOW_ATTEMPTS) {
+            LSPLogger.w("AppIconLoader: unresolved after all retries "
+                    + component.flattenToShortString());
+            deliverAll(app, component, null);
+            return;
+        }
+        if (attempt >= MAX_ATTEMPTS) {
+            LSPLogger.d("AppIconLoader: slow retry=" + (attempt - MAX_ATTEMPTS + 1) + "/"
+                    + MAX_SLOW_ATTEMPTS + " component=" + component.flattenToShortString());
+        } else {
+            LSPLogger.d("AppIconLoader: retry=" + attempt + " component="
+                    + component.flattenToShortString());
+        }
+        final long delay = attempt >= MAX_ATTEMPTS
+                ? SLOW_RETRY_DELAY_MS : RETRY_DELAY_MS * attempt;
         Handler worker = mWorkers[Math.floorMod(component.hashCode(), WORKER_COUNT)];
         worker.postDelayed(new Runnable() {
             @Override
             public void run() {
                 resolve(app, component, attempt + 1);
             }
-        }, RETRY_DELAY_MS * attempt);
+        }, delay);
     }
 
     private void deliver(final AppItem app, final Drawable icon, final Callback callback) {

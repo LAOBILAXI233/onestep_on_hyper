@@ -212,6 +212,17 @@ public class SidebarController {
         } catch (Throwable t) {
             LSPLogger.e("SidebarController.init: register iconChange failed", t);
         }
+        IntentFilter packageFilter = new IntentFilter();
+        packageFilter.addAction(Intent.ACTION_PACKAGE_ADDED);
+        packageFilter.addAction(Intent.ACTION_PACKAGE_REMOVED);
+        packageFilter.addAction(Intent.ACTION_PACKAGE_REPLACED);
+        packageFilter.addDataScheme("package");
+        try {
+            registerReceiverCompat(mPackageMonitor, packageFilter, false);
+            LSPLogger.d("SidebarController.init: registered package monitor receiver");
+        } catch (Throwable t) {
+            LSPLogger.e("SidebarController.init: register package monitor failed", t);
+        }
         LSPLogger.i("SidebarController.init: done");
         publishLauncherState();
     }
@@ -931,6 +942,59 @@ public class SidebarController {
     };
     private static final String ACTION_UPDATE_ICON = "com.smartisanos.launcher.update_icon";
     private static final String EXTRA_PACKAGENAME = "extra_packagename";
+    // 包增删/替换/更新事件：让应用列表与图标缓存跟随系统刷新，修复重装后占位符不更新
+    private final BroadcastReceiver mPackageMonitor = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (intent == null) return;
+            String action = intent.getAction();
+            if (action == null) return;
+            try {
+                android.net.Uri data = intent.getData();
+                String packageName = data == null ? null : data.getSchemeSpecificPart();
+                if (packageName == null || packageName.isEmpty()) {
+                    LSPLogger.w("mPackageMonitor.onReceive: no package in data, action=" + action);
+                    return;
+                }
+                boolean replacing = intent.getBooleanExtra(Intent.EXTRA_REPLACING, false);
+                LSPLogger.i("mPackageMonitor.onReceive: action=" + action
+                        + " pkg=" + packageName + " replacing=" + replacing);
+                if (Intent.ACTION_PACKAGE_REMOVED.equals(action)) {
+                    AppManager.getInstance(context).onPackageRemoved(packageName);
+                    ResolveInfoManager.getInstance(context).onPackageRemoved(packageName);
+                } else if (Intent.ACTION_PACKAGE_ADDED.equals(action)) {
+                    if (replacing) {
+                        // 覆盖安装：先按更新处理（删除失效条目），再走新增
+                        AppManager.getInstance(context).onPackageUpdate(packageName);
+                        ResolveInfoManager.getInstance(context).onPackageUpdate(packageName);
+                    }
+                    AppManager.getInstance(context).onPackageAdded(packageName);
+                    ResolveInfoManager.getInstance(context).onPackageAdded(packageName);
+                    refreshIconCaches(context, packageName);
+                } else if (Intent.ACTION_PACKAGE_REPLACED.equals(action)) {
+                    // 应用更新：图标可能已变化，强制清缓存并刷新列表
+                    AppManager.getInstance(context).onPackageUpdate(packageName);
+                    ResolveInfoManager.getInstance(context).onPackageUpdate(packageName);
+                    refreshIconCaches(context, packageName);
+                }
+            } catch (Throwable t) {
+                LSPLogger.e("mPackageMonitor.onReceive failed", t);
+            }
+        }
+    };
+    private void refreshIconCaches(Context context, String packageName) {
+        try {
+            Set<String> packages = new HashSet<String>();
+            packages.add(packageName);
+            ResolveInfoManager.getInstance(context).onIconChanged(packages);
+            AppManager.getInstance(context).onIconChanged(packages);
+            if (mSideView != null) {
+                mSideView.notifyDataSetChanged();
+            }
+        } catch (Throwable t) {
+            LSPLogger.e("SidebarController.refreshIconCaches failed", t);
+        }
+    }
     /** adb shell am broadcast -a <action> 触发 OneStep 模式 */
     public static final String ACTION_ENTER_ONE_STEP  = "com.hyper.onestep.ACTION_ENTER_ONE_STEP";
     public static final String ACTION_EXIT_ONE_STEP   = "com.hyper.onestep.ACTION_EXIT_ONE_STEP";

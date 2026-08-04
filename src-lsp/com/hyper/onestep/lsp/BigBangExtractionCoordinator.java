@@ -33,24 +33,10 @@ final class BigBangExtractionCoordinator {
                 || foregroundPackage == null || foregroundPackage.trim().isEmpty()) {
             return false;
         }
-        Context applicationContext = context.getApplicationContext();
-        Session session = new Session(applicationContext == null ? context : applicationContext,
-                systemServerClassLoader, foregroundPackage.trim(), touchX, touchY,
-                NEXT_SESSION_ID.incrementAndGet());
-        Session previous;
-        synchronized (SESSION_HANDOFF_LOCK) {
-            previous = ACTIVE_SESSION.getAndSet(session);
-        }
-        if (previous != null) previous.cancel("superseded");
-        try {
-            session.start();
-            return true;
-        } catch (Throwable error) {
-            session.cancel("start-failed");
-            ACTIVE_SESSION.compareAndSet(session, null);
-            LSPLogger.e("BigBangExtractionCoordinator: session start failed", error);
-            return false;
-        }
+        // BigBang 维护中：直接拒绝所有会话，不让任何触发路径启动提取
+        LSPLogger.w("BigBangExtractionCoordinator: rejected session (maintenance), pkg="
+                + foregroundPackage);
+        return false;
     }
     private static ScheduledThreadPoolExecutor createExecutor() {
         ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(3,

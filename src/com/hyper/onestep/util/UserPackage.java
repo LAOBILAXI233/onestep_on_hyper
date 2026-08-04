@@ -8,7 +8,7 @@ public class UserPackage {
     public static final int USER_OWNER = 0;
     private static Context mContext;
     public static void registerCallback(Context context) {
-        log.error("registerCallback");
+        log.d("registerCallback");
         mContext = context;
         LauncherApps service = getService(context);
         if (service != null) {
@@ -16,7 +16,7 @@ public class UserPackage {
         }
     }
     public static void unregisterCallback(Context context) {
-        log.error("unregisterCallback");
+        log.d("unregisterCallback");
         LauncherApps service = getService(context);
         if (service != null) {
             mContext = null;
