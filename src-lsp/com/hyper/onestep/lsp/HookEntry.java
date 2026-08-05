@@ -151,7 +151,7 @@ public class HookEntry extends XposedModule {
                     signature(int.class, android.os.Bundle.class));
             hook(startActivityFromRecents).intercept(new BackgroundTaskActivationHooker());
         });
-        install(tally, "ActivityRecordImpl#getRelaunchFlag", () -> {
+            install(tally, "ActivityRecordImpl#getRelaunchFlag", () -> {
             Class<?> activityRecordImpl = requireClass(classLoader,
                     "com.android.server.wm.ActivityRecordImpl");
             Method relaunchMethod = requireMethod(activityRecordImpl,
@@ -163,6 +163,13 @@ public class HookEntry extends XposedModule {
             forceNotRelaunch.setAccessible(true);
             hook(relaunchMethod).intercept(
                     new ActivityRelaunchPolicyHooker(forceNotRelaunch.get(null)));
+        });
+        install(tally, "ActivityRecord#ensureActivityConfiguration", () -> {
+            Class<?> record = requireClass(classLoader,
+                    "com.android.server.wm.ActivityRecord");
+            Method ensure = requireMethod(record,
+                    names("ensureActivityConfiguration"), signature(boolean.class));
+            hook(ensure).intercept(new ExitRelaunchGuardHooker());
         });
         install(tally, "AppCompatAspectRatioOverrides#getFixedOrientationLetterboxAspectRatio",
                 () -> {

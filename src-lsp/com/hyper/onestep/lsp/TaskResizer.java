@@ -977,14 +977,17 @@ public final class TaskResizer {
                         }
                     }
                     LSPLogger.d("TaskResizer.getForegroundTaskId: tasks=\n" + dump);
-                    Integer result = firstVisible != null ? firstVisible : firstNonHome;
+                    // 只有真正可见的前台应用才值得缩小；仅后台任务（如桌面时 firstNonHome
+                    // 兜底）不作为 OneStep 主窗候选，避免进入时误拉起后台应用。
+                    Integer result = firstVisible;
                     if (result != null) {
                         LSPLogger.d("TaskResizer.getForegroundTaskId: id=" + result
                                 + " (firstVisible=" + firstVisible + " firstNonHome="
                                 + firstNonHome + ")");
                         return result;
                     }
-                    LSPLogger.w("TaskResizer.getForegroundTaskId: no eligible task");
+                    LSPLogger.i("TaskResizer.getForegroundTaskId: no visible app task "
+                            + "(home or none), firstNonHome=" + firstNonHome);
                 }
             }
         } catch (Throwable t) {

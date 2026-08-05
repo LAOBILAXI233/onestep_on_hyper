@@ -3,8 +3,8 @@
 
 id=van_step
 name=Van Step
-version=1.0.1-alpha
-versionCode=2
+version=1.0.1.1-alpha
+versionCode=3
 author=LAOBILAXI233
 description=SmartisanOS One Step sidebar and BigBang for HyperOS / Android 15-16
 minApiVersion=100

@@ -297,6 +297,14 @@ public class SidebarController {
                 @Override
                 public void run() {
                     if (!mInOneStepMode) return;
+                    // 从桌面进入时 foregroundTaskId 可能是后台第一个应用（Home 被过滤后的
+                    // firstNonHome），promote 会把它误拉到前台；桌面可见时不 promote。
+                    if (com.hyper.onestep.lsp.TaskResizer
+                            .isHomeVisibleOnDefaultDisplay(mHostContext)) {
+                        LSPLogger.i("SidebarController.enterOneStepMode: home visible, "
+                                + "skip promoting task=" + foregroundTaskId);
+                        return;
+                    }
                     Integer currentTaskId = com.hyper.onestep.lsp.TaskResizer
                             .getCurrentTaskId();
                     if (foregroundTaskId.equals(currentTaskId)) return;
@@ -340,6 +348,9 @@ public class SidebarController {
         } catch (Throwable t) {
             LSPLogger.e("SidebarController.exitOneStepMode: cleanup failed", t);
         } finally {
+            // 退出后方向回退可能触发配置变更导致横屏任务销毁，跨进程保护窗口内抑制 relaunch
+            com.hyper.onestep.lsp.ActivityRelaunchPolicyHooker.armExitSuppressRelaunch(
+                    mHostContext);
             RotationGuard.unlock(mHostContext);
         }
     }
