@@ -131,7 +131,7 @@ JAVA_HOME="/path/to/jdk-21" ./gradlew assembleDebug
 
 ## Buy me a coffee
 如果你觉得这个项目对你有帮助，欢迎请我喝杯咖啡。
-![alt text](PixPin_2026-07-27_00-08-30.png)
+![alt text](PixPin_2026-07-27_00-08-30.png.bak)
 
 # 贡献者名单（比较腼腆的朋友可以备注一下:)）
 （以下名单不分先后顺序）感谢 6ix9ine | 哔哩哔哩WinProto | 
