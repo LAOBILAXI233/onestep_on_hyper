@@ -8961,6 +8961,7 @@ public class MainActivity extends Activity {
     private void stageAppForMainPromotion(int slot, LauncherApp app) {
         if (activityDestroyed || slot < 0 || slot >= MAX_WINDOWS || app == null
                 || slot == activeMainSlot || windowApps[slot] != null
+                || isDesktopHomeSlot(slot)
                 || embeddedSlotClosing[slot] || !sideSlotOrder.contains(slot)
                 || isWindowAnimationRunning() || mainSlotSwitchPendingSlot >= 0
                 || mainContentReplacementPendingSlot >= 0
@@ -8970,6 +8971,8 @@ public class MainActivity extends Activity {
                     + ", app=" + (app == null ? "null" : app.componentKey())
                     + ", occupied=" + (slot >= 0 && slot < MAX_WINDOWS
                             && windowApps[slot] != null)
+                    + ", isDesktop=" + (slot >= 0 && slot < MAX_WINDOWS
+                            && isDesktopHomeSlot(slot))
                     + ", closing=" + (slot >= 0 && slot < MAX_WINDOWS
                             && embeddedSlotClosing[slot])
                     + ", inSideOrder=" + sideSlotOrder.contains(slot)
