@@ -1,0 +1,7 @@
+# Shell scripts that run on Android (/system/bin/sh) must keep LF endings.
+*.sh            text eol=lf
+*.rule          text eol=lf
+*.prop          text eol=lf
+module.prop     text eol=lf
+update-binary   text eol=lf
+updater-script  text eol=lf
