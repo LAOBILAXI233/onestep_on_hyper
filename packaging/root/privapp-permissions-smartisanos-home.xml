@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<permissions>
+    <!-- 内置锤子桌面（com.smartisanos.home）以特权应用形态随模块分发：
+         特权身份可绕开 HyperOS 手机管家的后台启动应用拦截。
+         白名单必须覆盖其声明的全部权限，缺失会导致该包在开机扫描时被拒装。 -->
+    <privapp-permissions package="com.smartisanos.home">
+        <permission name="android.permission.ACCESS_NETWORK_STATE" />
+        <permission name="android.permission.ACCESS_ALL_DOWNLOADS" />
+        <permission name="android.permission.INTERNET" />
+        <permission name="android.permission.GET_TASKS" />
+        <permission name="android.permission.SET_WALLPAPER_HINTS" />
+        <permission name="android.permission.SET_WALLPAPER" />
+        <permission name="android.permission.WRITE_SETTINGS" />
+        <permission name="android.permission.SET_ANIMATION_SCALE" />
+        <permission name="android.permission.EXPAND_STATUS_BAR" />
+        <permission name="android.permission.RECEIVE_BOOT_COMPLETED" />
+        <permission name="android.permission.USE_FINGERPRINT" />
+        <permission name="com.android.launcher.permission.READ_SETTINGS" />
+        <permission name="com.android.launcher.permission.WRITE_SETTINGS" />
+        <permission name="android.permission.appstore.THEME_DOWNLOAD" />
+        <permission name="android.permission.appstore.DOWNLOAD" />
+        <permission name="com.smartisanos.launcher.permissions.READ_THEME" />
+        <permission name="com.smartisan.permission.READ_PUSH" />
+        <permission name="android.permission.WAKE_LOCK" />
+        <permission name="android.permission.WRITE_EXTERNAL_STORAGE" />
+        <permission name="com.qti.permission.PROFILER" />
+        <permission name="android.permission.ACCESS_WIFI_STATE" />
+        <permission name="android.permission.ACCESS_COARSE_LOCATION" />
+        <permission name="android.permission.ACCESS_FINE_LOCATION" />
+        <permission name="android.permission.READ_CONTACTS" />
+        <permission name="android.permission.MOUNT_UNMOUNT_FILESYSTEMS" />
+        <permission name="android.permission.SYSTEM_ALERT_WINDOW" />
+        <permission name="android.permission.CHANGE_WIFI_STATE" />
+        <permission name="android.permission.CHANGE_CONFIGURATION" />
+        <permission name="android.permission.REQUEST_INSTALL_PACKAGES" />
+        <permission name="android.permission.REQUEST_DELETE_PACKAGES" />
+        <permission name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+        <permission name="android.permission.QUERY_ALL_PACKAGES" />
+        <permission name="android.permission.READ_EXTERNAL_STORAGE" />
+    </privapp-permissions>
+</permissions>

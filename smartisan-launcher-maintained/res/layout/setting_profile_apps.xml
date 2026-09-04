@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout android:background="@drawable/background" android:fitsSystemWindows="true" android:layout_width="match_parent" android:layout_height="match_parent"
+  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:setting="http://schemas.android.com/apk/res-auto">
+    <com.smartisanos.home.widget.sys.Title android:id="@id/view_title" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_alignParentTop="true" android:overScrollMode="always" setting:title_titlex="@string/profile_apps_text" />
+    <ScrollView android:layout_width="match_parent" android:layout_height="match_parent" android:layout_below="@id/view_title" android:layout_alignParentBottom="true" android:overScrollMode="always">
+        <LinearLayout android:orientation="vertical" android:id="@+id/profile_apps_list" android:layout_width="match_parent" android:layout_height="wrap_content">
+            <include layout="@layout/item_bottom_shadow_layout" />
+        </LinearLayout>
+    </ScrollView>
+    <include android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_below="@id/view_title" layout="@layout/title_bar_shadow" />
+</RelativeLayout>

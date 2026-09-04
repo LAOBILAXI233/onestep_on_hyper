@@ -1,27 +1,74 @@
-# Gradle 构建产物
-/build/
-/.gradle/
-/bin/
-# 本地环境配置（SDK 路径等，机器相关）
-/local.properties
+# ===== Gradle / Android 构建产物 =====
+build/
+.build/
+.gradle/
+.externalNativeBuild/
+.cxx/
+captures/
+outputs/
+*.apk.idsig
+.zcode/
+# ===== 本地环境（机器相关，绝不入库） =====
+local.properties
+*.jks
+*.keystore
+keystore.properties
 
-# IDE / agent 工具目录
-/.idea/
-/.vscode/
-/.claude/
-/.serena/
-/.agents/
+# ===== IDE / Agent 工具目录 =====
+.idea/
+.vscode/
+.claude/
+.serena/
+.agents/
+.zcode/
+.codex-*.xml
+.cursor/
 
-# 会话与调试残留
-/.codex-*.xml
+# ===== 调试产物（日志转储 / 截图 / 临时文件） =====
+logcat*.txt
+*_log*.txt
+build_out*.txt
+ls_out.txt
+grants_out.txt
+install_out.txt
+kill_out.txt
+svc_out.txt
+hook_marker.txt
+swipe_log.txt
+devlog*.txt
+*.md.bak
+
+# ===== 工作区残留 / 遗留备份（保留在磁盘，不入库） =====
+/legacy-backup/
+/legacy_extract/
+/lspd-edit/
+/lspdb/
+/dist/
 /.debug-capture-touch.sh
 /.textboom-9p/
 /.textboom-dex/
 /.tools/
-/.touchdiag/
-/window.xml
 
+# ===== 下载与打包的压缩包 =====
+*-main.zip
+*-debug-*.zip
+/oneapp/
+*.zip
 
-# 从 sourceSets 排除的旧版代码存档
-/res-excluded/
-/src-excluded/
+# ===== NDK 构建产物（zygisk） =====
+/zygisk/.objs/
+/zygisk/libs/
+/zygisk/obj/
+
+# ===== Kotlin / 性能分析产物 =====
+.kotlin/
+*.hprof
+hs_err_pid*.log
+
+# ===== smalis 反编译工程的原始 APK 与工具输出 =====
+/smartisan-launcher-maintained/com.smartisanos.home_27.apk
+/smartisan-launcher-maintained/build/
+
+# ===== 打包脚本生成的发行包暂存目录（产物进 dist/，不入库） =====
+/ksu/
+/magisk/

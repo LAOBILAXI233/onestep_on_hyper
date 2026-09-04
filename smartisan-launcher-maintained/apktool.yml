@@ -1,0 +1,20 @@
+version: 3.0.1
+apkFileName: com.smartisanos.home_27.apk
+usesFramework:
+  ids:
+  - 1
+sdkInfo:
+  minSdkVersion: 19
+  targetSdkVersion: 28
+versionInfo:
+  versionCode: 2026071503
+  versionName: 1.5.1-r14
+resourcesInfo:
+  packageId: 127
+  keepRawValues: true
+doNotCompress:
+- arsc
+- jpg
+- png
+- META-INF/services/com.fasterxml.jackson.core.JsonFactory
+- META-INF/services/com.fasterxml.jackson.core.ObjectCodec

@@ -1,0 +1,36 @@
+name: 新需求
+description: 记录功能建议或改进想法
+title: "[新需求] "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        用于整理功能建议、改进想法和后续可评估的需求。
+
+  - type: textarea
+    id: request
+    attributes:
+      label: 需求描述
+      placeholder: 直接写希望增加或改进的内容
+    validations:
+      required: true
+
+  - type: textarea
+    id: use_case
+    attributes:
+      label: 使用场景
+      description: 说明这个需求主要解决什么问题
+      placeholder: 例如：桌面首页暂不支持分身显示时，希望至少能通过搜索快速打开
+    validations:
+      required: false
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: 补充说明
+      description: 可选，补充参考项目、截图、实现方向或个人备注
+      placeholder: 例如：可参考新桌面 / 暂不确定是否实现
+    validations:
+      required: false

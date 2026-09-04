@@ -1,0 +1,425 @@
+package com.leaf.hyperdragshare.codex;
+
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.content.Context;
+import android.content.Intent;
+import android.content.res.Resources;
+import android.graphics.Rect;
+import android.util.TypedValue;
+import android.view.View;
+import android.view.ViewTreeObserver;
+import android.view.ViewGroup;
+import android.widget.ImageView;
+import android.widget.LinearLayout;
+import android.widget.RelativeLayout;
+import android.widget.Toast;
+
+import java.util.TreeSet;
+
+public class BoomActionHandler implements CustomScrollView.OnScrollListener {
+    public static final int SEARCH_WEB = 0;
+    public static final int SEARCH_DICTIONARY = 1;
+
+    private final BoomChipPage mBoomPage;
+    private final Toast mToast;
+
+    private final int mRowMoveUpOffset;
+    private final int mRowMoveDownOffset;
+    private final int mSelectRectMarginTop;
+    private final int mSelectRectTopOffset;
+    private final int mSelectBarYOffset;
+
+    int mSelectedTopRow = -1;
+    int mSelectedBottomRow = -1;
+    RelativeLayout mSelectBar;
+    RelativeLayout mFakeSelectBar;
+    LinearLayout mSelectRect;
+    TreeSet<Integer> mSelectedId = new TreeSet<Integer>();
+    private Rect mSelectBarRect = new Rect();
+    private final boolean mEnableFakeSelectBar;
+
+    public BoomActionHandler(BoomChipPage boomPage, boolean enableFakeSelectBar) {
+        mBoomPage = boomPage;
+        mEnableFakeSelectBar = enableFakeSelectBar;
+        mToast = Toast.makeText(boomPage.mActivity, "", Toast.LENGTH_SHORT);
+
+        final Resources res = boomPage.mActivity.getResources();
+        mRowMoveUpOffset = res.getDimensionPixelOffset(com.hyper.onestep.R.dimen.chip_row_move_up_offset);
+        mRowMoveDownOffset = res.getDimensionPixelOffset(com.hyper.onestep.R.dimen.chip_row_move_down_offset);
+        if (mEnableFakeSelectBar) {
+            mSelectRectMarginTop = res.getDimensionPixelOffset(com.hyper.onestep.R.dimen.select_rect_margin_top);
+            mSelectRectTopOffset = res.getDimensionPixelOffset(com.hyper.onestep.R.dimen.select_rect_top_offset);
+            mSelectBarYOffset = 0;
+        } else {
+            int expand = res.getDimensionPixelOffset(com.hyper.onestep.R.dimen.chip_row_padding_top)
+                    + (int) TypedValue.applyDimension(
+                    TypedValue.COMPLEX_UNIT_DIP,
+                    5,
+                    res.getDisplayMetrics()
+            );
+            mSelectRectMarginTop = -expand;
+            mSelectRectTopOffset = expand * 2;
+            mSelectBarYOffset = mRowMoveUpOffset;
+        }
+
+        initViews(mBoomPage.mBoomTable);
+        initFakeViews(mBoomPage.mBoomPage);
+    }
+
+    public void onSelect(TreeSet<Integer> savedState) {
+        mSelectedId.clear();
+        final int wordCount = mBoomPage.mLayout.getWordCount();
+        for (Integer id : savedState) {
+            if (id < wordCount) {
+                mSelectedId.add(id);
+            }
+        }
+        if (!mSelectedId.isEmpty()) {
+            onSelectInternal(mSelectedId.first(), mSelectedId.last());
+        }
+    }
+
+    public void onSelect(int start, int end) {
+        for (int i = start; i <= end; ++i) {
+            mSelectedId.add(new Integer(i));
+        }
+        onSelectInternal(start, end);
+    }
+
+    private void onSelectInternal(int start, int end) {
+        final int topRow = mBoomPage.mLayout.getRowForIndex(start);
+        final int bottomRow = mBoomPage.mLayout.getRowForIndex(end);
+
+        if (mSelectedTopRow == -1) {
+            mSelectedTopRow = topRow;
+            mSelectedBottomRow = bottomRow;
+            showSelBarAndBgRect(topRow);
+        } else {
+            if (topRow < mSelectedTopRow) {
+                mSelectedTopRow = topRow;
+            }
+            if (bottomRow > mSelectedBottomRow) {
+                mSelectedBottomRow = bottomRow;
+            }
+            positionSelBar(mSelectedTopRow);
+            positionSelectRect(mSelectedTopRow);
+        }
+
+        moveChipRows();
+
+        mSelectBar.post(new Runnable() {
+            @Override
+            public void run() {
+                if (hasSelection() && mSelectedTopRow != -1) {
+                    positionSelBar(mSelectedTopRow);
+                    positionSelectRect(mSelectedTopRow);
+                }
+            }
+        });
+    }
+
+    public void deSelect(int stat, int end) {
+        for (int i = stat; i <= end; ++i) {
+            mSelectedId.remove(new Integer(i));
+        }
+        if (mSelectedId.size() > 0) {
+            final int min = mBoomPage.mLayout.getRowForIndex(mSelectedId.first());
+            final int max = mBoomPage.mLayout.getRowForIndex(mSelectedId.last());
+            if (min > mSelectedTopRow) {
+                mSelectedTopRow = min;
+                positionSelBar(min);
+                positionSelectRect(min);
+            } else if (max < mSelectedBottomRow) {
+                mSelectedBottomRow = max;
+                positionSelBar(min);
+                positionSelectRect(min);
+            }
+        } else {
+            hideSelectBarAndRect();
+            mBoomPage.resetChips();
+        }
+        moveChipRows();
+    }
+
+    public boolean handleClick() {
+        if (mSelectedId.size() > 0) {
+            mSelectedId.clear();
+            mBoomPage.resetChips();
+            hideSelectBarAndRect();
+            return true;
+        }
+        return false;
+    }
+
+    void clearSelectionStateForRelayout() {
+        mSelectedId.clear();
+        mSelectedTopRow = -1;
+        mSelectedBottomRow = -1;
+        if (mSelectBar != null) {
+            mSelectBar.setVisibility(View.INVISIBLE);
+        }
+        if (mSelectRect != null) {
+            ViewGroup.LayoutParams params = mSelectRect.getLayoutParams();
+            params.height = 0;
+            mSelectRect.setLayoutParams(params);
+            mSelectRect.setVisibility(View.INVISIBLE);
+        }
+        if (mFakeSelectBar != null && mFakeSelectBar.getVisibility() == View.VISIBLE) {
+            mFakeSelectBar.setVisibility(View.INVISIBLE);
+        }
+    }
+
+    private boolean isChineseWord(char c) {
+        Character.UnicodeBlock ub = Character.UnicodeBlock.of(c);
+        if (ub == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS
+                || ub == Character.UnicodeBlock.CJK_COMPATIBILITY_IDEOGRAPHS
+                || ub == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_A
+                || ub == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_B) {
+            return true;
+        }
+        return false;
+    }
+
+    private int getContentType(String text) {
+        int type = 0;
+        for (int i = 0; i < text.length(); ++i) {
+            char ch = text.charAt(i);
+            if ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z')) {
+                type |= 1;
+            } else if (isChineseWord(ch)) {
+                type |= 2;
+            } else {
+                return 3;
+            }
+        }
+        return type == 0 ? 3 : type - 1;
+    }
+
+    private void copy(String text) {
+        mToast.setText(mBoomPage.mActivity.getResources().getString(com.hyper.onestep.R.string.copy_tips));
+        mToast.show();
+        ClipboardManager clipboard = (ClipboardManager) mBoomPage.mActivity.getSystemService(Context.CLIPBOARD_SERVICE);
+        clipboard.setPrimaryClip(ClipData.newPlainText(null, text));
+    }
+
+    public void search(String text, int type) {
+        if (mBoomPage.mActivity instanceof TextSegmentationActivity) {
+            ((TextSegmentationActivity) mBoomPage.mActivity).openSearch(text, type);
+        }
+    }
+
+    private void share() {
+        final String shareText = getSelectedText();
+        Intent send = new Intent(Intent.ACTION_SEND);
+        send.setType("text/plain");
+        send.putExtra(Intent.EXTRA_TEXT, shareText);
+        Intent i = Intent.createChooser(send, null);
+        i.setFlags(Intent.FLAG_ACTIVITY_NO_HISTORY);
+        mBoomPage.mActivity.startActivity(i);
+    }
+
+    private void initViews(View contentView) {
+        mSelectRect = (LinearLayout) contentView.findViewById(com.hyper.onestep.R.id.boom_multi_selected_bg);
+        mSelectBar = (RelativeLayout) contentView.findViewById(com.hyper.onestep.R.id.multi_selected_bar);
+        mSelectBar.getViewTreeObserver().addOnGlobalLayoutListener(new ViewTreeObserver.OnGlobalLayoutListener() {
+            @Override
+            public void onGlobalLayout() {
+                onScrollChanged();
+            }
+        });
+        ImageView searchView = (ImageView) mSelectBar.findViewById(com.hyper.onestep.R.id.all_search);
+        ImageView resegmentView = (ImageView) mSelectBar.findViewById(com.hyper.onestep.R.id.all_cut);
+        resegmentView.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                mBoomPage.splitSelectedWordsToChars();
+            }
+        });
+        searchView.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                search(getSelectedText(), SEARCH_WEB);
+            }
+        });
+        ImageView dictView = (ImageView) mSelectBar.findViewById(com.hyper.onestep.R.id.all_dict);
+        dictView.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                search(getSelectedText(), SEARCH_DICTIONARY);
+            }
+        });
+        ImageView shareView = (ImageView) mSelectBar.findViewById(com.hyper.onestep.R.id.all_share);
+        shareView.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                share();
+            }
+        });
+        ImageView copyView = (ImageView) mSelectBar.findViewById(com.hyper.onestep.R.id.all_copy);
+        copyView.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                copy(getSelectedText());
+            }
+        });
+    }
+
+    private void initFakeViews(View contentView) {
+        mFakeSelectBar = (RelativeLayout) contentView.findViewById(com.hyper.onestep.R.id.fake_multi_selected_bar);
+        ImageView topResegmentView = (ImageView) mFakeSelectBar.findViewById(com.hyper.onestep.R.id.all_cut);
+        topResegmentView.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                mBoomPage.splitSelectedWordsToChars();
+            }
+        });
+        ImageView topSearchView = (ImageView) mFakeSelectBar.findViewById(com.hyper.onestep.R.id.all_search);
+        topSearchView.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                search(getSelectedText(), SEARCH_WEB);
+            }
+        });
+        ImageView topDictView = (ImageView) mFakeSelectBar.findViewById(com.hyper.onestep.R.id.all_dict);
+        topDictView.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                search(getSelectedText(), SEARCH_DICTIONARY);
+            }
+        });
+        ImageView topShareView = (ImageView) mFakeSelectBar.findViewById(com.hyper.onestep.R.id.all_share);
+        topShareView.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                share();
+            }
+        });
+        ImageView topCopyView = (ImageView) mFakeSelectBar.findViewById(com.hyper.onestep.R.id.all_copy);
+        topCopyView.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                copy(getSelectedText());
+            }
+        });
+    }
+
+    public boolean hasSelection() {
+        return mSelectedId.size() > 0;
+    }
+
+    public boolean isAllSelected() {
+        return mSelectedId.size() == mBoomPage.mLayout.getWordCount() && mSelectedId.size() > 0;
+    }
+
+    public String getSelectedText() {
+        final int wordCount = mBoomPage.mLayout.getWordCount();
+        if (mSelectedId.size() == wordCount) {
+            return mBoomPage.mLayout.getOriText();
+        }
+        StringBuilder res = new StringBuilder();
+        int last = -1;
+        for (Integer cur : mSelectedId) {
+            if (last == -1) {
+                res.append(mBoomPage.mLayout.getWord(cur));
+            } else if (cur == last + 1) {
+                final int end = cur == wordCount - 1 ?
+                        mBoomPage.mLayout.getOriText().length() : mBoomPage.mLayout.getWordEnd(cur);
+                res.append(mBoomPage.mLayout.getOriText(mBoomPage.mLayout.getWordEnd(last), end));
+            } else {
+                res.append(mBoomPage.mLayout.getWord(cur));
+            }
+            last = cur;
+        }
+        return res.toString();
+    }
+
+    private int getSelectRectHeight() {
+        return mBoomPage.getRowsHeight(mSelectedTopRow, mSelectedBottomRow) + mSelectRectTopOffset;
+    }
+
+    private int getSelectRectY(int row) {
+        return mBoomPage.getRowTop(row) + mSelectRectMarginTop;
+    }
+
+    private int getSelectBarY(int row) {
+        return mBoomPage.getRowTop(row) + mSelectBarYOffset;
+    }
+
+    private void showSelBarAndBgRect(int row) {
+        mSelectBar.setVisibility(View.VISIBLE);
+        mSelectRect.setVisibility(View.VISIBLE);
+        mSelectBar.setTranslationY(getSelectBarY(row));
+        mSelectRect.setTranslationY(getSelectRectY(row));
+        BoomAnimator.makeBarAndRectShowAnimation(mSelectBar, mSelectRect, getSelectRectHeight());
+    }
+
+    private void hideSelectBarAndRect() {
+        mSelectedTopRow = -1;
+        mSelectedBottomRow = -1;
+        BoomAnimator.makeBarAndRectHideAnimation(mSelectBar, mSelectRect);
+        if (mFakeSelectBar != null && mFakeSelectBar.getVisibility() == View.VISIBLE) {
+            mFakeSelectBar.setVisibility(View.INVISIBLE);
+        }
+    }
+
+    private void positionSelBar(int row) {
+        BoomAnimator.makeMoveAnimation(mSelectBar, mSelectBar.getTranslationY(), getSelectBarY(row));
+    }
+
+    private void positionSelectRect(int row) {
+        BoomAnimator.makeHeightAnimation(mSelectRect, getSelectRectHeight(), mSelectRect.getTranslationY(), getSelectRectY(row));
+    }
+
+    private void moveChipRows() {
+        final int rowCount = mBoomPage.mLayout.getRowCount();
+        if (mSelectedTopRow == -1 || mSelectedBottomRow == -1) {
+            for (int i = 0; i < rowCount; ++i) {
+                mBoomPage.moveChipRow(i, 0);
+            }
+        } else {
+            for (int i = 0; i < rowCount; ++i) {
+                float end;
+                if (i < mSelectedTopRow) {
+                    end = mRowMoveUpOffset;
+                } else if (i > mSelectedBottomRow) {
+                    end = mRowMoveDownOffset;
+                } else {
+                    end = 0;
+                }
+                mBoomPage.moveChipRow(i, end);
+            }
+        }
+    }
+
+    @Override
+    public void onScrollChanged() {
+        if (!hasSelection()) return;
+        if (mSelectBar != null && mFakeSelectBar != null) {
+            final View pinnedBarContainer = (View) mFakeSelectBar.getParent();
+            final Rect pinnedBarRect = new Rect();
+            if (pinnedBarContainer == null || !pinnedBarContainer.getGlobalVisibleRect(pinnedBarRect)) {
+                return;
+            }
+            final int[] selectBarLocation = new int[2];
+            mSelectBar.getLocationOnScreen(selectBarLocation);
+            mSelectBarRect.set(
+                    selectBarLocation[0],
+                    selectBarLocation[1],
+                    selectBarLocation[0] + mSelectBar.getWidth(),
+                    selectBarLocation[1] + mSelectBar.getHeight()
+            );
+            if (mSelectBarRect.top <= pinnedBarRect.top && mFakeSelectBar.getVisibility() != View.VISIBLE) {
+                RelativeLayout.LayoutParams params = (RelativeLayout.LayoutParams) mFakeSelectBar.getLayoutParams();
+                params.removeRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
+                params.addRule(RelativeLayout.ALIGN_PARENT_TOP);
+                mFakeSelectBar.setLayoutParams(params);
+                mSelectBar.setVisibility(View.INVISIBLE);
+                mFakeSelectBar.setVisibility(View.VISIBLE);
+            } else if (mSelectBarRect.top > pinnedBarRect.top) {
+                mFakeSelectBar.setVisibility(View.INVISIBLE);
+                mSelectBar.setVisibility(View.VISIBLE);
+            }
+        }
+    }
+}

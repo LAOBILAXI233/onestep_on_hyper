@@ -1,0 +1,54 @@
+name: 问题反馈
+description: 记录 bug、兼容性异常或行为问题
+title: "[问题反馈] "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        用于整理 bug、兼容性异常、显示问题、功能失效等反馈。
+
+  - type: textarea
+    id: source
+    attributes:
+      label: 反馈来源
+      description: 如：自测、群聊、私信、论坛
+      placeholder: 例如：用户私信 / 群聊反馈 / 自测
+    validations:
+      required: false
+
+  - type: textarea
+    id: device
+    attributes:
+      label: 设备与系统
+      description: 尽量写清机型、ROM、Android 版本
+      placeholder: 例如：Xiaomi 13 / HyperOS 2 / Android 16
+    validations:
+      required: false
+
+  - type: textarea
+    id: issue
+    attributes:
+      label: 问题现象
+      placeholder: 直接描述用户看到的问题
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: 触发场景
+      description: 能复现的话，简单写一下触发方式
+      placeholder: 例如：切换到多任务后再返回桌面时出现
+    validations:
+      required: false
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: 补充说明
+      description: 可选，补充截图、录屏、备注、临时判断等
+      placeholder: 例如：已收到录屏 / 暂未复现 / 可能与手势导航有关
+    validations:
+      required: false

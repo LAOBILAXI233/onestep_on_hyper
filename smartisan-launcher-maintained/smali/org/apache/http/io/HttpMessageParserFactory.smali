@@ -1,0 +1,27 @@
+.class public interface abstract Lorg/apache/http/io/HttpMessageParserFactory;
+.super Ljava/lang/Object;
+.source "HttpMessageParserFactory.java"
+
+
+.annotation system Ldalvik/annotation/Signature;
+    value = {
+        "<T::",
+        "Lorg/apache/http/HttpMessage;",
+        ">",
+        "Ljava/lang/Object;"
+    }
+.end annotation
+
+
+.method public abstract create(Lorg/apache/http/io/SessionInputBuffer;Lorg/apache/http/config/MessageConstraints;)Lorg/apache/http/io/HttpMessageParser;
+    .annotation system Ldalvik/annotation/Signature;
+        value = {
+            "(",
+            "Lorg/apache/http/io/SessionInputBuffer;",
+            "Lorg/apache/http/config/MessageConstraints;",
+            ")",
+            "Lorg/apache/http/io/HttpMessageParser",
+            "<TT;>;"
+        }
+    .end annotation
+.end method

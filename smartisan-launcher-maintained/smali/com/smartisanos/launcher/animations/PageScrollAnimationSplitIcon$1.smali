@@ -1,0 +1,75 @@
+.class Lcom/smartisanos/launcher/animations/PageScrollAnimationSplitIcon$1;
+.super Ljava/lang/Object;
+.source "PageScrollAnimationSplitIcon.java"
+
+.implements Ljava/lang/Runnable;
+
+
+.annotation system Ldalvik/annotation/EnclosingMethod;
+    value = Lcom/smartisanos/launcher/animations/PageScrollAnimationSplitIcon;->pressedHomeKey()V
+.end annotation
+
+.annotation system Ldalvik/annotation/InnerClass;
+    accessFlags = 0x0
+    name = null
+.end annotation
+
+
+.field final synthetic this$0:Lcom/smartisanos/launcher/animations/PageScrollAnimationSplitIcon;
+
+
+.method constructor <init>(Lcom/smartisanos/launcher/animations/PageScrollAnimationSplitIcon;)V
+    .locals 0
+    .param p1, "this$0"    # Lcom/smartisanos/launcher/animations/PageScrollAnimationSplitIcon;
+
+    .prologue
+    .line 370
+    iput-object p1, p0, Lcom/smartisanos/launcher/animations/PageScrollAnimationSplitIcon$1;->this$0:Lcom/smartisanos/launcher/animations/PageScrollAnimationSplitIcon;
+
+    invoke-direct {p0}, Ljava/lang/Object;-><init>()V
+
+    return-void
+.end method
+
+
+.method public run()V
+    .locals 3
+
+    .prologue
+    const/4 v2, 0x0
+
+    .line 374
+    invoke-static {}, Lcom/smartisanos/launcher/view/MainView;->getInstance()Lcom/smartisanos/launcher/view/MainView;
+
+    move-result-object v0
+
+    invoke-virtual {v0}, Lcom/smartisanos/launcher/view/MainView;->unLockHardKey()V
+
+    .line 375
+    invoke-static {}, Lcom/smartisanos/launcher/StatusManager;->getInstance()Lcom/smartisanos/launcher/StatusManager;
+
+    move-result-object v0
+
+    const/16 v1, 0x80
+
+    invoke-virtual {v0, v1, v2}, Lcom/smartisanos/launcher/StatusManager;->setLauncherStatus(IZ)V
+
+    .line 376
+    invoke-static {}, Lcom/smartisanos/launcher/StatusManager;->getInstance()Lcom/smartisanos/launcher/StatusManager;
+
+    move-result-object v0
+
+    const/4 v1, 0x1
+
+    invoke-virtual {v0, v1, v2}, Lcom/smartisanos/launcher/StatusManager;->setLauncherStatus(IZ)V
+
+    .line 377
+    invoke-static {}, Lcom/smartisanos/smengine/shadow/ShadowManager;->getInstance()Lcom/smartisanos/smengine/shadow/ShadowManager;
+
+    move-result-object v0
+
+    invoke-virtual {v0, v2}, Lcom/smartisanos/smengine/shadow/ShadowManager;->enableShadow(Z)V
+
+    .line 378
+    return-void
+.end method

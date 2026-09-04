@@ -1,0 +1,14 @@
+allow magisk default_android_service service_manager add
+allow untrusted_app default_android_service service_manager find
+allow priv_app default_android_service service_manager find
+allow untrusted_app magisk binder { call transfer }
+allow magisk untrusted_app binder { call transfer }
+allow untrusted_app magisk unix_stream_socket connectto
+allow magisk untrusted_app fd use
+allow priv_app magisk binder { call transfer }
+allow magisk priv_app binder { call transfer }
+allow priv_app magisk unix_stream_socket connectto
+allow magisk priv_app fd use
+allow magisk surfaceflinger_service service_manager find
+allow magisk surfaceflinger binder { call transfer }
+allow surfaceflinger magisk binder transfer

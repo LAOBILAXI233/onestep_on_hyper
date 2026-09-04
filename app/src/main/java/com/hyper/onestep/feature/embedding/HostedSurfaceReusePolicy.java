@@ -1,0 +1,24 @@
+package com.hyper.onestep.feature.embedding;
+
+public final class HostedSurfaceReusePolicy {
+    private HostedSurfaceReusePolicy() {
+    }
+
+    public static boolean shouldKeepVisibleDuringValidation(
+            boolean matchingLaunchRequest, boolean revealPending, boolean surfaceVisible) {
+        return matchingLaunchRequest && !revealPending && surfaceVisible;
+    }
+
+    public static boolean shouldBeginReveal(
+            boolean reusingHostedApp, boolean taskResolved, boolean revealPending,
+            boolean keepingVisibleDuringValidation) {
+        if (!reusingHostedApp) {
+            return true;
+        }
+        return !taskResolved && !revealPending && !keepingVisibleDuringValidation;
+    }
+
+    public static boolean shouldValidateReusedTask(boolean imageShareLaunchGuardActive) {
+        return !imageShareLaunchGuardActive;
+    }
+}

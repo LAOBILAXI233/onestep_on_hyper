@@ -1,0 +1,43 @@
+[versions]
+agp = "9.2.1"
+coreKtx = "1.10.1"
+junit = "4.13.2"
+junitVersion = "1.1.5"
+espressoCore = "3.5.1"
+appcompat = "1.6.1"
+material = "1.10.0"
+viewpager2 = "1.1.0"
+recyclerview = "1.3.1"
+kotlin = "2.4.0"
+activityCompose = "1.13.0"
+composeUi = "1.11.2"
+composeFoundation = "1.11.2"
+material3 = "1.4.0"
+
+[libraries]
+androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
+junit = { group = "junit", name = "junit", version.ref = "junit" }
+androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
+androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
+androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
+material = { group = "com.google.android.material", name = "material", version.ref = "material" }
+androidx-viewpager2 = { group = "androidx.viewpager2", name = "viewpager2", version.ref = "viewpager2" }
+androidx-recyclerview = { group = "androidx.recyclerview", name = "recyclerview", version.ref = "recyclerview" }
+androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
+androidx-compose-ui = { group = "androidx.compose.ui", name = "ui", version.ref = "composeUi" }
+androidx-compose-foundation = { group = "androidx.compose.foundation", name = "foundation", version.ref = "composeFoundation" }
+androidx-compose-material3 = { group = "androidx.compose.material3", name = "material3", version.ref = "material3" }
+androidx-compose-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended", version = "1.7.8" }
+miuix-ui = { group = "top.yukonga.miuix.kmp", name = "miuix-ui-android", version = "0.9.3" }
+miuix-navigation3-ui = { group = "top.yukonga.miuix.kmp", name = "miuix-navigation3-ui-android", version = "0.9.3" }
+miuix-preference = { group = "top.yukonga.miuix.kmp", name = "miuix-preference-android", version = "0.9.3" }
+miuix-icons = { group = "top.yukonga.miuix.kmp", name = "miuix-icons-android", version = "0.9.3" }
+miuix-blur = { group = "top.yukonga.miuix.kmp", name = "miuix-blur-android", version = "0.9.3" }
+navigation3-runtime = { group = "androidx.navigation3", name = "navigation3-runtime", version = "1.1.4" }
+appiconloader = { group = "me.zhanghai.android.appiconloader", name = "appiconloader", version = "1.5.0" }
+xposed-api = { group = "de.robv.android.xposed", name = "api", version = "82" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }

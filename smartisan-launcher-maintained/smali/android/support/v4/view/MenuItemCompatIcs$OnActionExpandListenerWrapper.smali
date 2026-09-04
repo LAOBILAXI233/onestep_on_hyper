@@ -1,0 +1,65 @@
+.class Landroid/support/v4/view/MenuItemCompatIcs$OnActionExpandListenerWrapper;
+.super Ljava/lang/Object;
+.source "MenuItemCompatIcs.java"
+
+.implements Landroid/view/MenuItem$OnActionExpandListener;
+
+
+.annotation system Ldalvik/annotation/EnclosingClass;
+    value = Landroid/support/v4/view/MenuItemCompatIcs;
+.end annotation
+
+.annotation system Ldalvik/annotation/InnerClass;
+    accessFlags = 0x8
+    name = "OnActionExpandListenerWrapper"
+.end annotation
+
+
+.field private mWrapped:Landroid/support/v4/view/MenuItemCompatIcs$SupportActionExpandProxy;
+
+
+.method public constructor <init>(Landroid/support/v4/view/MenuItemCompatIcs$SupportActionExpandProxy;)V
+    .locals 0
+    .param p1, "wrapped"    # Landroid/support/v4/view/MenuItemCompatIcs$SupportActionExpandProxy;
+
+    .prologue
+    .line 54
+    invoke-direct {p0}, Ljava/lang/Object;-><init>()V
+
+    .line 55
+    iput-object p1, p0, Landroid/support/v4/view/MenuItemCompatIcs$OnActionExpandListenerWrapper;->mWrapped:Landroid/support/v4/view/MenuItemCompatIcs$SupportActionExpandProxy;
+
+    .line 56
+    return-void
+.end method
+
+
+.method public onMenuItemActionCollapse(Landroid/view/MenuItem;)Z
+    .locals 1
+    .param p1, "item"    # Landroid/view/MenuItem;
+
+    .prologue
+    .line 65
+    iget-object v0, p0, Landroid/support/v4/view/MenuItemCompatIcs$OnActionExpandListenerWrapper;->mWrapped:Landroid/support/v4/view/MenuItemCompatIcs$SupportActionExpandProxy;
+
+    invoke-interface {v0, p1}, Landroid/support/v4/view/MenuItemCompatIcs$SupportActionExpandProxy;->onMenuItemActionCollapse(Landroid/view/MenuItem;)Z
+
+    move-result v0
+
+    return v0
+.end method
+
+.method public onMenuItemActionExpand(Landroid/view/MenuItem;)Z
+    .locals 1
+    .param p1, "item"    # Landroid/view/MenuItem;
+
+    .prologue
+    .line 60
+    iget-object v0, p0, Landroid/support/v4/view/MenuItemCompatIcs$OnActionExpandListenerWrapper;->mWrapped:Landroid/support/v4/view/MenuItemCompatIcs$SupportActionExpandProxy;
+
+    invoke-interface {v0, p1}, Landroid/support/v4/view/MenuItemCompatIcs$SupportActionExpandProxy;->onMenuItemActionExpand(Landroid/view/MenuItem;)Z
+
+    move-result v0
+
+    return v0
+.end method

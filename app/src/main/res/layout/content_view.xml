@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.hyper.onestep.view.ContentView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:sidebar="http://schemas.android.com/apk/res/com.hyper.onestep"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:descendantFocusability="afterDescendants"
+    android:fitsSystemWindows="true"
+    android:background="@color/dim_color"
+    android:focusable="true" >
+    <include layout="@layout/photo_view_group"
+        android:visibility="invisible"/>
+    <include layout="@layout/file_view_group"
+        android:visibility="invisible"/>
+    <!-- 剪贴板页回归：与照片/文件同级的 ContentView 子页 -->
+    <include layout="@layout/clipboard_view_group"
+        android:visibility="invisible"/>
+    <include layout="@layout/bookmark_view_group"
+        android:visibility="gone"/>
+</com.hyper.onestep.view.ContentView>

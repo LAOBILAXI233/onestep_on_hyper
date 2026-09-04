@@ -1,0 +1,33 @@
+package com.hyper.onestep.hook;
+
+final class HyperOsEmbeddedHomePolicy {
+    private static final String MIUI_HOME_PACKAGE = "com.miui.home";
+    private static final String SECONDARY_DISPLAY_LAUNCHER =
+            "com.miui.home.launcher.SecondaryDisplayLauncher";
+
+    private HyperOsEmbeddedHomePolicy() {
+    }
+
+    static boolean shouldKeepLauncherAlive(String displayName) {
+        return displayName != null
+                && displayName.startsWith(OneStepPrimaryHomePolicy.DISPLAY_NAME_PREFIX);
+    }
+
+    static boolean shouldSuppressSecondaryLauncher(String packageName,
+                                                    String className,
+                                                    String displayName) {
+        return MIUI_HOME_PACKAGE.equals(packageName)
+                && SECONDARY_DISPLAY_LAUNCHER.equals(className)
+                && shouldKeepLauncherAlive(displayName);
+    }
+
+    static boolean shouldUseLocalOverviewHome(String displayName) {
+        return shouldKeepLauncherAlive(displayName);
+    }
+
+    static boolean shouldUseEmbeddedOverviewHome(String displayName,
+                                                 String defaultHomePackage) {
+        return shouldKeepLauncherAlive(displayName)
+                && OneStepPrimaryHomePolicy.ONE_STEP_PACKAGE.equals(defaultHomePackage);
+    }
+}
