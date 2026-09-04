@@ -163,6 +163,8 @@ fi
 
 cp "$ROOT_DIR/packaging/root/privapp-permissions-com.hyper.onestep.xml" \
     "$WORK_DIR/system/etc/permissions/privapp-permissions-onestep.xml"
+cp "$ROOT_DIR/packaging/root/privapp-permissions-smartisanos-home.xml" \
+    "$WORK_DIR/system/etc/permissions/privapp-permissions-smartisanos-home.xml"
 awk -v version="$APP_VERSION_NAME" -v version_code="$APP_VERSION_CODE" '
     /^version=/ { print "version=" version; next }
     /^versionCode=/ { print "versionCode=" version_code; next }
@@ -186,6 +188,7 @@ chmod 0644 "$WORK_DIR/$APK_ENTRY"
 chmod 0644 "$WORK_DIR/VanStep.apk"
 chmod 0644 "$WORK_DIR/$SMARTISAN_APP_ENTRY"
 chmod 0644 "$WORK_DIR/system/etc/permissions/privapp-permissions-onestep.xml"
+chmod 0644 "$WORK_DIR/system/etc/permissions/privapp-permissions-smartisanos-home.xml"
 chmod 0644 "$WORK_DIR/system/etc/onestep/OneStepStatusBarZeroOverlay.apk"
 chmod 0644 "$WORK_DIR/module.prop"
 chmod 0755 "$WORK_DIR/zygisk-payload"
@@ -230,6 +233,7 @@ unzip -qq "$OUT_ZIP" \
     "remove-data-app-update.sh" \
     "statusbar-post-fs-data.sh" \
     "system/etc/onestep/OneStepStatusBarZeroOverlay.apk" \
+    "system/etc/permissions/privapp-permissions-smartisanos-home.xml" \
     -d "$VERIFY_DIR"
 PACKAGED_APK_SHA256="$(sha256_file "$VERIFY_DIR/$APK_ENTRY")"
 PACKAGED_ROOT_APK_SHA256="$(sha256_file "$VERIFY_DIR/VanStep.apk")"
@@ -258,7 +262,8 @@ for required_entry in \
     "module-state.sh" \
     "remove-data-app-update.sh" \
     "statusbar-post-fs-data.sh" \
-    "system/etc/onestep/OneStepStatusBarZeroOverlay.apk"; do
+    "system/etc/onestep/OneStepStatusBarZeroOverlay.apk" \
+    "system/etc/permissions/privapp-permissions-smartisanos-home.xml"; do
     if [[ ! -s "$VERIFY_DIR/$required_entry" ]]; then
         echo "Magisk ZIP 内缺少必需组件：$required_entry" >&2
         exit 1

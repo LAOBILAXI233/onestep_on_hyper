@@ -135,6 +135,10 @@ if [ -f "$MODPATH/system/etc/onestep/OneStepStatusBarZeroOverlay.apk" ]; then
   set_perm "$MODPATH/system/etc/onestep/OneStepStatusBarZeroOverlay.apk" 0 0 0644
 fi
 
+if [ -f "$MODPATH/system/etc/permissions/privapp-permissions-smartisanos-home.xml" ]; then
+  set_perm "$MODPATH/system/etc/permissions/privapp-permissions-smartisanos-home.xml" 0 0 0644
+fi
+
 if ! "$MODPATH/module-state.sh" snapshot-installation >/dev/null 2>&1; then
   ui_print "! 暂时无法记录持久设置原值，开机修改前将再次尝试"
 fi

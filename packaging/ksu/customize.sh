@@ -145,6 +145,10 @@ set_perm "$MODPATH/action.sh" 0 0 0755
 set_perm "$MODPATH/module-state.sh" 0 0 0755
 set_perm "$MODPATH/remove-data-app-update.sh" 0 0 0755
 set_perm "$MODPATH/system/etc/onestep/OneStepStatusBarZeroOverlay.apk" 0 0 0644
+
+if [ -f "$MODPATH/system/etc/permissions/privapp-permissions-smartisanos-home.xml" ]; then
+  set_perm "$MODPATH/system/etc/permissions/privapp-permissions-smartisanos-home.xml" 0 0 0644
+fi
 set_perm_recursive "$ZYGISK_PAYLOAD_DIR" 0 0 0755 0644
 
 if lsposed_active; then
