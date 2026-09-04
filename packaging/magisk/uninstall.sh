@@ -79,6 +79,10 @@ for user_id in $android_users; do
   pm uninstall --user "$user_id" "$PACKAGE_NAME" >/dev/null 2>&1 || true
 done
 pm uninstall "$PACKAGE_NAME" >/dev/null 2>&1 || true
+for user_id in $android_users; do
+  pm uninstall --user "$user_id" "$SMARTISAN_PACKAGE_NAME" >/dev/null 2>&1 || true
+done
+pm uninstall "$SMARTISAN_PACKAGE_NAME" >/dev/null 2>&1 || true
 
 remove_module_smartisan_update
 
