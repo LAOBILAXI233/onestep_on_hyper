@@ -26,7 +26,10 @@ lsposed_active() {
     [ ! -e "$module_dir/disable" ] || continue
     [ ! -e "$module_dir/remove" ] || continue
     if grep -Eiq '^(id|name)=.*(lsposed|lspd|vector)' "$module_prop"; then
-      return 0
+      [ -f /data/system/onestep-lsposed-backend-active ] && return 0
+      [ -f /data/system/onestep-primary-home-hook-active ] && return 0
+      [ -f /data/system/onestep-root-display-compat-hook-active ] && return 0
+      return 1
     fi
   done
   return 1
@@ -84,7 +87,7 @@ if [ "$SDK_INT" -lt 29 ]; then
   ui_print "- 当前 Android API $SDK_INT：Zygisk Hook 仅支持 Android 10 及以上"
 elif lsposed_active; then
   rm -rf "$MODPATH/zygisk"
-  ui_print "- LSPosed/Vector 已检测：仅使用框架 Hook，禁用 VanStep 独立 Zygisk payload"
+  ui_print "- 已检测到 VanStep 在 LSPosed 中激活：仅使用框架 Hook，禁用独立 Zygisk payload"
 elif ! zygisk_enabled; then
   rm -rf "$MODPATH/zygisk"
   ui_print "- Zygisk 未启用：VanStep 普通页面仍可正常使用"
@@ -145,6 +148,21 @@ fi
 : >"$MODPATH/remove-data-app-update-pending"
 set_perm "$MODPATH/remove-data-app-update-pending" 0 0 0600
 
-ui_print "- 请尽可能不要卸载锤子桌面，否则可能导致启动器异常"
+install_module_apk_via_pm() {
+  apk_path="$1"
+  package_label="$2"
+  [ -f "$apk_path" ] || return 0
+  if pm install -r -d "$apk_path" >/dev/null 2>&1; then
+    ui_print "- $package_label 已通过 pm install 正式安装"
+  else
+    ui_print "! $package_label pm install 失败，继续以系统挂载形态运行"
+  fi
+}
+
+install_module_apk_via_pm "$APK_PATH" "VanStep"
+install_module_apk_via_pm "$SMARTISAN_HOME_APK_PATH" "内置锤子桌面"
+
+ui_print "- VanStep APK 与内置锤子桌面均以系统应用形态随模块挂载（/system/product/app、/system/app），请尽可能不要卸载或禁用它们"
+ui_print "- 卸载本模块时会自动卸载这两个应用"
 
 rm -f "$MODPATH/customize.sh"

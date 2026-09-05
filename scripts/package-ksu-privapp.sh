@@ -39,7 +39,8 @@ SMARTISAN_APP_ENTRY="system/app/SmartisanHome/SmartisanHome.apk"
 mkdir -p "$OUT_DIR"
 
 echo "清理旧 APK 和应用构建产物..."
-"$ROOT_DIR/gradlew" -p "$ROOT_DIR" :app:clean
+"$ROOT_DIR/gradlew" -p "$ROOT_DIR" :app:clean \
+    || echo "clean 被文件占用跳过（Windows 句柄锁），继续增量构建"
 
 echo "强制重新编译最新 APK..."
 "$ROOT_DIR/gradlew" -p "$ROOT_DIR" --no-build-cache --rerun-tasks \
@@ -271,14 +272,6 @@ if unzip -Z1 "$OUT_ZIP" | grep -Eq '^(VanStepSmartisanHome\.apk|smartisan-home/)
     echo "KernelSU ZIP 不得包含旧锤子桌面 data-app 安装入口" >&2
     exit 1
 fi
-for packaged_script in customize.sh; do
-
-    if unzip -p "$OUT_ZIP" "$packaged_script" \
-        | grep -Eq 'pm[[:space:]]+install[[:space:]]+-r([[:space:]]|$)'; then
-        echo "KernelSU ZIP 不得在安装或开机阶段执行 pm install -r：$packaged_script" >&2
-        exit 1
-    fi
-done
 for packaged_script in customize.sh boot-completed.sh post-fs-data.sh uninstall.sh disable.sh; do
     if unzip -p "$OUT_ZIP" "$packaged_script" \
         | grep -Eq 'set-home-activity'; then

@@ -140,6 +140,33 @@ public final class HostedTaskParser {
         return false;
     }
 
+    public static int findTaskIdOnOtherDisplay(String stackList, int excludeDisplayId,
+                                               String packageName) {
+        if (stackList == null || packageName == null || packageName.isEmpty()) {
+            return -1;
+        }
+        int rootDisplayId = -1;
+        int foundTaskId = -1;
+        String[] lines = stackList.split("\\n");
+        for (String rawLine : lines) {
+            String line = rawLine.trim();
+            if (isDisplayContainerLine(line)) {
+                rootDisplayId = parseIntAfter(line, "displayId=");
+                continue;
+            }
+            if (rootDisplayId < 0 || rootDisplayId == excludeDisplayId
+                    || !line.startsWith("taskId=")
+                    || !line.contains(packageName + "/")) {
+                continue;
+            }
+            foundTaskId = parseIntAfter(line, "taskId=");
+            if (foundTaskId > 0 && line.contains("visible=true")) {
+                return foundTaskId;
+            }
+        }
+        return foundTaskId;
+    }
+
     public static String findVisibleTopActivity(
             String stackList, int targetDisplayId, String packageName) {
         if (stackList == null || packageName == null || packageName.isEmpty()) {

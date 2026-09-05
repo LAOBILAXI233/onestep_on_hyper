@@ -16,7 +16,10 @@ lsposed_active() {
     [ ! -e "$module_dir/disable" ] || continue
     [ ! -e "$module_dir/remove" ] || continue
     if grep -Eiq '^(id|name)=.*(lsposed|lspd|vector)' "$module_prop"; then
-      return 0
+      [ -f /data/system/onestep-lsposed-backend-active ] && return 0
+      [ -f /data/system/onestep-primary-home-hook-active ] && return 0
+      [ -f /data/system/onestep-root-display-compat-hook-active ] && return 0
+      return 1
     fi
   done
   return 1
@@ -94,11 +97,13 @@ apply_root_bridge_sepolicy() {
 
 apply_root_bridge_sepolicy
 
-rm -f "$LSPOSED_ACTIVE_MARKER" "$STANDALONE_ACTIVE_MARKER" \
-  "$PRIMARY_HOME_ACTIVE_MARKER" "$ROOT_DISPLAY_COMPAT_ACTIVE_MARKER"
 lsposed_detected=0
 if lsposed_active; then
   lsposed_detected=1
+  rm -f "$STANDALONE_ACTIVE_MARKER"
+else
+  rm -f "$LSPOSED_ACTIVE_MARKER" "$PRIMARY_HOME_ACTIVE_MARKER" \
+    "$ROOT_DISPLAY_COMPAT_ACTIVE_MARKER"
 fi
 set_hook_property onestep.hook.primaryhome_enhancement 0
 if [ -e "$MODDIR/hook-config/disable-secure-window" ]; then

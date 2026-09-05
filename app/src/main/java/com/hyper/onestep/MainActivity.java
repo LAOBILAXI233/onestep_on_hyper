@@ -6883,11 +6883,15 @@ public class MainActivity extends Activity {
         }
         LauncherApp selectedDesktop = resolveBuiltInDesktopApp();
         if (selectedDesktop != null) {
+            Log.i(TAG, "Show desktop: built-in app branch, app="
+                    + selectedDesktop.componentKey());
             desktopHomeRequestPending = false;
             showBuiltInDesktopInMain(selectedDesktop);
             return;
         }
         int desktopSlot = findDesktopHomeSlot();
+        Log.i(TAG, "Show desktop: internal view branch, desktopSlot=" + desktopSlot
+                + ", activeMain=" + activeMainSlot);
         if (desktopSlot == activeMainSlot) {
             desktopHomeRequestPending = false;
             return;
@@ -6907,13 +6911,19 @@ public class MainActivity extends Activity {
                 activeMainSlot, mainOccupied, emptySideSlot);
         switch (placement.action) {
             case START_IN_MAIN:
+                Log.i(TAG, "Show desktop placement: START_IN_MAIN slot="
+                        + placement.targetSlot);
                 windowViews[activeMainSlot].showDesktopHome();
                 renderWindows();
                 break;
             case START_IN_SIDE_AND_PROMOTE:
+                Log.i(TAG, "Show desktop placement: START_IN_SIDE_AND_PROMOTE slot="
+                        + placement.targetSlot);
                 stageDesktopHomeForMainPromotion(placement.targetSlot);
                 break;
             case REPLACE_MAIN:
+                Log.i(TAG, "Show desktop placement: REPLACE_MAIN slot="
+                        + placement.targetSlot);
                 replaceMainWithDesktopHome();
                 break;
         }
@@ -6953,6 +6963,10 @@ public class MainActivity extends Activity {
     private void showBuiltInDesktopInMain(LauncherApp desktopApp) {
         suppressEmbeddedStarts = false;
         int desktopSlot = findSlotByComponent(desktopApp.componentName);
+        Log.i(TAG, "Show built-in desktop: componentSlot=" + desktopSlot
+                + ", activeMain=" + activeMainSlot
+                + ", app=" + desktopApp.componentKey()
+                + ", home=" + desktopApp.isHomeEntry());
         if (desktopSlot < 0) {
             addOrFocusApp(desktopApp);
             return;
@@ -6983,6 +6997,8 @@ public class MainActivity extends Activity {
 
     private void requestDesktopHomeInMain() {
         desktopHomeRequestPending = true;
+        Log.i(TAG, "Request desktop home: activeMain=" + activeMainSlot
+                + ", pendingDesktopHomeSlot=" + pendingDesktopHomeSlot);
         showDesktopHomeInMain();
     }
 
@@ -8915,6 +8931,12 @@ public class MainActivity extends Activity {
                 stageAppForMainDesktopReplacement(placement.targetSlot, app);
                 break;
             case REPLACE_MAIN:
+                if (isDesktopHomeSlot(placement.targetSlot)
+                        && placement.targetSlot != activeMainSlot
+                        && sideSlotOrder.contains(placement.targetSlot)) {
+                    stageAppForMainDesktopReplacement(placement.targetSlot, app);
+                    return;
+                }
                 if (isMainPaneSlot(placement.targetSlot)
                         && placement.targetSlot != activeMainSlot
                         && !activateMainPane(placement.targetSlot, false)) {
@@ -9953,6 +9975,20 @@ public class MainActivity extends Activity {
     }
 
     private void dismissAppWindow(int slot, boolean allowMainPane, Runnable completion) {
+        StackTraceElement[] callerFrames = new Throwable().getStackTrace();
+        StringBuilder caller = new StringBuilder();
+        for (int i = 1; i < callerFrames.length && i <= 6; i++) {
+            if (caller.length() > 0) {
+                caller.append(" <- ");
+            }
+            caller.append(callerFrames[i].getClassName())
+                    .append('.').append(callerFrames[i].getMethodName())
+                    .append(':').append(callerFrames[i].getLineNumber());
+        }
+        Log.i(TAG, "dismissAppWindow: slot=" + slot + ", allowMainPane=" + allowMainPane
+                + ", app=" + (slot >= 0 && slot < MAX_WINDOWS && windowApps[slot] != null
+                ? windowApps[slot].packageName : "-")
+                + ", callers=" + caller);
         if (slot < 0 || slot >= MAX_WINDOWS || (!allowMainPane && isMainPaneSlot(slot))
                 || (windowApps[slot] == null && !isInternalSettingsSlot(slot)
                 && !isDesktopHomeSlot(slot))

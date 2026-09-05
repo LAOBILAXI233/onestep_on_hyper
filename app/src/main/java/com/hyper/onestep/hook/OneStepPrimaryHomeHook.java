@@ -430,8 +430,27 @@ public final class OneStepPrimaryHomeHook {
         ActivityInfo activityInfo = (ActivityInfo) rawInfo;
         int originalLaunchMode = activityInfo.launchMode;
         activityInfo.launchMode = ActivityInfo.LAUNCH_MULTIPLE;
-        writeIntField(activityRecord, "launchMode", ActivityInfo.LAUNCH_MULTIPLE);
-        writeIntField(activityStarter, "mLaunchMode", ActivityInfo.LAUNCH_MULTIPLE);
+        tryIntField(activityRecord, "launchMode", ActivityInfo.LAUNCH_MULTIPLE);
+        tryIntField(activityStarter, "mLaunchMode", ActivityInfo.LAUNCH_MULTIPLE);
+        // HyperOS normalizes the *system* home (com.miui.home) back to the
+        // main-display home task (WM-level, ignores intent semantics and the
+        // requested launch display). Strip its home identity so the slot instance is
+        // routed like a regular activity. Other homes (e.g. Smartisan) already land
+        // correctly with the HOME category intact - leave them untouched.
+        if ("com.miui.home".equals(targetPackage)) {
+            intent.removeCategory(Intent.CATEGORY_HOME);
+            try {
+                Field typeField = findFieldLenient(activityRecord.getClass(),
+                        "ActivityType");
+                if (typeField != null) {
+                    typeField.setInt(activityRecord, 0 /* ACTIVITY_TYPE_STANDARD */);
+                } else {
+                    Log.i(TAG, "activityType field not found; skipping identity rewrite");
+                }
+            } catch (Throwable t) {
+                Log.w(TAG, "activityType rewrite skipped", t);
+            }
+        }
         Log.i(TAG, "primary HOME workspace enabled: component=" + component
                 + ", display=" + displayId + ", originalLaunchMode="
                 + originalLaunchMode);
@@ -547,6 +566,29 @@ public final class OneStepPrimaryHomeHook {
     private static void writeIntField(Object target, String name, int value)
             throws ReflectiveOperationException {
         findField(target.getClass(), name).setInt(target, value);
+    }
+
+    private static void tryIntField(Object target, String name, int value) {
+        try {
+            writeIntField(target, name, value);
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            Log.w(TAG, "int field rewrite skipped: " + name, e);
+        }
+    }
+
+    /** Matches a field by suffix across the class hierarchy, e.g. "ActivityType". */
+    private static Field findFieldLenient(Class<?> type, String nameSuffix) {
+        Class<?> current = type;
+        while (current != null) {
+            for (Field field : current.getDeclaredFields()) {
+                if (field.getName().endsWith(nameSuffix)) {
+                    field.setAccessible(true);
+                    return field;
+                }
+            }
+            current = current.getSuperclass();
+        }
+        return null;
     }
 
     private static Field findField(Class<?> type, String name)
