@@ -13,7 +13,7 @@ local.properties
 *.jks
 *.keystore
 keystore.properties
-
+docs/
 # ===== IDE / Agent 工具目录 =====
 .idea/
 .vscode/
