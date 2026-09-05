@@ -32,14 +32,14 @@ if [[ -z "$APP_VERSION_NAME" || ! "$APP_VERSION_CODE" =~ ^[0-9]+$ ]]; then
     exit 1
 fi
 
-SYSTEM_APP_DIR="VanStep"
-APK_ENTRY="system/product/app/$SYSTEM_APP_DIR/VanStep.apk"
-SMARTISAN_APP_ENTRY="system/app/SmartisanHome/SmartisanHome.apk"
+APK_ENTRY="system/priv-app/com.hyper.onestep/com.hyper.onestep.apk"
+SMARTISAN_APP_ENTRY="system/priv-app/com.smartisanos.home/com.smartisanos.home.apk"
 
 mkdir -p "$OUT_DIR"
 
 echo "清理旧 APK 和应用构建产物..."
-"$ROOT_DIR/gradlew" -p "$ROOT_DIR" :app:clean
+"$ROOT_DIR/gradlew" -p "$ROOT_DIR" :app:clean \
+    || echo "clean 被文件占用跳过（Windows 句柄锁），继续增量构建"
 
 echo "强制重新编译最新 APK..."
 "$ROOT_DIR/gradlew" -p "$ROOT_DIR" --no-build-cache --rerun-tasks \
@@ -109,8 +109,8 @@ fi
 OUT_ZIP="$OUT_DIR/VanStep-$APP_VERSION_NAME-magisk-$(date +%Y%m%d-%H%M%S).zip"
 
 mkdir -p "$WORK_DIR/META-INF/com/google/android"
-mkdir -p "$WORK_DIR/system/product/app/$SYSTEM_APP_DIR"
-mkdir -p "$WORK_DIR/system/app/SmartisanHome"
+mkdir -p "$WORK_DIR/system/priv-app/com.hyper.onestep"
+mkdir -p "$WORK_DIR/system/priv-app/com.smartisanos.home"
 mkdir -p "$WORK_DIR/system/etc/permissions"
 mkdir -p "$WORK_DIR/system/etc/onestep"
 mkdir -p "$WORK_DIR/zygisk-payload"
@@ -129,14 +129,10 @@ cp "$ROOT_DIR/packaging/magisk/uninstall.sh" "$WORK_DIR/uninstall.sh"
 cp "$ROOT_DIR/packaging/root/disable.sh" "$WORK_DIR/disable.sh"
 cp "$ROOT_DIR/packaging/root/action.sh" "$WORK_DIR/action.sh"
 cp "$ROOT_DIR/packaging/root/module-state.sh" "$WORK_DIR/module-state.sh"
-cp "$ROOT_DIR/packaging/root/remove-data-app-update.sh" \
-    "$WORK_DIR/remove-data-app-update.sh"
 cp "$ROOT_DIR/packaging/root/post-fs-data.sh" \
     "$WORK_DIR/statusbar-post-fs-data.sh"
 cp "$ROOT_DIR/packaging/magisk/sepolicy.rule" "$WORK_DIR/sepolicy.rule"
 cp "$APK_PATH" "$WORK_DIR/$APK_ENTRY"
-
-cp "$APK_PATH" "$WORK_DIR/VanStep.apk"
 
 cp "$SMARTISAN_HOME_APK" "$WORK_DIR/$SMARTISAN_APP_ENTRY"
 cp "$STATUS_BAR_OVERLAY" \
@@ -181,11 +177,9 @@ chmod 0755 "$WORK_DIR/uninstall.sh"
 chmod 0755 "$WORK_DIR/disable.sh"
 chmod 0755 "$WORK_DIR/action.sh"
 chmod 0755 "$WORK_DIR/module-state.sh"
-chmod 0755 "$WORK_DIR/remove-data-app-update.sh"
 chmod 0755 "$WORK_DIR/statusbar-post-fs-data.sh"
 chmod 0644 "$WORK_DIR/sepolicy.rule"
 chmod 0644 "$WORK_DIR/$APK_ENTRY"
-chmod 0644 "$WORK_DIR/VanStep.apk"
 chmod 0644 "$WORK_DIR/$SMARTISAN_APP_ENTRY"
 chmod 0644 "$WORK_DIR/system/etc/permissions/privapp-permissions-onestep.xml"
 chmod 0644 "$WORK_DIR/system/etc/permissions/privapp-permissions-smartisanos-home.xml"
@@ -219,7 +213,6 @@ mkdir -p "$VERIFY_DIR"
 unzip -qq "$OUT_ZIP" \
     "$APK_ENTRY" \
     "$SMARTISAN_APP_ENTRY" \
-    "VanStep.apk" \
     "zygisk-payload/arm64-v8a.so" \
     "zygisk-payload/armeabi-v7a.so" \
     "zygisk-runtime/aliuhook.dex" \
@@ -230,16 +223,13 @@ unzip -qq "$OUT_ZIP" \
     "disable.sh" \
     "action.sh" \
     "module-state.sh" \
-    "remove-data-app-update.sh" \
     "statusbar-post-fs-data.sh" \
     "system/etc/onestep/OneStepStatusBarZeroOverlay.apk" \
     "system/etc/permissions/privapp-permissions-smartisanos-home.xml" \
     -d "$VERIFY_DIR"
 PACKAGED_APK_SHA256="$(sha256_file "$VERIFY_DIR/$APK_ENTRY")"
-PACKAGED_ROOT_APK_SHA256="$(sha256_file "$VERIFY_DIR/VanStep.apk")"
 PACKAGED_SMARTISAN_HOME_SHA256="$(sha256_file "$VERIFY_DIR/$SMARTISAN_APP_ENTRY")"
-if [[ "$PACKAGED_APK_SHA256" != "$APK_SHA256" \
-    || "$PACKAGED_ROOT_APK_SHA256" != "$APK_SHA256" ]]; then
+if [[ "$PACKAGED_APK_SHA256" != "$APK_SHA256" ]]; then
     echo "Magisk ZIP 内 VanStep APK 与最新构建 APK 不一致" >&2
     exit 1
 fi
@@ -248,7 +238,7 @@ if [[ "$PACKAGED_SMARTISAN_HOME_SHA256" != "$SMARTISAN_HOME_SHA256" ]]; then
     exit 1
 fi
 for required_entry in \
-    "VanStep.apk" \
+    "$APK_ENTRY" \
     "$SMARTISAN_APP_ENTRY" \
     "zygisk-payload/arm64-v8a.so" \
     "zygisk-payload/armeabi-v7a.so" \
@@ -260,7 +250,6 @@ for required_entry in \
     "disable.sh" \
     "action.sh" \
     "module-state.sh" \
-    "remove-data-app-update.sh" \
     "statusbar-post-fs-data.sh" \
     "system/etc/onestep/OneStepStatusBarZeroOverlay.apk" \
     "system/etc/permissions/privapp-permissions-smartisanos-home.xml"; do
@@ -287,13 +276,6 @@ for packaged_script in customize.sh service.sh post-fs-data.sh zygisk-toggle.sh 
     if unzip -p "$OUT_ZIP" "$packaged_script" \
         | grep -Eiq 'onestep4|onestep40'; then
         echo "Magisk ZIP 脚本不得包含旧品牌痕迹：$packaged_script" >&2
-        exit 1
-    fi
-
-    if [[ "$packaged_script" == "customize.sh" ]] \
-        && unzip -p "$OUT_ZIP" "$packaged_script" \
-        | grep -Eq 'pm[[:space:]]+install[[:space:]]+-r([[:space:]]|$)'; then
-        echo "Magisk ZIP 不得在安装阶段执行 pm install -r：$packaged_script" >&2
         exit 1
     fi
 done

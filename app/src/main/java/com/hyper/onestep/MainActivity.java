@@ -975,6 +975,7 @@ public class MainActivity extends Activity {
         hostWindow.getDecorView().setBackgroundColor(Color.BLACK);
         systemUiController = new SystemUiController(
                 this, this::shouldHideStatusBarForOneStep,
+                () -> fullHomeInitialized && !directBootHome,
                 () -> activityDestroyed, this::isSystemAppInstall, this::handleSystemBack);
         getWindow().getDecorView().post(() -> Log.i(TAG, "Hardware acceleration: decor="
                 + getWindow().getDecorView().isHardwareAccelerated()));
@@ -1478,6 +1479,15 @@ public class MainActivity extends Activity {
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
+        if (hasFocus && (!fullHomeInitialized || activeMainSlot < 0
+                || activeMainSlot >= windowApps.length || windowApps[activeMainSlot] == null)) {
+            for (EmbeddedAppHost host : embeddedHosts) {
+                if (host instanceof RootVirtualDisplayHost) {
+                    ((RootVirtualDisplayHost) host).restoreDefaultDisplayImeFocus();
+                    break;
+                }
+            }
+        }
         if (directBootHome || !fullHomeInitialized) {
             return;
         }
@@ -3241,6 +3251,7 @@ public class MainActivity extends Activity {
             return;
         }
         activateEdgeMainPaneForFullscreen();
+        backgroundOpenedApps();
         boolean refreshMainSizeForFullscreen = needsMainSizeRefresh(
                 workspace == null ? 0 : workspace.getWidth(),
                 workspace == null ? 0 : workspace.getHeight(),
@@ -3249,7 +3260,12 @@ public class MainActivity extends Activity {
         applyStatusBarForCurrentMode();
         setTopChromeVisible(false, true);
         updateCornerTriggers();
-        applyWindowLayoutWithMainSizeRefresh(refreshMainSizeForFullscreen);
+        applyWindowLayout(true, () -> {
+            refreshAllEmbeddedSlotLayouts();
+            if (refreshMainSizeForFullscreen) {
+                refreshMainSizeAfterLayout();
+            }
+        });
     }
 
     private boolean needsMainSizeRefreshForCurrentLayout(String targetMode) {
@@ -6780,12 +6796,13 @@ public class MainActivity extends Activity {
                     boolean secureWindowEnabled,
                     boolean statusBarOverlayEnabled,
                     boolean primaryHomeEnhancementEnabled,
+                    boolean imeGuardEnabled,
                     boolean imageDragSharingEnabled,
                     SettingsPanelController.HookSettingsResultCallback callback) {
                 MainActivity.this.saveZygiskHookSettings(
                         secureWindowEnabled, statusBarOverlayEnabled,
-                        primaryHomeEnhancementEnabled, imageDragSharingEnabled,
-                        callback);
+                        primaryHomeEnhancementEnabled, imeGuardEnabled,
+                        imageDragSharingEnabled, callback);
             }
             @Override public void rebootDevice() {
                 MainActivity.this.rebootDeviceForHookSettings();
@@ -11483,13 +11500,14 @@ public class MainActivity extends Activity {
             boolean secureWindowEnabled,
             boolean statusBarOverlayEnabled,
             boolean primaryHomeEnhancementEnabled,
+            boolean imeGuardEnabled,
             boolean imageDragSharingEnabled,
             SettingsPanelController.HookSettingsResultCallback callback) {
         hookSettingsExecutor.execute(() -> {
             ShellCommandResult result = runMainPrivilegedCommand(
                     ZygiskHookConfig.writeCommand(
                             secureWindowEnabled, statusBarOverlayEnabled,
-                            primaryHomeEnhancementEnabled,
+                            primaryHomeEnhancementEnabled, imeGuardEnabled,
                             imageDragSharingEnabled),
                     "save Zygisk hook settings", false);
             ZygiskHookConfig.State state = result.isSuccess()

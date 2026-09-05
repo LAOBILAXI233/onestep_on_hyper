@@ -195,6 +195,7 @@ class OneStepSettingsPage(
         var secureWindowEnabled by mutableStateOf(true)
         var statusBarOverlayEnabled by mutableStateOf(false)
         var primaryHomeEnhancementEnabled by mutableStateOf(false)
+        var imeGuardEnabled by mutableStateOf(true)
         var imageDragSharingEnabled by mutableStateOf(false)
         var moduleInstalled by mutableStateOf(false)
         var lsposedInstalled by mutableStateOf(false)
@@ -444,10 +445,12 @@ class OneStepSettingsPage(
         secureWindow: Boolean = state.secureWindowEnabled,
         statusBarOverlay: Boolean = state.statusBarOverlayEnabled,
         primaryHomeEnhancement: Boolean = state.primaryHomeEnhancementEnabled,
+        imeGuard: Boolean = state.imeGuardEnabled,
         imageDragSharing: Boolean = state.imageDragSharingEnabled,
     ) {
         callbacks.saveZygiskHookSettings(
-            secureWindow, statusBarOverlay, primaryHomeEnhancement, imageDragSharing
+            secureWindow, statusBarOverlay, primaryHomeEnhancement, imeGuard,
+            imageDragSharing
         ) { zygiskState, error ->
             postUi { applyZygiskState(zygiskState, error) }
         }
@@ -464,6 +467,7 @@ class OneStepSettingsPage(
         state.secureWindowEnabled = zygiskState.secureWindowEnabled
         state.statusBarOverlayEnabled = zygiskState.statusBarOverlayEnabled
         state.primaryHomeEnhancementEnabled = zygiskState.primaryHomeEnhancementEnabled
+        state.imeGuardEnabled = zygiskState.imeGuardEnabled
         state.imageDragSharingEnabled = zygiskState.imageDragSharingEnabled
         
         
@@ -794,6 +798,16 @@ private fun MainPage(
                             page.saveZygiskHookSettings(primaryHomeEnhancement = checked)
                         },
                     )
+                    SwitchPreference(
+                        title = "输入法保护",
+                        summary = "开启且 Hook 生效时阻止系统侧隐藏虚拟屏输入法，重启后生效",
+                        checked = state.imeGuardEnabled,
+                        enabled = state.hookLoaded,
+                        onCheckedChange = { checked ->
+                            state.imeGuardEnabled = checked
+                            page.saveZygiskHookSettings(imeGuard = checked)
+                        },
+                    )
                 }
             }
 
@@ -1044,7 +1058,7 @@ private fun EnhancementStatusCard(
         else -> Color(0xFFFAEEEE)
     }
     val accentColor = if (allReady) Color(0xFF36D167) else Color(0xFFD13636)
-    val title = if (allReady) "Van Step 增强" else "增强功能未完全启用"
+    val title = if (allReady) "Van Step 增强" else "功能尚完全启用"
     val summary = if (allReady) {
         "KSU 模块、ROOT、LSPosed 与无障碍均已就绪"
     } else {

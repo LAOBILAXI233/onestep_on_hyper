@@ -3,4 +3,4 @@ name=Van Step (Magisk)
 version=1.3.0
 versionCode=104
 author=LAOBILAXI233
-description=VanStep 系统应用：与 KernelSU 包一致挂载到 /system/product/app，内置锤子桌面挂载到 /system/app；检测到 LSPosed 时不加载独立 Zygisk payload。
+description=VanStep 系统应用：priv-app 形态固化 VanStep 与内置锤子桌面到 /system/priv-app；检测到 LSPosed 时不加载独立 Zygisk payload。

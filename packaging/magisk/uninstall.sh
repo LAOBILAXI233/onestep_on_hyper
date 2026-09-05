@@ -58,6 +58,7 @@ set_hook_property() {
 set_hook_property onestep.hook.secure 0
 set_hook_property onestep.hook.statusbar 0
 set_hook_property onestep.hook.primaryhome_enhancement 0
+set_hook_property onestep.hook.ime_guard 0
 set_hook_property onestep.hook.image_drag 0
 set_hook_property onestep.hook.backend disabled
 

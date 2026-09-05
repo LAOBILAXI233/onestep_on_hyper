@@ -162,6 +162,7 @@ public final class SettingsPanelController {
         void saveZygiskHookSettings(boolean secureWindowEnabled,
                                     boolean statusBarOverlayEnabled,
                                     boolean primaryHomeEnhancementEnabled,
+                                    boolean imeGuardEnabled,
                                     boolean imageDragSharingEnabled,
                                     HookSettingsResultCallback callback);
         void rebootDevice();
@@ -235,10 +236,12 @@ public final class SettingsPanelController {
     private TextView secureWindowHookValueView;
     private TextView statusBarOverlayHookValueView;
     private TextView primaryHomeEnhancementValueView;
+    private TextView imeGuardValueView;
     private TextView imageDragSharingValueView;
     private Switch secureWindowHookSwitch;
     private Switch statusBarOverlayHookSwitch;
     private Switch primaryHomeEnhancementSwitch;
+    private Switch imeGuardSwitch;
     private Switch imageDragSharingSwitch;
     private LinearLayout applyHookSettingsItem;
     private LinearLayout exportLogItem;
@@ -255,6 +258,7 @@ public final class SettingsPanelController {
     private boolean secureWindowHookEnabled = true;
     private boolean statusBarOverlayHookEnabled;
     private boolean primaryHomeEnhancementEnabled = true;
+    private boolean imeGuardEnabled = true;
     private boolean imageDragSharingEnabled;
     private boolean zygiskModuleInstalled;
     private boolean zygiskPayloadActive;
@@ -434,13 +438,28 @@ public final class SettingsPanelController {
                 primaryHomeEnhancementEnabled,
                 enabled -> updateZygiskHookSettings(
                         secureWindowHookEnabled, statusBarOverlayHookEnabled,
-                        enabled, imageDragSharingEnabled));
+                        enabled, imeGuardEnabled, imageDragSharingEnabled));
         primaryHomeEnhancementValueView = (TextView) primaryHomeEnhancementItem.getTag();
         primaryHomeEnhancementSwitch = findSwitchInItem(primaryHomeEnhancementItem);
         LinearLayout.LayoutParams primaryHomeEnhancementLp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, dp(104));
         primaryHomeEnhancementLp.topMargin = dp(12);
         list.addView(primaryHomeEnhancementItem, primaryHomeEnhancementLp);
+
+        LinearLayout imeGuardItem = createSwitchSettingsItem(
+                "输入法保护",
+                "开启且 Hook 生效时阻止系统侧隐藏虚拟屏输入法，重启后生效",
+                imeGuardEnabled,
+                enabled -> updateZygiskHookSettings(
+                        secureWindowHookEnabled, statusBarOverlayHookEnabled,
+                        primaryHomeEnhancementEnabled, enabled,
+                        imageDragSharingEnabled));
+        imeGuardValueView = (TextView) imeGuardItem.getTag();
+        imeGuardSwitch = findSwitchInItem(imeGuardItem);
+        LinearLayout.LayoutParams imeGuardLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(104));
+        imeGuardLp.topMargin = dp(12);
+        list.addView(imeGuardItem, imeGuardLp);
 
         LinearLayout topAppListItem = createSettingsItem(
                 "应用列表显示", getTopAppListLabel());
@@ -561,7 +580,7 @@ public final class SettingsPanelController {
                 imageDragSharingEnabled,
                 enabled -> updateZygiskHookSettings(
                         secureWindowHookEnabled, statusBarOverlayHookEnabled,
-                        primaryHomeEnhancementEnabled, enabled));
+                        primaryHomeEnhancementEnabled, imeGuardEnabled, enabled));
         imageDragSharingValueView = (TextView) imageDragSharingItem.getTag();
         imageDragSharingSwitch = findSwitchInItem(imageDragSharingItem);
         LinearLayout.LayoutParams imageDragSharingLp = new LinearLayout.LayoutParams(
@@ -575,7 +594,8 @@ public final class SettingsPanelController {
                 secureWindowHookEnabled,
                 enabled -> updateZygiskHookSettings(
                         enabled, statusBarOverlayHookEnabled,
-                        primaryHomeEnhancementEnabled, imageDragSharingEnabled));
+                        primaryHomeEnhancementEnabled, imeGuardEnabled,
+                        imageDragSharingEnabled));
         secureWindowHookValueView = (TextView) secureWindowHookItem.getTag();
         secureWindowHookSwitch = findSwitchInItem(secureWindowHookItem);
         LinearLayout.LayoutParams secureWindowHookLp = new LinearLayout.LayoutParams(
@@ -589,7 +609,8 @@ public final class SettingsPanelController {
                 statusBarOverlayHookEnabled,
                 enabled -> updateZygiskHookSettings(
                         secureWindowHookEnabled, enabled,
-                        primaryHomeEnhancementEnabled, imageDragSharingEnabled));
+                        primaryHomeEnhancementEnabled, imeGuardEnabled,
+                        imageDragSharingEnabled));
         statusBarOverlayHookValueView = (TextView) statusBarOverlayHookItem.getTag();
         statusBarOverlayHookSwitch = findSwitchInItem(statusBarOverlayHookItem);
         LinearLayout.LayoutParams statusBarOverlayHookLp = new LinearLayout.LayoutParams(
@@ -1413,6 +1434,7 @@ public final class SettingsPanelController {
     private void updateZygiskHookSettings(boolean secureWindowEnabled,
                                           boolean statusBarOverlayEnabled,
                                           boolean primaryHomeEnhancementEnabled,
+                                          boolean imeGuardEnabled,
                                           boolean imageDragSharingEnabled) {
         if (updatingHookSwitches || !hookSettingsLoaded || hookSettingsSaving) {
             return;
@@ -1421,10 +1443,12 @@ public final class SettingsPanelController {
         boolean previousStatusBarOverlayEnabled = this.statusBarOverlayHookEnabled;
         boolean previousPrimaryHomeEnhancementEnabled =
                 this.primaryHomeEnhancementEnabled;
+        boolean previousImeGuardEnabled = this.imeGuardEnabled;
         boolean previousImageDragSharingEnabled = this.imageDragSharingEnabled;
         this.secureWindowHookEnabled = secureWindowEnabled;
         this.statusBarOverlayHookEnabled = statusBarOverlayEnabled;
         this.primaryHomeEnhancementEnabled = primaryHomeEnhancementEnabled;
+        this.imeGuardEnabled = imeGuardEnabled;
         this.imageDragSharingEnabled = imageDragSharingEnabled;
         hookSettingsSaving = true;
         int requestGeneration = ++hookSettingsRequestGeneration;
@@ -1433,6 +1457,7 @@ public final class SettingsPanelController {
                 secureWindowEnabled,
                 statusBarOverlayEnabled,
                 primaryHomeEnhancementEnabled,
+                imeGuardEnabled,
                 imageDragSharingEnabled,
                 (state, error) -> activity.runOnUiThread(() -> {
                     if (requestGeneration != hookSettingsRequestGeneration) {
@@ -1444,6 +1469,7 @@ public final class SettingsPanelController {
                         this.statusBarOverlayHookEnabled = previousStatusBarOverlayEnabled;
                         this.primaryHomeEnhancementEnabled =
                                 previousPrimaryHomeEnhancementEnabled;
+                        this.imeGuardEnabled = previousImeGuardEnabled;
                         this.imageDragSharingEnabled = previousImageDragSharingEnabled;
                         rootAuthorizationGranted = callbacks.rootAuthorizationGranted();
                         hookSettingsNeedsRoot = !rootAuthorizationGranted;
@@ -1468,6 +1494,7 @@ public final class SettingsPanelController {
         secureWindowHookEnabled = state.secureWindowEnabled;
         statusBarOverlayHookEnabled = state.statusBarOverlayEnabled;
         primaryHomeEnhancementEnabled = state.primaryHomeEnhancementEnabled;
+        imeGuardEnabled = state.imeGuardEnabled;
         imageDragSharingEnabled = state.imageDragSharingEnabled;
         zygiskModuleInstalled = state.moduleInstalled;
         zygiskPayloadActive = state.zygiskPayloadActive;
@@ -1493,6 +1520,9 @@ public final class SettingsPanelController {
             primaryHomeEnhancementValueView.setText(
                     formatSwitchValue(primaryHomeEnhancementEnabled));
         }
+        if (imeGuardValueView != null) {
+            imeGuardValueView.setText(formatSwitchValue(imeGuardEnabled));
+        }
         if (imageDragSharingValueView != null) {
             imageDragSharingValueView.setText(formatSwitchValue(imageDragSharingEnabled));
         }
@@ -1505,6 +1535,7 @@ public final class SettingsPanelController {
                     statusBarOverlayHookEnabled, controlsEnabled);
             updateHookSwitch(primaryHomeEnhancementSwitch,
                     primaryHomeEnhancementEnabled, controlsEnabled);
+            updateHookSwitch(imeGuardSwitch, imeGuardEnabled, controlsEnabled);
             updateHookSwitch(imageDragSharingSwitch,
                     imageDragSharingEnabled, controlsEnabled);
         } finally {

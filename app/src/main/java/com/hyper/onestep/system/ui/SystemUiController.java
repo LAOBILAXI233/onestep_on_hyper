@@ -21,6 +21,7 @@ public final class SystemUiController implements AutoCloseable {
     private static final String TAG = "VanStep";
     private final Activity activity;
     private final BooleanSupplier hideStatusBar;
+    private final BooleanSupplier holdWindowFocus;
     private final BooleanSupplier destroyed;
     private final BooleanSupplier systemAppInstall;
     private final Runnable backHandler;
@@ -28,13 +29,22 @@ public final class SystemUiController implements AutoCloseable {
     private Dialog defaultDisplayBackCallbackOwner;
     private Object defaultDisplayBackCallback;
     private Boolean appliedHideStatusBar;
+    private Boolean appliedHoldWindowFocus;
     private Boolean appliedSystemAppInstall;
 
     public SystemUiController(Activity activity,
                               BooleanSupplier hideStatusBar, BooleanSupplier destroyed,
                               BooleanSupplier systemAppInstall, Runnable backHandler) {
+        this(activity, hideStatusBar, () -> false, destroyed, systemAppInstall, backHandler);
+    }
+
+    public SystemUiController(Activity activity,
+                              BooleanSupplier hideStatusBar, BooleanSupplier holdWindowFocus,
+                              BooleanSupplier destroyed,
+                              BooleanSupplier systemAppInstall, Runnable backHandler) {
         this.activity = activity;
         this.hideStatusBar = hideStatusBar;
+        this.holdWindowFocus = holdWindowFocus;
         this.destroyed = destroyed;
         this.systemAppInstall = systemAppInstall;
         this.backHandler = backHandler;
@@ -42,12 +52,15 @@ public final class SystemUiController implements AutoCloseable {
 
     public void apply() {
         boolean shouldHideStatusBar = hideStatusBar.getAsBoolean();
+        boolean shouldHoldWindowFocus = holdWindowFocus.getAsBoolean();
         boolean isSystemAppInstall = systemAppInstall.getAsBoolean();
         if (appliedHideStatusBar != null
                 && appliedHideStatusBar == shouldHideStatusBar
+                && appliedHoldWindowFocus != null
+                && appliedHoldWindowFocus == shouldHoldWindowFocus
                 && appliedSystemAppInstall != null
                 && appliedSystemAppInstall == isSystemAppInstall) {
-            if (shouldHideStatusBar
+            if ((shouldHideStatusBar || shouldHoldWindowFocus)
                     && (defaultDisplayFocusWindow == null
                     || !defaultDisplayFocusWindow.isShowing())) {
                 activity.getWindow().getDecorView().post(this::ensureDefaultDisplayFocusWindow);
@@ -59,6 +72,7 @@ public final class SystemUiController implements AutoCloseable {
             return;
         }
         appliedHideStatusBar = shouldHideStatusBar;
+        appliedHoldWindowFocus = shouldHoldWindowFocus;
         appliedSystemAppInstall = isSystemAppInstall;
         if (shouldHideStatusBar) {
             hideStatusBar();
@@ -71,6 +85,7 @@ public final class SystemUiController implements AutoCloseable {
 
     public void invalidateAppliedState() {
         appliedHideStatusBar = null;
+        appliedHoldWindowFocus = null;
         appliedSystemAppInstall = null;
     }
 
@@ -81,7 +96,7 @@ public final class SystemUiController implements AutoCloseable {
 
     private void applyHostWindowFocus() {
         Window window = activity.getWindow();
-        if (hideStatusBar.getAsBoolean()) {
+        if (hideStatusBar.getAsBoolean() || holdWindowFocus.getAsBoolean()) {
             if ((window.getAttributes().flags
                     & WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE) == 0) {
                 window.addFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE);
@@ -99,7 +114,7 @@ public final class SystemUiController implements AutoCloseable {
     @SuppressLint("GestureBackNavigation")
     private void ensureDefaultDisplayFocusWindow() {
         if (destroyed.getAsBoolean() || activity.isFinishing()
-                || !hideStatusBar.getAsBoolean()) {
+                || !(hideStatusBar.getAsBoolean() || holdWindowFocus.getAsBoolean())) {
             return;
         }
         if (defaultDisplayFocusWindow != null && defaultDisplayFocusWindow.isShowing()) {

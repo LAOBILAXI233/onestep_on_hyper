@@ -101,6 +101,7 @@ public final class RootInputBridge {
     // Cache for getDisplayImePolicy probes; displayImePolicy already short-
     // circuits no-change writes, so stale reads only cost a redundant query.
     private final Object imePolicyLock = new Object();
+    private volatile boolean defaultDisplayImePolicyUnsupported;
     private final java.util.HashMap<Integer, Integer> lastKnownImePolicyByDisplay =
             new java.util.HashMap<>();
     // Short-lived cache so parallel poller clients do not each spawn a
@@ -187,6 +188,7 @@ public final class RootInputBridge {
             RootInputBridge bridge = new RootInputBridge(
                     allowedUid, bridgeToken, systemContext);
             RootVirtualDisplayBridge.publish(systemContext, allowedUid, bridgeToken);
+            bridge.resetDefaultDisplayImeOnBoot();
             bridge.serve();
         } catch (Throwable throwable) {
             Log.e(TAG, "bridge crashed", throwable);
@@ -349,6 +351,8 @@ public final class RootInputBridge {
                 injectMotion(parts);
             } else if ("focusHostedDisplay".equals(parts[0]) && parts.length == 2) {
                 return focusHostedDisplay(parts);
+            } else if ("shouldShowIme".equals(parts[0]) && parts.length == 3) {
+                return setShouldShowImeCommand(parts);
             } else if ("removeTask".equals(parts[0]) && parts.length == 2) {
                 return removeTask(parts);
             } else if ("moveTaskToDisplay".equals(parts[0]) && parts.length == 4) {
@@ -501,6 +505,63 @@ public final class RootInputBridge {
         return INJECT_INPUT_EVENT_MODE_ASYNC;
     }
 
+    private void markImeGuard(int displayId) {
+        try {
+            Process process = new ProcessBuilder("resetprop",
+                    "onestep.ime.guard_display", Integer.toString(displayId))
+                    .start();
+            process.waitFor();
+            process = new ProcessBuilder("resetprop",
+                    "onestep.ime.guard_at",
+                    Long.toString(android.os.SystemClock.uptimeMillis()))
+                    .start();
+            process.waitFor();
+        } catch (IOException | InterruptedException | RuntimeException e) {
+            Log.w(TAG, "mark IME guard failed: " + e.getClass().getSimpleName());
+        }
+    }
+    private String setShouldShowImeCommand(String[] parts) {
+        int displayId;
+        boolean show;
+        try {
+            displayId = Integer.parseInt(parts[1]);
+            show = Boolean.parseBoolean(parts[2]);
+        } catch (NumberFormatException e) {
+            return "shouldShowIme -1 false false";
+        }
+        boolean success = false;
+        try {
+            Object actual = getShouldShowImeMethod().invoke(
+                    getWindowManagerService(), displayId);
+            boolean currentlyShown = actual instanceof Boolean && (Boolean) actual;
+            if (currentlyShown != show) {
+                getSetShouldShowImeMethod().invoke(
+                        getWindowManagerService(), displayId, show);
+                actual = getShouldShowImeMethod().invoke(
+                        getWindowManagerService(), displayId);
+                currentlyShown = actual instanceof Boolean && (Boolean) actual;
+            }
+            success = currentlyShown == show;
+            if (success) {
+                synchronized (imePolicyLock) {
+                    lastKnownImePolicyByDisplay.put(displayId, show ? 0 : 1);
+                    if (displayId == Display.DEFAULT_DISPLAY) {
+                        defaultDisplayImePolicyUnsupported = false;
+                    }
+                }
+            }
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            throwIfSystemServiceDead(e);
+            Log.w(TAG, "setShouldShowIme failed: " + describeThrowable(e));
+        }
+        return "shouldShowIme " + displayId + " " + show + " " + success;
+    }
+
+    private void resetDefaultDisplayImeOnBoot() {
+        String[] parts = {"shouldShowIme",
+                Integer.toString(Display.DEFAULT_DISPLAY), "true"};
+        setShouldShowImeCommand(parts);
+    }
     private String focusHostedDisplay(String[] parts) {
         int displayId = Integer.parseInt(parts[1]);
         if (displayId <= Display.DEFAULT_DISPLAY) {
@@ -537,35 +598,43 @@ public final class RootInputBridge {
         // the hot path stays binder-free.
         boolean defaultDisplayHidesIme;
         synchronized (imePolicyLock) {
-            defaultDisplayHidesIme = Integer.valueOf(1).equals(
+            defaultDisplayHidesIme = defaultDisplayImePolicyUnsupported
+                    || Integer.valueOf(1).equals(
                     lastKnownImePolicyByDisplay.get(Display.DEFAULT_DISPLAY));
         }
         if (!defaultDisplayHidesIme) {
-            String defaultPolicyResponse = setDisplayImePolicy(new String[]{
-                    "imePolicy", Integer.toString(Display.DEFAULT_DISPLAY), "1"
-            });
+            String defaultPolicyResponse = setShouldShowImeCommand(
+                    new String[]{"shouldShowIme",
+                    Integer.toString(Display.DEFAULT_DISPLAY), "false"});
             String[] defaultPolicyParts = defaultPolicyResponse.trim().split("\\s+");
-            defaultDisplayHidesIme = defaultPolicyParts.length == 5
+            defaultDisplayHidesIme = defaultPolicyParts.length == 4
                     && Integer.parseInt(defaultPolicyParts[1]) == Display.DEFAULT_DISPLAY
-                    && Integer.parseInt(defaultPolicyParts[2]) == 1
-                    && Integer.parseInt(defaultPolicyParts[3]) == 1
-                    && Boolean.parseBoolean(defaultPolicyParts[4]);
+                    && Boolean.parseBoolean(defaultPolicyParts[3]);
             if (defaultDisplayHidesIme) {
                 synchronized (imePolicyLock) {
                     lastKnownImePolicyByDisplay.put(Display.DEFAULT_DISPLAY, 1);
                 }
+            } else {
+                defaultDisplayImePolicyUnsupported = true;
             }
         }
         boolean focused = false;
         String failure = "";
         if (localImePolicy) {
             try {
+                if (displayId > Display.DEFAULT_DISPLAY) {
+                    setShouldShowImeCommand(new String[]{"shouldShowIme",
+                            Integer.toString(displayId), "true"});
+                }
                 focusTopTaskDebounced(displayId);
                 focused = true;
             } catch (ReflectiveOperationException | RuntimeException e) {
                 throwIfSystemServiceDead(e);
                 failure = describeThrowable(e);
             }
+        }
+        if (focused && displayId > 0) {
+            markImeGuard(displayId);
         }
         int priority = localImePolicy && focused ? Log.INFO : Log.WARN;
         Log.println(priority, TAG, "Focused hosted display=" + displayId

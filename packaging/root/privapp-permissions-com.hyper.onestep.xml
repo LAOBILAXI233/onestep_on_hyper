@@ -2,15 +2,24 @@
 <permissions>
     <privapp-permissions package="com.hyper.onestep">
         <permission name="android.permission.ACTIVITY_EMBEDDING" />
-        <permission name="android.permission.MANAGE_ACTIVITY_TASKS" />
-        <permission name="android.permission.MANAGE_ACTIVITY_STACKS" />
+        <permission name="android.permission.ADD_TRUSTED_DISPLAY" />
         <permission name="android.permission.INTERNAL_SYSTEM_WINDOW" />
-        <permission name="android.permission.REAL_GET_TASKS" />
-        <permission name="android.permission.START_ACTIVITIES_FROM_BACKGROUND" />
-        <permission name="android.permission.MEDIA_CONTENT_CONTROL" />
-        <permission name="android.permission.STATUS_BAR" />
+        <permission name="android.permission.MANAGE_ACTIVITY_STACKS" />
+        <permission name="android.permission.MANAGE_ACTIVITY_TASKS" />
         <permission name="android.permission.MANAGE_EXTERNAL_STORAGE" />
+        <permission name="android.permission.MEDIA_CONTENT_CONTROL" />
+        <permission name="android.permission.PACKAGE_USAGE_STATS" />
+        <permission name="android.permission.READ_EXTERNAL_STORAGE" />
         <permission name="android.permission.READ_LOGS" />
+        <permission name="android.permission.READ_MEDIA_IMAGES" />
+        <permission name="android.permission.READ_MEDIA_VIDEO" />
+        <permission name="android.permission.REAL_GET_TASKS" />
+        <permission name="android.permission.REORDER_TASKS" />
+        <permission name="android.permission.SET_WALLPAPER" />
+        <permission name="android.permission.START_ACTIVITIES_FROM_BACKGROUND" />
+        <permission name="android.permission.STATUS_BAR" />
+        <permission name="android.permission.VIBRATE" />
+        <permission name="android.permission.WRITE_EXTERNAL_STORAGE" />
     </privapp-permissions>
     <privapp-permissions package="com.sangluo.onestep">
         <permission name="android.permission.ACTIVITY_EMBEDDING" />
@@ -23,4 +32,6 @@
         <permission name="android.permission.STATUS_BAR" />
         <permission name="android.permission.READ_LOGS" />
     </privapp-permissions>
+
+
 </permissions>

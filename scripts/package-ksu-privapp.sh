@@ -32,9 +32,8 @@ if [[ -z "$APP_VERSION_NAME" || ! "$APP_VERSION_CODE" =~ ^[0-9]+$ ]]; then
     exit 1
 fi
 
-SYSTEM_APP_DIR="VanStep"
-APK_ENTRY="system/product/app/$SYSTEM_APP_DIR/VanStep.apk"
-SMARTISAN_APP_ENTRY="system/app/SmartisanHome/SmartisanHome.apk"
+APK_ENTRY="system/priv-app/com.hyper.onestep/com.hyper.onestep.apk"
+SMARTISAN_APP_ENTRY="system/priv-app/com.smartisanos.home/com.smartisanos.home.apk"
 
 mkdir -p "$OUT_DIR"
 
@@ -113,8 +112,8 @@ if ! smartisan_manifest_ok "$SMARTISAN_HOME_APK"; then
 fi
 OUT_ZIP="$OUT_DIR/VanStep-$APP_VERSION_NAME-ksu-$(date +%Y%m%d-%H%M%S).zip"
 
-mkdir -p "$WORK_DIR/system/product/app/$SYSTEM_APP_DIR"
-mkdir -p "$WORK_DIR/system/app/SmartisanHome"
+mkdir -p "$WORK_DIR/system/priv-app/com.hyper.onestep"
+mkdir -p "$WORK_DIR/system/priv-app/com.smartisanos.home"
 mkdir -p "$WORK_DIR/system/etc/permissions"
 mkdir -p "$WORK_DIR/system/etc/onestep"
 mkdir -p "$WORK_DIR/zygisk-payload"
@@ -124,18 +123,16 @@ mkdir -p "$WORK_DIR/zygisk-runtime/armeabi-v7a"
 cp "$ROOT_DIR/packaging/ksu/customize.sh" "$WORK_DIR/customize.sh"
 cp "$ROOT_DIR/packaging/ksu/post-fs-data.sh" "$WORK_DIR/post-fs-data.sh"
 cp "$ROOT_DIR/packaging/ksu/uninstall.sh" "$WORK_DIR/uninstall.sh"
+cp "$ROOT_DIR/packaging/ksu/service.sh" "$WORK_DIR/service.sh"
 cp "$ROOT_DIR/packaging/root/disable.sh" "$WORK_DIR/disable.sh"
 cp "$ROOT_DIR/packaging/magisk/service.sh" "$WORK_DIR/boot-completed.sh"
 cp "$ROOT_DIR/packaging/root/action.sh" "$WORK_DIR/action.sh"
 cp "$ROOT_DIR/packaging/root/module-state.sh" "$WORK_DIR/module-state.sh"
-cp "$ROOT_DIR/packaging/root/remove-data-app-update.sh" \
-    "$WORK_DIR/remove-data-app-update.sh"
 cp "$ROOT_DIR/packaging/root/post-fs-data.sh" \
     "$WORK_DIR/statusbar-post-fs-data.sh"
 cp "$ROOT_DIR/packaging/ksu/sepolicy.rule" "$WORK_DIR/sepolicy.rule"
-cp "$APK_PATH" "$WORK_DIR/$APK_ENTRY"
 
-cp "$APK_PATH" "$WORK_DIR/VanStep.apk"
+cp "$APK_PATH" "$WORK_DIR/$APK_ENTRY"
 
 cp "$SMARTISAN_HOME_APK" "$WORK_DIR/$SMARTISAN_APP_ENTRY"
 cp "$STATUS_BAR_OVERLAY" \
@@ -163,6 +160,19 @@ awk -v version="$APP_VERSION_NAME" -v version_code="$APP_VERSION_CODE" '
     { print }
 ' "$ROOT_DIR/packaging/ksu/module.prop" > "$WORK_DIR/module.prop"
 
+AAPT2_BIN="$(command -v aapt2 2>/dev/null || echo "$ANDROID_HOME/build-tools/36.1.0/aapt2.exe")"
+APK_PLATFORM_PERMS="$("$AAPT2_BIN" dump permissions "$APK_PATH" 2>/dev/null | grep "uses-permission: name=.android.permission." || true)"
+if [[ -n "$APK_PLATFORM_PERMS" ]]; then
+    while IFS= read -r perm_line; do
+        perm_name="$(printf '%s\n' "$perm_line" | sed -n "s/.*name=.\([^\x27]*\).*/\1/p")"
+        if [[ -n "$perm_name" ]] && ! grep -qF "<permission name=\"$perm_name\" />" \
+                "$ROOT_DIR/packaging/root/privapp-permissions-com.hyper.onestep.xml"; then
+            echo "priv-app 白名单缺少权限：$perm_name" >&2
+            exit 1
+        fi
+    done <<< "$APK_PLATFORM_PERMS"
+fi
+
 COPIED_APK_SHA256="$(sha256_file "$WORK_DIR/$APK_ENTRY")"
 if [[ "$COPIED_APK_SHA256" != "$APK_SHA256" ]]; then
     echo "复制到 KernelSU 工作目录的 APK 校验失败" >&2
@@ -172,15 +182,14 @@ fi
 chmod 0755 "$WORK_DIR/customize.sh"
 chmod 0755 "$WORK_DIR/post-fs-data.sh"
 chmod 0755 "$WORK_DIR/uninstall.sh"
+chmod 0755 "$WORK_DIR/service.sh"
 chmod 0755 "$WORK_DIR/disable.sh"
 chmod 0755 "$WORK_DIR/boot-completed.sh"
 chmod 0755 "$WORK_DIR/action.sh"
 chmod 0755 "$WORK_DIR/module-state.sh"
-chmod 0755 "$WORK_DIR/remove-data-app-update.sh"
 chmod 0755 "$WORK_DIR/statusbar-post-fs-data.sh"
 chmod 0644 "$WORK_DIR/sepolicy.rule"
 chmod 0644 "$WORK_DIR/$APK_ENTRY"
-chmod 0644 "$WORK_DIR/VanStep.apk"
 chmod 0644 "$WORK_DIR/$SMARTISAN_APP_ENTRY"
 chmod 0644 "$WORK_DIR/system/etc/permissions/privapp-permissions-onestep.xml"
 chmod 0644 "$WORK_DIR/system/etc/permissions/privapp-permissions-smartisanos-home.xml"
@@ -214,26 +223,22 @@ mkdir -p "$VERIFY_DIR"
 unzip -qq "$OUT_ZIP" \
     "$APK_ENTRY" \
     "$SMARTISAN_APP_ENTRY" \
-    "VanStep.apk" \
     "zygisk-payload/arm64-v8a.so" \
     "zygisk-payload/armeabi-v7a.so" \
     "zygisk-runtime/aliuhook.dex" \
     "post-fs-data.sh" \
     "boot-completed.sh" \
     "uninstall.sh" \
+    "service.sh" \
     "disable.sh" \
     "action.sh" \
     "module-state.sh" \
-    "remove-data-app-update.sh" \
     "statusbar-post-fs-data.sh" \
     "system/etc/onestep/OneStepStatusBarZeroOverlay.apk" \
-    "system/etc/permissions/privapp-permissions-smartisanos-home.xml" \
     -d "$VERIFY_DIR"
 PACKAGED_APK_SHA256="$(sha256_file "$VERIFY_DIR/$APK_ENTRY")"
-PACKAGED_ROOT_APK_SHA256="$(sha256_file "$VERIFY_DIR/VanStep.apk")"
 PACKAGED_SMARTISAN_HOME_SHA256="$(sha256_file "$VERIFY_DIR/$SMARTISAN_APP_ENTRY")"
-if [[ "$PACKAGED_APK_SHA256" != "$APK_SHA256" \
-    || "$PACKAGED_ROOT_APK_SHA256" != "$APK_SHA256" ]]; then
+if [[ "$PACKAGED_APK_SHA256" != "$APK_SHA256" ]]; then
     echo "KernelSU ZIP 内 VanStep APK 与最新构建 APK 不一致" >&2
     exit 1
 fi
@@ -244,20 +249,19 @@ fi
 for required_entry in \
     "$APK_ENTRY" \
     "$SMARTISAN_APP_ENTRY" \
-    "VanStep.apk" \
     "zygisk-payload/arm64-v8a.so" \
     "zygisk-payload/armeabi-v7a.so" \
     "zygisk-runtime/aliuhook.dex" \
     "post-fs-data.sh" \
     "boot-completed.sh" \
     "uninstall.sh" \
+    "service.sh" \
     "disable.sh" \
     "action.sh" \
     "module-state.sh" \
-    "remove-data-app-update.sh" \
     "statusbar-post-fs-data.sh" \
     "system/etc/onestep/OneStepStatusBarZeroOverlay.apk" \
-    "system/etc/permissions/privapp-permissions-smartisanos-home.xml"; do
+    "$SMARTISAN_APP_ENTRY"; do
     if [[ ! -s "$VERIFY_DIR/$required_entry" ]]; then
         echo "KernelSU ZIP 内缺少 Zygisk Hook：$required_entry" >&2
         exit 1
