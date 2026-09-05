@@ -10,12 +10,15 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewParent;
+import android.view.VelocityTracker;
+import android.view.ViewConfiguration;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 
 import com.hyper.onestep.R;
 import com.hyper.onestep.lsp.MultiTaskController;
 import com.hyper.onestep.model.LauncherApp;
+import com.hyper.onestep.ui.gesture.SideSlotGesturePolicy;
 import com.hyper.onestep.ui.widget.FixedViewportFrameLayout;
 import com.leaf.hyperdragshare.codex.DragShareSuppression;
 
@@ -43,6 +46,14 @@ public final class OneStepWindowView extends FrameLayout {
 
         boolean shouldRetainEmbeddedSurface(int slot);
 
+        boolean beginSideShelve(int slot);
+
+        boolean resumeSideShelve(int slot);
+
+        void dragSideShelve(int slot, float dx, float dy);
+
+        void finishSideShelve(int slot, boolean commit, float velocityX, float velocityY);
+
         default void onAppDroppedInSlot(int slot, String componentFlat) {
         }
 
@@ -63,6 +74,9 @@ public final class OneStepWindowView extends FrameLayout {
     private float sideTouchDownX;
     private float sideTouchDownY;
     private boolean sideTouchMoved;
+    private final SideSlotGesturePolicy sideGesture = new SideSlotGesturePolicy();
+    private VelocityTracker sideVelocity;
+    private boolean shelfAnimationActive;
     private final FrameLayout embeddedContainer;
     private final WindowPlaceholderView placeholder;
     private View internalOverlay;
@@ -395,6 +409,14 @@ public final class OneStepWindowView extends FrameLayout {
                 sideTouchDownX = event.getRawX();
                 sideTouchDownY = event.getRawY();
                 sideTouchMoved = false;
+                sideGesture.reset();
+                recycleSideVelocity();
+                sideVelocity = VelocityTracker.obtain();
+                sideVelocity.addMovement(event);
+                if (callbacks.resumeSideShelve(slot)) {
+                    sideGesture.resumeShelving();
+                    sideTouchMoved = true;
+                }
                 animate().cancel();
                 ViewParent parent = getParent();
                 if (parent != null) {
@@ -402,14 +424,25 @@ public final class OneStepWindowView extends FrameLayout {
                 }
                 return true;
             case MotionEvent.ACTION_MOVE:
+                if (sideVelocity != null) {
+                    sideVelocity.addMovement(event);
+                }
                 updateSideWindowDrag(event);
                 return true;
             case MotionEvent.ACTION_UP:
+                if (sideVelocity != null) {
+                    sideVelocity.addMovement(event);
+                }
                 finishSideWindowTouch(event);
+                recycleSideVelocity();
                 DragShareSuppression.end();
                 return true;
+            case MotionEvent.ACTION_POINTER_DOWN:
+                cancelSideGesture();
+                return true;
             case MotionEvent.ACTION_CANCEL:
-                callbacks.settleSideWindowBack(this);
+                cancelSideGesture();
+                recycleSideVelocity();
                 DragShareSuppression.end();
                 return true;
             default:
@@ -420,11 +453,26 @@ public final class OneStepWindowView extends FrameLayout {
     private void updateSideWindowDrag(MotionEvent event) {
         float dx = event.getRawX() - sideTouchDownX;
         float dy = event.getRawY() - sideTouchDownY;
-        float touchSlop = dp(5);
+        float touchSlop = Math.max(dp(8),
+                ViewConfiguration.get(getContext()).getScaledTouchSlop());
         if (dx * dx + dy * dy > touchSlop * touchSlop) {
             sideTouchMoved = true;
         }
         if (!sideTouchMoved) {
+            return;
+        }
+        SideSlotGesturePolicy.Direction previous = sideGesture.direction();
+        SideSlotGesturePolicy.Direction gestureDirection = sideGesture.move(dx, dy, touchSlop,
+                callbacks.isVerticalWindowLayout(), callbacks.getSideDismissDirection());
+        if (gestureDirection == SideSlotGesturePolicy.Direction.SHELVE) {
+            if (previous != gestureDirection && !callbacks.beginSideShelve(slot)) {
+                sideGesture.cancel();
+                return;
+            }
+            callbacks.dragSideShelve(slot, dx, dy);
+            return;
+        }
+        if (gestureDirection != SideSlotGesturePolicy.Direction.DISMISS) {
             return;
         }
         float visualOffset;
@@ -446,7 +494,20 @@ public final class OneStepWindowView extends FrameLayout {
     private void finishSideWindowTouch(MotionEvent event) {
         float dx = event.getRawX() - sideTouchDownX;
         float dy = event.getRawY() - sideTouchDownY;
-        if (sideTouchMoved && callbacks.canDismissSlot(slot)
+        if (sideGesture.direction() == SideSlotGesturePolicy.Direction.SHELVE) {
+            float velocityX = 0f;
+            float velocityY = 0f;
+            if (sideVelocity != null) {
+                sideVelocity.computeCurrentVelocity(1000,
+                        ViewConfiguration.get(getContext()).getScaledMaximumFlingVelocity());
+                velocityX = sideVelocity.getXVelocity();
+                velocityY = sideVelocity.getYVelocity();
+            }
+            boolean commit = SideSlotGesturePolicy.shouldShelve(-dy, -velocityY,
+                    callbacks.getSideDismissDistancePx(), dp(850));
+            callbacks.finishSideShelve(slot, commit, velocityX, velocityY);
+        } else if (sideGesture.direction() == SideSlotGesturePolicy.Direction.DISMISS
+                && callbacks.canDismissSlot(slot)
                 && callbacks.movedPastSideDismissThreshold(dx, dy)) {
             callbacks.dismissSideWindow(slot);
         } else if (!sideTouchMoved) {
@@ -456,8 +517,35 @@ public final class OneStepWindowView extends FrameLayout {
         }
     }
 
+    private void cancelSideGesture() {
+        if (sideGesture.direction() == SideSlotGesturePolicy.Direction.SHELVE) {
+            callbacks.finishSideShelve(slot, false, 0f, 0f);
+        } else {
+            callbacks.settleSideWindowBack(this);
+        }
+        sideTouchMoved = true;
+        sideGesture.cancel();
+    }
+
+    private void recycleSideVelocity() {
+        if (sideVelocity != null) {
+            sideVelocity.recycle();
+            sideVelocity = null;
+        }
+    }
+
+    public boolean isShelfAnimationActive() {
+        return shelfAnimationActive;
+    }
+
+    public void setShelfAnimationActive(boolean active) {
+        shelfAnimationActive = active;
+        applyLiveAppVisibility();
+    }
+
     private void applyLiveAppVisibility() {
-        boolean visible = requestedLiveAppVisible && internalOverlay == null;
+        boolean visible = requestedLiveAppVisible && internalOverlay == null
+                && !shelfAnimationActive;
         boolean retainSurface = internalOverlay == null && !visible && slot >= 0
                 && callbacks.shouldRetainEmbeddedSurface(slot);
         embeddedContainer.setVisibility(visible || retainSurface ? VISIBLE : GONE);

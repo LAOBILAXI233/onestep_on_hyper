@@ -143,6 +143,7 @@ dependencies {
     implementation(libs.material)
     implementation(libs.androidx.viewpager2)
     implementation(libs.androidx.recyclerview)
+    implementation("androidx.dynamicanimation:dynamicanimation:1.1.0")
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.foundation)

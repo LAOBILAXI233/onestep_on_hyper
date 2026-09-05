@@ -51,7 +51,7 @@ public final class RootInputBridge {
     private static final int ARG_ALLOWED_UID = 0;
     private static final int ARG_BRIDGE_TOKEN = 1;
     private static final String SOCKET_NAME_PREFIX = "onestep_input_bridge_";
-    public static final String HELLO_RESPONSE_PREFIX = "onestep-input-bridge-v24";
+    public static final String HELLO_RESPONSE_PREFIX = "onestep-input-bridge-v25";
     private static final int ROOT_UID = 0;
     private static final int SHELL_UID = 2000;
     private static final int WINDOWING_MODE_PINNED = 2;
@@ -357,6 +357,8 @@ public final class RootInputBridge {
                 return removeTask(parts);
             } else if ("moveTaskToDisplay".equals(parts[0]) && parts.length == 4) {
                 return moveTaskToDisplay(parts);
+            } else if ("transferTask".equals(parts[0]) && parts.length == 7) {
+                return transferTask(parts);
             } else if ("key".equals(parts[0]) && parts.length == 3) {
                 injectKey(parts);
             } else if ("smartPaste".equals(parts[0]) && parts.length == 2) {
@@ -725,6 +727,96 @@ public final class RootInputBridge {
         if (exitCode != 0) {
             throw new IOException("activity refresh failed: " + output);
         }
+    }
+
+    private String transferTask(String[] parts) {
+        int taskId = Integer.parseInt(parts[1]);
+        int sourceDisplay = Integer.parseInt(parts[2]);
+        int targetDisplay = Integer.parseInt(parts[3]);
+        int userId = Integer.parseInt(parts[4]);
+        ComponentName component = ComponentName.unflattenFromString(parts[5]);
+        boolean onTop = Boolean.parseBoolean(parts[6]);
+        int result = 0;
+        Object taskToken = null;
+        boolean moved = false;
+        try {
+            if (component == null || taskId <= 0 || sourceDisplay < 0 || targetDisplay < 0) {
+                throw new IllegalArgumentException("invalid task transfer");
+            }
+            ActivityManager.RunningTaskInfo matched = null;
+            for (ActivityManager.RunningTaskInfo task : activityManager.getRunningTasks(256)) {
+                if (task.taskId == taskId) {
+                    matched = task;
+                    break;
+                }
+            }
+            if (matched == null) {
+                return "transferTask " + taskId + " " + targetDisplay + " -1";
+            }
+            ComponentName base = matched.baseIntent == null ? null
+                    : matched.baseIntent.getComponent();
+            if ((Integer) readOptionalField(matched, "userId") != userId
+                    || (Integer) readOptionalField(matched, "displayId") != sourceDisplay
+                    || !matchesTaskPackage(component.getPackageName(), base,
+                    matched.baseActivity, matched.topActivity)) {
+                throw new IllegalStateException("task identity or display changed");
+            }
+            taskToken = readOptionalField(matched, "token");
+            applyTaskVisibility(taskToken, true, null);
+            getMoveRootTaskToDisplayMethod().invoke(
+                    getActivityTaskManagerService(), taskId, targetDisplay);
+            moved = true;
+            applyTaskVisibility(taskToken, false, onTop);
+            result = 1;
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            throwIfSystemServiceDead(e);
+            Log.w(TAG, "Task transfer failed: task=" + taskId + ", target="
+                    + targetDisplay + ", error=" + describeThrowable(e));
+        } finally {
+            if (result != 1 && taskToken != null) {
+                try {
+                    if (moved) {
+                        getMoveRootTaskToDisplayMethod().invoke(
+                                getActivityTaskManagerService(), taskId, sourceDisplay);
+                    }
+                    applyTaskVisibility(taskToken, false, !onTop);
+                } catch (ReflectiveOperationException | RuntimeException e) {
+                    Log.e(TAG, "Restore task after failed transfer: " + taskId, e);
+                }
+            }
+        }
+        Log.i(TAG, "Task transfer: task=" + taskId + ", source=" + sourceDisplay
+                + ", target=" + targetDisplay + ", onTop=" + onTop + ", result=" + result);
+        return "transferTask " + taskId + " " + targetDisplay + " " + result;
+    }
+
+    private static boolean matchesTaskPackage(String expected, ComponentName... components) {
+        for (ComponentName component : components) {
+            if (component != null && expected.equals(component.getPackageName())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static void applyTaskVisibility(Object token, boolean hidden, Boolean onTop)
+            throws ReflectiveOperationException {
+        if (token == null) {
+            throw new IllegalStateException("task token unavailable");
+        }
+        Class<?> tokenClass = Class.forName("android.window.WindowContainerToken");
+        Class<?> transactionClass = Class.forName("android.window.WindowContainerTransaction");
+        Object transaction = transactionClass.getConstructor().newInstance();
+        transactionClass.getMethod("setHidden", tokenClass, boolean.class)
+                .invoke(transaction, token, hidden);
+        if (onTop != null) {
+            transactionClass.getMethod("reorder", tokenClass, boolean.class)
+                    .invoke(transaction, token, onTop);
+        }
+        Class<?> organizerClass = Class.forName("android.window.WindowOrganizer");
+        Object organizer = organizerClass.getConstructor().newInstance();
+        organizerClass.getMethod("applyTransaction", transactionClass)
+                .invoke(organizer, transaction);
     }
 
     private Object getActivityTaskManagerService() throws ReflectiveOperationException {
