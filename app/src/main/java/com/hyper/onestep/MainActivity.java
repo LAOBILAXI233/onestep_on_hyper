@@ -287,6 +287,8 @@ public class MainActivity extends Activity {
     private static final int EMBEDDED_START_RETRY_MS = 25;
     private static final int EMBEDDED_START_MAX_RETRIES = 120;
     private static final int WINDOW_FRAME_SWITCH_ANIMATION_MS = 200;
+    private static final long RAPID_MAIN_SLOT_SWITCH_WINDOW_MS = 800L;
+    private long lastWindowFrameSwitchAtUptimeMs;
     private static final int TOP_APP_REORDER_ANIMATION_MS = 220;
     private static final long WINDOW_SWITCH_IDLE_WARMUP_THRESHOLD_MS = 3000L;
     private static final int SIDE_DISMISS_DISTANCE_DP = 48;
@@ -2825,10 +2827,23 @@ public class MainActivity extends Activity {
 
     private void animateWindowFrames(Rect[] targetRects, Runnable onAnimationFinished,
                                      boolean allowSurfaceLayerAnimation) {
-        gateWindowSwitchInputForAnimation(WINDOW_FRAME_SWITCH_ANIMATION_MS);
+        long now = SystemClock.uptimeMillis();
+        boolean rapidSwitch = lastWindowFrameSwitchAtUptimeMs > 0L
+                && now - lastWindowFrameSwitchAtUptimeMs
+                < RAPID_MAIN_SLOT_SWITCH_WINDOW_MS;
+        lastWindowFrameSwitchAtUptimeMs = now;
+        int switchAnimationMs = rapidSwitch
+                ? WINDOW_FRAME_SWITCH_ANIMATION_MS / 2
+                : WINDOW_FRAME_SWITCH_ANIMATION_MS;
+        if (windowAnimationController != null) {
+            windowAnimationController.setAnimationDurationMs(switchAnimationMs);
+        }
+        boolean allowSurfaceLayer = allowSurfaceLayerAnimation
+                && !mainPaneSwapWindowAttached
+                && !isInternalSettingsVisible();
+        gateWindowSwitchInputForAnimation(switchAnimationMs);
         windowAnimationController.animate(
-                targetRects, onAnimationFinished,
-                allowSurfaceLayerAnimation && !mainPaneSwapWindowAttached);
+                targetRects, onAnimationFinished, allowSurfaceLayer);
     }
 
     private void cancelWindowSurfaceAnimation() {
@@ -5782,19 +5797,55 @@ public class MainActivity extends Activity {
         int pageSize = desktopGridRows * desktopGridColumns;
         int pageCount = Math.max(1, (appCount + pageSize - 1) / pageSize);
         for (int pageIndex = 0; pageIndex < pageCount; pageIndex++) {
-            LinearLayout page = createFixedAppGridPage(pageIndex * pageSize,
-                    Math.min(pageSize, Math.max(0, appCount - pageIndex * pageSize)));
-            pages.addView(page, new LinearLayout.LayoutParams(dp(320),
+            FrameLayout placeholder = new FrameLayout(this);
+            placeholder.setTag(pageIndex);
+            pages.addView(placeholder, new LinearLayout.LayoutParams(dp(320),
                     ViewGroup.LayoutParams.MATCH_PARENT));
         }
 
         pager.addOnLayoutChangeListener((view, left, top, right, bottom,
                                          oldLeft, oldTop, oldRight, oldBottom) ->
                 updatePagedGridPageWidths(pager, pages));
-        pager.post(() -> updatePagedGridPageWidths(pager, pages));
+        pager.setOnScrollChangeListener((view, scrollX, scrollY, oldScrollX,
+                                         oldScrollY) ->
+                fillVisiblePagedGridPages(pager, pages));
+        pager.post(() -> {
+            updatePagedGridPageWidths(pager, pages);
+            fillVisiblePagedGridPages(pager, pages);
+        });
         return panel;
     }
 
+    private void fillVisiblePagedGridPages(HorizontalScrollView pager,
+                                           LinearLayout pages) {
+        int pageWidth = Math.max(1, pager.getWidth());
+        if (pageWidth <= 1) {
+            return;
+        }
+        int appCount = Math.max(0, launcherApps.size() - getDockAppCount());
+        int pageSize = desktopGridRows * desktopGridColumns;
+        int pageCount = Math.max(1, (appCount + pageSize - 1) / pageSize);
+        int firstVisible = pager.getScrollX() / pageWidth;
+        int lastVisible = (pager.getScrollX() + pageWidth - 1) / pageWidth;
+        for (int pageIndex = Math.max(0, firstVisible - 1);
+                pageIndex <= Math.min(pageCount - 1, lastVisible + 1);
+                pageIndex++) {
+            View child = pages.getChildAt(pageIndex);
+            if (!(child instanceof FrameLayout)
+                    || !(child.getTag() instanceof Integer)) {
+                continue;
+            }
+            int index = (Integer) child.getTag();
+            int pageAppCount = Math.min(pageSize,
+                    Math.max(0, appCount - index * pageSize));
+            LinearLayout page = createFixedAppGridPage(index * pageSize,
+                    pageAppCount);
+            page.setTag(child.getTag());
+            pages.removeView(child);
+            pages.addView(page, pageIndex, new LinearLayout.LayoutParams(dp(320),
+                    ViewGroup.LayoutParams.MATCH_PARENT));
+        }
+    }
     private int getDockAppCount() {
         return Math.min(desktopGridColumns, Math.max(0, launcherApps.size()));
     }
@@ -10212,9 +10263,7 @@ public class MainActivity extends Activity {
 
     private void switchMainSlot(int newMainSlot, boolean animate) {
         if (isWindowAnimationRunning()) {
-            
-            
-            cancelWindowSurfaceAnimation();
+            windowAnimationController.finishNow();
         }
         dumpSlotState("switchMainSlot to=" + newMainSlot);
         if (newMainSlot >= 0 && newMainSlot < MAX_WINDOWS
@@ -10242,6 +10291,13 @@ public class MainActivity extends Activity {
         EmbeddedAppHost promotedHost = embeddedHosts[newMainSlot];
         if (windowApps[newMainSlot] != null
                 && promotedHost instanceof RootVirtualDisplayHost) {
+            if (mainSlotSwitchPendingSlot >= 0) {
+                if (mainSlotSwitchPendingSlot == newMainSlot) {
+                    return;
+                }
+                mainSlotSwitchPendingSlot = newMainSlot;
+                return;
+            }
             mainSlotSwitchPendingSlot = newMainSlot;
             mainSlotSwitchPendingOldSlot = oldMainSlot;
             scheduleMainSlotSwitchPendingWatchdog(switchGeneration);
@@ -10249,13 +10305,17 @@ public class MainActivity extends Activity {
                     "slot promoted to main",
                     () -> {
                         if (switchGeneration != mainSlotSwitchGeneration) {
-                            clearPendingMainPromotionContent(newMainSlot);
+                            clearPendingMainPromotionContent(
+                                    mainSlotSwitchPendingSlot);
                             clearPendingMainSlotSwitch();
                             scheduleDeferredWindowSwitchWorkFlush();
                             return;
                         }
-                        finishMainSlotSwitchAfterPolicy(switchGeneration, oldMainSlot,
-                                newMainSlot, animate);
+                        int targetSlot = mainSlotSwitchPendingSlot;
+                        int sourceSlot = mainSlotSwitchPendingOldSlot;
+                        clearPendingMainSlotSwitch();
+                        finishMainSlotSwitchAfterPolicy(switchGeneration, sourceSlot,
+                                targetSlot, animate);
                     },
                     () -> rejectMainSlotSwitch(switchGeneration, oldMainSlot, newMainSlot,
                             "IME policy was not confirmed", "输入法显示策略设置失败，请重试"));

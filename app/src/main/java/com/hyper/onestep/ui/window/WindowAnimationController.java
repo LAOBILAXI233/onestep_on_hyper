@@ -44,6 +44,12 @@ public final class WindowAnimationController {
     private static final String TAG = "VanStep";
     private static final int MAX_WINDOWS = MAX_SIDE_WINDOWS + 2;
     private static final int WINDOW_FRAME_SWITCH_ANIMATION_MS = 200;
+    private volatile int animationDurationMs = WINDOW_FRAME_SWITCH_ANIMATION_MS;
+
+    public void setAnimationDurationMs(int durationMs) {
+        animationDurationMs = durationMs > 0
+                ? durationMs : WINDOW_FRAME_SWITCH_ANIMATION_MS;
+    }
     private static final int WINDOW_SURFACE_ANIMATION_LAYER_BASE = 10_000;
     private static final long POST_ANIMATION_ROLE_REFRESH_DELAY_MS = 48L;
 
@@ -140,7 +146,7 @@ public final class WindowAnimationController {
                     .translationY(targetTranslationY)
                     .scaleX(targetScaleX)
                     .scaleY(targetScaleY)
-                    .setDuration(WINDOW_FRAME_SWITCH_ANIMATION_MS)
+                    .setDuration(animationDurationMs)
                     .setInterpolator(new AccelerateDecelerateInterpolator())
                     .withEndAction(() -> {
                         if (animationGeneration != generation) {
@@ -210,7 +216,7 @@ public final class WindowAnimationController {
         ValueAnimator animator = ValueAnimator.ofFloat(0f, 1f);
         windowSurfaceAnimator = animator;
         windowSurfaceAnimationTargets = targets;
-        animator.setDuration(WINDOW_FRAME_SWITCH_ANIMATION_MS);
+        animator.setDuration(animationDurationMs);
         animator.setInterpolator(new AccelerateDecelerateInterpolator());
         final long animationStartNanos = SystemClock.elapsedRealtimeNanos();
         final long[] lastFrameStartNanos = {0L};
