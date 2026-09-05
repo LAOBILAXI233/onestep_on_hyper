@@ -713,6 +713,58 @@ public final class RootVirtualDisplayHost implements EmbeddedAppHost,
         return start(app, true);
     }
 
+    boolean reload(LauncherApp app) {
+        if (app == null || !app.isSameInstance(windowApps[slot])
+                || !isAvailable() || embeddedSlotClosing[slot]
+                || !shouldRunEmbeddedStart(callbacks.embeddedStartEpoch())
+                || !hostView.isAttachedToWindow()
+                || callbacks.isWindowFrameAnimationRunning()) {
+            return false;
+        }
+        Log.i(TAG, "Reload hosted surface: slot=" + slot + ", display=" + displayId
+                + ", taskId=" + hostedTaskId + ", app=" + app.packageName);
+        cancelInjectedTouchForImageDrag();
+        clearTouchState();
+        systemResumeExitCheckGeneration++;
+        invalidateTaskResolution();
+        cancelHostedSurfaceReveal();
+        launchRequestedPackage = "";
+        launchRequestedUserId = -1;
+        launchRequestedDisplayId = -1;
+        launchRequestedAtUptimeMs = -1L;
+        pendingApp = app;
+        windowViews[slot].setLiveAppVisible(true);
+        detachVirtualDisplaySurface();
+        releaseStaleWindowAnimationLeash();
+        ViewGroup.LayoutParams layoutParams = surfaceView.getLayoutParams();
+        hostView.removeView(surfaceView);
+        surfaceView.setVisibility(View.VISIBLE);
+        surfaceView.setAlpha(1f);
+        hostedSurfaceAlpha = 1f;
+        hostView.addView(surfaceView, layoutParams);
+        hostView.requestLayout();
+        surfaceView.postDelayed(() -> {
+            if (pendingApp != app || embeddedSlotClosing[slot]
+                    || !app.isSameInstance(windowApps[slot])
+                    || !hasVirtualDisplay()) {
+                return;
+            }
+            Surface surface = surfaceView.getHolder().getSurface();
+            if (surface == null || !surface.isValid()) {
+                return;
+            }
+            if (surfaceDetached) {
+                attachVirtualDisplaySurface(surfaceView.getHolder());
+            }
+            if (!surfaceDetached) {
+                pendingApp = null;
+                start(app);
+            }
+        }, 160L);
+        unavailableReason = "";
+        return true;
+    }
+
     private boolean start(LauncherApp app, boolean forceLaunch) {
         Log.i(TAG, "Host start entry: slot=" + slot + ", display=" + displayId
                 + ", app=" + app.packageName
