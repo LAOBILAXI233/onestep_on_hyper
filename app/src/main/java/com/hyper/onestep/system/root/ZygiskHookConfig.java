@@ -9,6 +9,7 @@ public final class ZygiskHookConfig {
     private static final String DISABLE_STATUS_BAR_OVERLAY = "disable-status-bar-overlay";
     private static final String DISABLE_PRIMARY_HOME_ENHANCEMENT =
             "disable-primary-home-enhancement";
+    private static final String DISABLE_IME_GUARD = "disable-ime-guard";
     private static final String ENABLE_IMAGE_DRAG_SHARING =
             "enable-image-drag-sharing";
     private static final String IMAGE_DRAG_PROPERTY = "onestep.hook.image_drag";
@@ -39,6 +40,10 @@ public final class ZygiskHookConfig {
                 + "\" ]; then echo primaryhome_enhancement=0; "
                 + "else echo primaryhome_enhancement=1; fi; "
                 + "if [ -n \"$onestep_module\" ] && [ -e \"$onestep_module/"
+                + CONFIG_DIR_NAME + "/" + DISABLE_IME_GUARD
+                + "\" ]; then echo ime_guard=0; "
+                + "else echo ime_guard=1; fi; "
+                + "if [ -n \"$onestep_module\" ] && [ -e \"$onestep_module/"
                 + CONFIG_DIR_NAME + "/" + ENABLE_IMAGE_DRAG_SHARING
                 + "\" ]; then echo image_drag=1; else echo image_drag=0; fi; "
                 + "if [ -n \"$onestep_module\" ] "
@@ -56,6 +61,7 @@ public final class ZygiskHookConfig {
     public static String writeCommand(boolean secureWindowEnabled,
                                       boolean statusBarOverlayEnabled,
                                       boolean primaryHomeEnhancementEnabled,
+                                      boolean imeGuardEnabled,
                                       boolean imageDragSharingEnabled) {
         return moduleDiscoveryCommand()
                 + "[ -n \"$onestep_module\" ] || exit 2; "
@@ -67,6 +73,7 @@ public final class ZygiskHookConfig {
                 + updateMarkerCommand(DISABLE_STATUS_BAR_OVERLAY, statusBarOverlayEnabled)
                 + updateMarkerCommand(DISABLE_PRIMARY_HOME_ENHANCEMENT,
                 primaryHomeEnhancementEnabled)
+                + updateMarkerCommand(DISABLE_IME_GUARD, imeGuardEnabled)
                 + updateEnableMarkerCommand(ENABLE_IMAGE_DRAG_SHARING,
                 imageDragSharingEnabled)
                 + setPropertyCommand(IMAGE_DRAG_PROPERTY,
@@ -88,6 +95,7 @@ public final class ZygiskHookConfig {
         if (!isBinary(values.get("secure"))
                 || !isBinary(values.get("statusbar"))
                 || !isBinary(values.get("primaryhome_enhancement"))
+                || !isBinary(values.get("ime_guard"))
                 || !isBinary(values.get("image_drag"))
                 || !isBinary(values.get("module"))
                 || !isBinary(values.get("zygisk"))
@@ -100,6 +108,7 @@ public final class ZygiskHookConfig {
                 "1".equals(values.get("secure")),
                 "1".equals(values.get("statusbar")),
                 "1".equals(values.get("primaryhome_enhancement")),
+                "1".equals(values.get("ime_guard")),
                 "1".equals(values.get("image_drag")),
                 "1".equals(values.get("module")),
                 "1".equals(values.get("zygisk")),
@@ -171,6 +180,7 @@ public final class ZygiskHookConfig {
         public final boolean secureWindowEnabled;
         public final boolean statusBarOverlayEnabled;
         public final boolean primaryHomeEnhancementEnabled;
+        public final boolean imeGuardEnabled;
         public final boolean imageDragSharingEnabled;
         public final boolean moduleInstalled;
         public final boolean zygiskPayloadActive;
@@ -179,7 +189,7 @@ public final class ZygiskHookConfig {
         public final boolean standaloneBackendActive;
 
         State(boolean secureWindowEnabled, boolean statusBarOverlayEnabled,
-              boolean primaryHomeEnhancementEnabled,
+              boolean primaryHomeEnhancementEnabled, boolean imeGuardEnabled,
               boolean imageDragSharingEnabled,
               boolean moduleInstalled, boolean zygiskPayloadActive,
               boolean lsposedInstalled, boolean lsposedBackendActive,
@@ -187,6 +197,7 @@ public final class ZygiskHookConfig {
             this.secureWindowEnabled = secureWindowEnabled;
             this.statusBarOverlayEnabled = statusBarOverlayEnabled;
             this.primaryHomeEnhancementEnabled = primaryHomeEnhancementEnabled;
+            this.imeGuardEnabled = imeGuardEnabled;
             this.imageDragSharingEnabled = imageDragSharingEnabled;
             this.moduleInstalled = moduleInstalled;
             this.zygiskPayloadActive = zygiskPayloadActive;

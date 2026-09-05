@@ -5,8 +5,6 @@ PACKAGE_NAME="com.hyper.onestep"
 VIRTUAL_DISPLAY_ROLE="android.app.role.COMPANION_DEVICE_APP_STREAMING"
 LOG_FILE="$MODDIR/service.log"
 STATE_HELPER="$MODDIR/module-state.sh"
-DATA_APP_CLEANUP_HELPER="$MODDIR/remove-data-app-update.sh"
-DATA_APP_CLEANUP_MARKER="$MODDIR/remove-data-app-update-pending"
 
 write_log() {
   message="$1"
@@ -23,99 +21,46 @@ run_and_log() {
   return "$logged_status"
 }
 
-cleanup_data_app_update_if_pending() {
-  if [ ! -e "$DATA_APP_CLEANUP_MARKER" ]; then
-    return 0
-  fi
-  if [ ! -x "$DATA_APP_CLEANUP_HELPER" ]; then
-    write_log "无法清理旧 /data/app 更新包：缺少清理脚本"
-    return 1
-  fi
-
-  write_log "模块已挂载且系统已启动，正在检查旧 /data/app 更新包"
-  if run_and_log "$DATA_APP_CLEANUP_HELPER"; then
-    rm -f "$DATA_APP_CLEANUP_MARKER"
-    write_log "旧 /data/app 更新包检查完成"
-    return 0
-  fi
-  write_log "旧 /data/app 更新包暂未清理，保留标记供下次启动重试"
-  return 1
-}
-
 BUILTIN_SMARTISAN_PACKAGE="com.smartisanos.home"
-BUILTIN_SMARTISAN_SYSTEM_APK="/system/app/SmartisanHome/SmartisanHome.apk"
-
 ensure_builtin_smartisan_home() {
-  if [ ! -f "$BUILTIN_SMARTISAN_SYSTEM_APK" ]; then
-    write_log "内置锤子桌面：system/app 挂载缺失（$BUILTIN_SMARTISAN_SYSTEM_APK）"
+  BUILTIN_SMARTISAN_PRIV_APP="/system/priv-app/com.smartisanos.home/com.smartisanos.home.apk"
+  if [ ! -f "$BUILTIN_SMARTISAN_PRIV_APP" ]; then
+    write_log "内置锤子桌面：priv-app 挂载缺失（$BUILTIN_SMARTISAN_PRIV_APP）"
     return 1
   fi
-
-  installed_path="$(pm path "$BUILTIN_SMARTISAN_PACKAGE" 2>/dev/null \
-    | sed -n 's/^package:\(.*\)$/\1/p' | head -n 1)"
-  case "$installed_path" in
-    "$BUILTIN_SMARTISAN_SYSTEM_APK")
-      write_log "内置锤子桌面：system/app 已注册（$installed_path）"
-      return 0
-      ;;
-    /data/*|/mnt/expand/*)
-      write_log "内置锤子桌面：仍指向数据分区副本（$installed_path），等待清理脚本处理"
-      return 0
-      ;;
-    "")
-      write_log "内置锤子桌面：system/app 文件在位但未注册（等待 PackageManager 扫描）"
-      return 0
-      ;;
-  esac
-  write_log "内置锤子桌面：注册路径异常（$installed_path）"
-  return 0
+  write_log "内置锤子桌面：pm install 启动副本"
+  if run_and_log pm install -r -d --user 0 "$BUILTIN_SMARTISAN_PRIV_APP"; then
+    write_log "内置锤子桌面：pm install 成功"
+  else
+    write_log "内置锤子桌面：pm install 失败"
+  fi
+  if run_and_log cmd package install-existing --user 0 "$BUILTIN_SMARTISAN_PACKAGE"; then
+    write_log "内置锤子桌面：已为用户 0 注册"
+  else
+    run_and_log pm install-existing --user 0 "$BUILTIN_SMARTISAN_PACKAGE" || true
+  fi
+  run_and_log pm enable --user 0 "$BUILTIN_SMARTISAN_PACKAGE" || true
 }
 
-VANSTEP_TMP_APK="/data/local/tmp/vanstep-refresh.apk"
 
 ensure_vanstep_data_refresh() {
-  if [ ! -f "$MODDIR/VanStep.apk" ]; then
-    write_log "VanStep 数据刷新：模块内未找到 APK，跳过"
-    return 0
+  VANSTEP_PRIV_APP="/system/priv-app/com.hyper.onestep/com.hyper.onestep.apk"
+  if [ ! -f "$VANSTEP_PRIV_APP" ]; then
+    write_log "VanStep：priv-app 挂载缺失（$VANSTEP_PRIV_APP）"
+    return 1
   fi
-  module_code="$(sed -n 's/^versionCode=//p' "$MODDIR/module.prop" | head -n 1)"
-  case "$module_code" in
-    ''|*[!0-9]*)
-      write_log "VanStep 数据刷新：module.prop 版本号异常，跳过"
-      return 0
-      ;;
-  esac
-  installed_path="$(pm path com.hyper.onestep 2>/dev/null | head -n 1 | sed 's/^package://')"
-  installed_code="$(dumpsys package com.hyper.onestep 2>/dev/null \
-    | sed -n 's/.*versionCode=\([0-9]*\).*/\1/p' | head -n 1)"
-  case "$installed_code" in
-    ''|*[!0-9]*)
-      installed_code=0
-      ;;
-  esac
-  case "$installed_path" in
-    /data/*)
-      if [ "$installed_code" -ge "$module_code" ]; then
-        write_log "VanStep 数据刷新：数据分区副本已在位（versionCode=$installed_code）"
-        return 0
-      fi
-      write_log "VanStep 数据刷新：数据分区版本落后（$installed_code < $module_code），准备更新"
-      ;;
-    *)
-      write_log "VanStep 数据刷新：当前为系统分区记录（$installed_path），准备覆盖安装数据副本"
-      ;;
-  esac
-  if run_and_log cp "$MODDIR/VanStep.apk" "$VANSTEP_TMP_APK" \
-      && chmod 0644 "$VANSTEP_TMP_APK"; then
-    if run_and_log pm install -r "$VANSTEP_TMP_APK"; then
-      write_log "VanStep 数据刷新：pm install 成功"
-    else
-      write_log "VanStep 数据刷新：pm install 失败（签名冲突时保留现有安装）"
-    fi
+  write_log "VanStep：pm install 启动副本"
+  if run_and_log pm install -r -d --user 0 "$VANSTEP_PRIV_APP"; then
+    write_log "VanStep：pm install 成功"
   else
-    write_log "VanStep 数据刷新：复制 APK 到临时目录失败"
+    write_log "VanStep：pm install 失败（签名冲突时保留现有安装）"
   fi
-  rm -f "$VANSTEP_TMP_APK"
+  if run_and_log cmd package install-existing --user 0 "$PACKAGE_NAME"; then
+    write_log "VanStep：已为用户 0 注册"
+  else
+    run_and_log pm install-existing --user 0 "$PACKAGE_NAME" || true
+  fi
+  run_and_log pm enable --user 0 "$PACKAGE_NAME" || true
 }
 
 restore_installed_for_user() {
@@ -300,7 +245,6 @@ case "$current_user" in
     current_user=0
     ;;
 esac
-cleanup_data_app_update_if_pending || true
 ensure_builtin_smartisan_home
 ensure_vanstep_data_refresh
 restore_for_user 0

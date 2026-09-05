@@ -89,6 +89,24 @@ public final class RootInputBridgeClient implements AutoCloseable {
         }
     }
 
+    public synchronized boolean shouldShowIme(String bridgeToken, int displayId,
+                                              boolean show) {
+        String response = sendRequestOnDedicatedConnection(
+                bridgeToken, "shouldShowIme " + displayId + " " + show);
+        if (TextUtils.isEmpty(response)) {
+            return false;
+        }
+        try {
+            String[] parts = response.trim().split("\\s+");
+            return parts.length == 4
+                    && "shouldShowIme".equals(parts[0])
+                    && Integer.parseInt(parts[1]) == displayId
+                    && Boolean.parseBoolean(parts[2]) == show
+                    && Boolean.parseBoolean(parts[3]);
+        } catch (NumberFormatException e) {
+            return false;
+        }
+    }
     public synchronized boolean imeFocusCycle(String bridgeToken, int displayId) {
         String response = sendRequestOnDedicatedConnection(
                 bridgeToken, "imeFocusCycle " + displayId);

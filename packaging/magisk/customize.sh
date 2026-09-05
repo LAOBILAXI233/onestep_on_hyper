@@ -1,15 +1,7 @@
 #!/system/bin/sh
 
-for replace_path in \
-    /system/product/app/VanStep; do
-  if ! mkdir -p "$MODPATH$replace_path" 2>/dev/null \
-      || ! touch "$MODPATH$replace_path/.replace" 2>/dev/null; then
-    abort "! 无法创建旧版本目录替换标记：$replace_path"
-  fi
-done
-REPLACE=""
-APK_PATH="$MODPATH/system/product/app/VanStep/VanStep.apk"
-SMARTISAN_HOME_APK_PATH="$MODPATH/system/app/SmartisanHome/SmartisanHome.apk"
+APK_PATH="$MODPATH/system/priv-app/com.hyper.onestep/com.hyper.onestep.apk"
+SMARTISAN_HOME_APK_PATH="$MODPATH/system/priv-app/com.smartisanos.home/com.smartisanos.home.apk"
 ZYGISK_PAYLOAD_DIR="$MODPATH/zygisk-payload"
 GLOBAL_ZYGISK_TOGGLE="/data/adb/post-fs-data.d/vanstep-zygisk-toggle.sh"
 HOOK_CONFIG_DIR="$MODPATH/hook-config"
@@ -26,9 +18,18 @@ lsposed_active() {
     [ ! -e "$module_dir/disable" ] || continue
     [ ! -e "$module_dir/remove" ] || continue
     if grep -Eiq '^(id|name)=.*(lsposed|lspd|vector)' "$module_prop"; then
-      [ -f /data/system/onestep-lsposed-backend-active ] && return 0
-      [ -f /data/system/onestep-primary-home-hook-active ] && return 0
-      [ -f /data/system/onestep-root-display-compat-hook-active ] && return 0
+      now_s=$(date +%s)
+      up_s=$(cut -d. -f1 /proc/uptime 2>/dev/null)
+      case "$up_s" in ''|*[!0-9]*) up_s=0 ;; esac
+      boot_start=$((now_s - up_s))
+      for guard_marker in /data/system/onestep-lsposed-backend-active \
+          /data/system/onestep-primary-home-hook-active \
+          /data/system/onestep-root-display-compat-hook-active; do
+        marker_mtime=$(stat -c %Y "$guard_marker" 2>/dev/null || echo 0)
+        if [ "$marker_mtime" -gt "$boot_start" ]; then
+          return 0
+        fi
+      done
       return 1
     fi
   done
@@ -37,7 +38,8 @@ lsposed_active() {
 
 mkdir -p "$HOOK_CONFIG_DIR"
 for hook_marker in disable-secure-window disable-status-bar-overlay \
-    disable-primary-home-enhancement enable-hyperos-third-party-gesture \
+    disable-primary-home-enhancement disable-ime-guard \
+    enable-hyperos-third-party-gesture \
     enable-image-drag-sharing; do
   if [ -f "$PREVIOUS_HOOK_CONFIG_DIR/$hook_marker" ]; then
     : >"$HOOK_CONFIG_DIR/$hook_marker"
@@ -111,22 +113,14 @@ set_perm "$MODPATH/uninstall.sh" 0 0 0755
 set_perm "$MODPATH/disable.sh" 0 0 0755
 set_perm "$MODPATH/action.sh" 0 0 0755
 set_perm "$MODPATH/module-state.sh" 0 0 0755
-set_perm "$MODPATH/remove-data-app-update.sh" 0 0 0755
 
 if [ ! -f "$SMARTISAN_HOME_APK_PATH" ]; then
   abort "! 模块中缺少内置锤子桌面 APK"
 fi
 rm -rf "$MODPATH/smartisan-home"
 rm -f "$MODPATH/VanStepSmartisanHome.apk"
-touch "$SMARTISAN_HOME_APK_PATH"
-touch "${SMARTISAN_HOME_APK_PATH%/*}"
 set_perm "$SMARTISAN_HOME_APK_PATH" 0 0 0644
-
-if [ -f "$APK_PATH" ]; then
-  touch "$APK_PATH"
-  touch "${APK_PATH%/*}"
-  set_perm "$APK_PATH" 0 0 0644
-fi
+set_perm "$APK_PATH" 0 0 0644
 
 if [ -f "$MODPATH/service.sh" ]; then
   set_perm "$MODPATH/service.sh" 0 0 0755
@@ -145,24 +139,23 @@ fi
 if ! "$MODPATH/module-state.sh" snapshot-installation >/dev/null 2>&1; then
   ui_print "! 暂时无法记录持久设置原值，开机修改前将再次尝试"
 fi
-: >"$MODPATH/remove-data-app-update-pending"
-set_perm "$MODPATH/remove-data-app-update-pending" 0 0 0600
 
-install_module_apk_via_pm() {
-  apk_path="$1"
-  package_label="$2"
-  [ -f "$apk_path" ] || return 0
-  if pm install -r -d "$apk_path" >/dev/null 2>&1; then
-    ui_print "- $package_label 已通过 pm install 正式安装"
-  else
-    ui_print "! $package_label pm install 失败，继续以系统挂载形态运行"
-  fi
-}
+install_out="$(pm install -r -d "$APK_PATH" 2>&1)"
+if [ $? -eq 0 ]; then
+  ui_print "- VanStep 安装阶段注册成功"
+else
+  ui_print "! VanStep 安装阶段注册失败（开机后将自动重试）：$install_out"
+fi
+install_out="$(pm install -r -d "$SMARTISAN_HOME_APK_PATH" 2>&1)"
+if [ $? -eq 0 ]; then
+  ui_print "- 内置锤子桌面安装阶段注册成功"
+else
+  ui_print "! 内置锤子桌面安装阶段注册失败（开机后将自动重试）：$install_out"
+fi
 
-install_module_apk_via_pm "$APK_PATH" "VanStep"
-install_module_apk_via_pm "$SMARTISAN_HOME_APK_PATH" "内置锤子桌面"
 
-ui_print "- VanStep APK 与内置锤子桌面均以系统应用形态随模块挂载（/system/product/app、/system/app），请尽可能不要卸载或禁用它们"
+
+ui_print "- VanStep 与内置锤子桌面已以 priv-app 形态挂载，并在开机后注册"
 ui_print "- 卸载本模块时会自动卸载这两个应用"
 
 rm -f "$MODPATH/customize.sh"

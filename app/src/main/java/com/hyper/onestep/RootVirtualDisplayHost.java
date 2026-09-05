@@ -713,6 +713,58 @@ public final class RootVirtualDisplayHost implements EmbeddedAppHost,
         return start(app, true);
     }
 
+    boolean reload(LauncherApp app) {
+        if (app == null || !app.isSameInstance(windowApps[slot])
+                || !isAvailable() || embeddedSlotClosing[slot]
+                || !shouldRunEmbeddedStart(callbacks.embeddedStartEpoch())
+                || !hostView.isAttachedToWindow()
+                || callbacks.isWindowFrameAnimationRunning()) {
+            return false;
+        }
+        Log.i(TAG, "Reload hosted surface: slot=" + slot + ", display=" + displayId
+                + ", taskId=" + hostedTaskId + ", app=" + app.packageName);
+        cancelInjectedTouchForImageDrag();
+        clearTouchState();
+        systemResumeExitCheckGeneration++;
+        invalidateTaskResolution();
+        cancelHostedSurfaceReveal();
+        launchRequestedPackage = "";
+        launchRequestedUserId = -1;
+        launchRequestedDisplayId = -1;
+        launchRequestedAtUptimeMs = -1L;
+        pendingApp = app;
+        windowViews[slot].setLiveAppVisible(true);
+        detachVirtualDisplaySurface();
+        releaseStaleWindowAnimationLeash();
+        ViewGroup.LayoutParams layoutParams = surfaceView.getLayoutParams();
+        hostView.removeView(surfaceView);
+        surfaceView.setVisibility(View.VISIBLE);
+        surfaceView.setAlpha(1f);
+        hostedSurfaceAlpha = 1f;
+        hostView.addView(surfaceView, layoutParams);
+        hostView.requestLayout();
+        surfaceView.postDelayed(() -> {
+            if (pendingApp != app || embeddedSlotClosing[slot]
+                    || !app.isSameInstance(windowApps[slot])
+                    || !hasVirtualDisplay()) {
+                return;
+            }
+            Surface surface = surfaceView.getHolder().getSurface();
+            if (surface == null || !surface.isValid()) {
+                return;
+            }
+            if (surfaceDetached) {
+                attachVirtualDisplaySurface(surfaceView.getHolder());
+            }
+            if (!surfaceDetached) {
+                pendingApp = null;
+                start(app);
+            }
+        }, 160L);
+        unavailableReason = "";
+        return true;
+    }
+
     private boolean start(LauncherApp app, boolean forceLaunch) {
         Log.i(TAG, "Host start entry: slot=" + slot + ", display=" + displayId
                 + ", app=" + app.packageName
@@ -752,6 +804,9 @@ public final class RootVirtualDisplayHost implements EmbeddedAppHost,
             }
         }
 
+        if ("com.smartisanos.home".equals(app.packageName)) {
+            refreshContainerSize(true);
+        }
         boolean enhancedHomeLaunch = app.isHomeEntry()
                 && primaryHomeEnhancementActive;
         Intent launcherIntent = app.createLaunchIntent(enhancedHomeLaunch);
@@ -1425,9 +1480,91 @@ public final class RootVirtualDisplayHost implements EmbeddedAppHost,
                 surfaceView.getHolder(), viewWidth, viewHeight, forceVirtualDisplayResize);
     }
 
+    private int smartisanFullscreenRestartEpoch = -1;
+
+    void restartSmartisanAfterFullscreen(int startEpoch) {
+        LauncherApp app = windowApps[slot];
+        if (!rootAvailable || app == null || !app.isHomeEntry()
+                || !"com.smartisanos.home".equals(app.packageName)
+                || smartisanFullscreenRestartEpoch == startEpoch
+                || callbacks.isMultiWindowMode() || callbacks.activeMainSlot() != slot) {
+            return;
+        }
+        smartisanFullscreenRestartEpoch = startEpoch;
+        restartSmartisanWhenFullscreenReady(app, startEpoch, displayId, 0);
+    }
+
+    private void restartSmartisanWhenFullscreenReady(LauncherApp app, int startEpoch,
+                                                     int targetDisplayId, int attempt) {
+        if (callbacks.isMultiWindowMode() || callbacks.activeMainSlot() != slot
+                || callbacks.embeddedStartEpoch() != startEpoch
+                || embeddedSlotClosing[slot] || !app.isSameInstance(windowApps[slot])
+                || targetDisplayId <= DEFAULT_DISPLAY_ID || displayId != targetDisplayId
+                || !hasVirtualDisplay()) {
+            return;
+        }
+        View workspace = callbacks.workspace();
+        boolean containerReady = workspace != null && workspace.getWidth() > 0
+                && workspace.getHeight() > 0
+                && surfaceView.getWidth() == workspace.getWidth()
+                && surfaceView.getHeight() == workspace.getHeight();
+        if (containerReady) {
+            refreshContainerSize(true);
+        }
+        VirtualDisplaySpec targetSpec = makeWorkspaceVirtualDisplaySpec();
+        Rect frame = surfaceView.getHolder().getSurfaceFrame();
+        Surface surface = surfaceView.getHolder().getSurface();
+        Display display = displayManager.getDisplay(targetDisplayId);
+        android.util.DisplayMetrics metrics = new android.util.DisplayMetrics();
+        if (display != null) {
+            display.getRealMetrics(metrics);
+        }
+        if (!containerReady || callbacks.isWindowFrameAnimationRunning()
+                || surface == null || !surface.isValid() || surfaceDetached
+                || displayWidth != targetSpec.width || displayHeight != targetSpec.height
+                || displayDensityDpi != targetSpec.densityDpi
+                || frame == null || frame.width() != targetSpec.width
+                || frame.height() != targetSpec.height
+                || metrics.widthPixels != targetSpec.width
+                || metrics.heightPixels != targetSpec.height
+                || metrics.densityDpi != targetSpec.densityDpi) {
+            if (attempt < 40) {
+                mainHandler.postDelayed(() -> restartSmartisanWhenFullscreenReady(
+                        app, startEpoch, targetDisplayId, attempt + 1), 50L);
+            } else {
+                Log.w(TAG, "Skip Smartisan fullscreen restart: dimensions not ready");
+            }
+            return;
+        }
+        Intent intent = app.createLaunchIntent(primaryHomeEnhancementActive);
+        ComponentName component = resolveLaunchComponent(intent);
+        if (component == null) {
+            return;
+        }
+        String command = buildGuardedStartCommand(
+                "am force-stop --user " + app.userId() + " " + shellQuote(app.packageName)
+                        + " && " + buildDisplayStartCommand(intent, component, app), startEpoch);
+        invalidateTaskResolution();
+        try {
+            rootExecutor.execute(() -> {
+                if (callbacks.isMultiWindowMode() || callbacks.activeMainSlot() != slot
+                        || callbacks.embeddedStartEpoch() != startEpoch
+                        || embeddedSlotClosing[slot] || displayId != targetDisplayId
+                        || !app.isSameInstance(windowApps[slot])) {
+                    return;
+                }
+                rootVirtualDisplayBridgeClient.allowNextLaunch(
+                        getRootInputBridgeToken(), app.packageName);
+                runPrivilegedCommand(command, "restart Smartisan after fullscreen on display "
+                        + targetDisplayId, true);
+            });
+        } catch (RuntimeException e) {
+            Log.w(TAG, "Queue Smartisan fullscreen restart failed", e);
+        }
+    }
+
     boolean needsSizeRefreshForTargetAspect(int targetWidth, int targetHeight) {
-        return VirtualDisplayViewportPolicy.shouldRefreshForTargetAspect(
-                displayWidth, displayHeight, targetWidth, targetHeight);
+        return false;
     }
 
     @Override
@@ -1994,9 +2131,13 @@ public final class RootVirtualDisplayHost implements EmbeddedAppHost,
         int actionMasked = event.getActionMasked();
         if (displayId < 0 || callbacks.mainSlotSwitchPendingSlot() >= 0
                 || callbacks.isWindowFrameAnimationRunning()) {
-            if (actionMasked == MotionEvent.ACTION_DOWN) {
-                clearTouchState();
+            if (touchStartedOnMain && !touchSequenceSuppressed) {
+                MotionEvent cancel = MotionEvent.obtain(event);
+                cancel.setAction(MotionEvent.ACTION_CANCEL);
+                injectMotionDirect(cancel);
+                cancel.recycle();
             }
+            clearTouchState();
             return true;
         }
         switch (actionMasked) {
@@ -2821,6 +2962,16 @@ public final class RootVirtualDisplayHost implements EmbeddedAppHost,
         return true;
     }
 
+    void restoreDefaultDisplayImeFocus() {
+        if (!rootAvailable) {
+            return;
+        }
+        try {
+            rootInputBridgeClient.shouldShowIme(
+                    getRootInputBridgeToken(), Display.DEFAULT_DISPLAY, true);
+        } catch (RuntimeException ignored) {
+        }
+    }
     void depriveHostedInputFocus() {
         focusRequestGeneration++;
         if (!HostedInputFocusPolicy.shouldUseDemotedFocusWindow(Build.VERSION.SDK_INT)) {
@@ -3763,43 +3914,6 @@ public final class RootVirtualDisplayHost implements EmbeddedAppHost,
             createVirtualDisplay(holder, viewWidth, viewHeight);
             return;
         }
-        boolean targetDualMainLayout = callbacks.isDualMainLayout();
-        boolean leavingDualMainLayout = displayUsesDualMainLayout
-                && !targetDualMainLayout;
-        if (!forceVirtualDisplayResize
-                && !VirtualDisplayViewportPolicy.shouldResizeForContainerLayout(
-                callbacks.isLargeScreenDevice(), targetDualMainLayout, leavingDualMainLayout)) {
-            keepVirtualDisplaySurfaceSize(holder, viewWidth, viewHeight);
-            return;
-        }
-        Rect layoutReferenceRect = getReferenceRenderRect();
-        if (!forceVirtualDisplayResize
-                && !hasMatchingAspectRatio(viewWidth, viewHeight,
-                layoutReferenceRect.width(), layoutReferenceRect.height())) {
-            keepVirtualDisplaySurfaceSize(holder, viewWidth, viewHeight);
-            return;
-        }
-        VirtualDisplaySpec targetSpec = leavingDualMainLayout
-                && !callbacks.isMultiWindowMode()
-                ? makeWorkspaceVirtualDisplaySpec() : makeTargetVirtualDisplaySpec();
-        boolean targetAspectMatches = hasMatchingAspectRatio(
-                displayWidth, displayHeight, targetSpec.width, targetSpec.height);
-        boolean targetSizeMatches = displayWidth == targetSpec.width
-                && displayHeight == targetSpec.height;
-        boolean targetGeometryMatches = forceVirtualDisplayResize
-                ? targetSizeMatches : targetAspectMatches;
-        boolean targetDensityMatches = displayDensityDpi == targetSpec.densityDpi;
-        if ((!targetGeometryMatches || !targetDensityMatches)
-                && resizeVirtualDisplay(targetSpec)) {
-            displayUsesDualMainLayout = targetDualMainLayout;
-            holder.setFixedSize(displayWidth, displayHeight);
-            lastViewWidth = viewWidth;
-            lastViewHeight = viewHeight;
-            return;
-        }
-        if (targetGeometryMatches && targetDensityMatches) {
-            displayUsesDualMainLayout = targetDualMainLayout;
-        }
         keepVirtualDisplaySurfaceSize(holder, viewWidth, viewHeight);
     }
 
@@ -3823,7 +3937,9 @@ public final class RootVirtualDisplayHost implements EmbeddedAppHost,
     }
 
     private VirtualDisplaySpec makeTargetVirtualDisplaySpec() {
-        return makeVirtualDisplaySpecForRect(getReferenceRenderRect());
+        android.util.DisplayMetrics metrics = owner.getResources().getDisplayMetrics();
+        return makeVirtualDisplaySpecForRect(new Rect(0, 0,
+                Math.max(1, metrics.widthPixels), Math.max(1, metrics.heightPixels)));
     }
 
     private VirtualDisplaySpec makeWorkspaceVirtualDisplaySpec() {
@@ -3852,7 +3968,7 @@ public final class RootVirtualDisplayHost implements EmbeddedAppHost,
         virtualWidth = cappedDimensions[0];
         virtualHeight = cappedDimensions[1];
         boolean largeScreenDevice = callbacks.isLargeScreenDevice();
-        boolean useTabletDensity = largeScreenDevice && !callbacks.isDualMainLayout();
+        boolean useTabletDensity = largeScreenDevice;
         int densityDpi = VirtualDisplayDensityPolicy.calculateDensityDpi(
                 referenceWidth,
                 referenceHeight,

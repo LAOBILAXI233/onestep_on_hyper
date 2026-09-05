@@ -161,6 +161,7 @@ dependencies {
         isTransitive = false
     }
     testImplementation(libs.junit)
+    testImplementation(libs.xposed.api)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(libs.androidx.junit)
 }

@@ -16,7 +16,9 @@ import de.robv.android.xposed.callbacks.XC_LoadPackage;
 public final class OneStepLsposedEntry implements IXposedHookLoadPackage {
     private static final String TAG = "OneStepLsposed";
     private static final String SYSTEM_FRAMEWORK_PACKAGE = "android";
+    private static final String SYSTEM_FRAMEWORK_PACKAGE_ALIAS = "system";
     private static final String SYSTEM_SERVER_PROCESS = "android";
+    private static final String SYSTEM_SERVER_PROCESS_ALIAS = "system_server";
     private static final String SETTINGS_PACKAGE = "com.android.settings";
     private static final String SYSTEM_UI_PACKAGE = "com.android.systemui";
     private static final String MIUI_HOME_PACKAGE = "com.miui.home";
@@ -25,6 +27,8 @@ public final class OneStepLsposedEntry implements IXposedHookLoadPackage {
     private static final String STATUS_BAR_PROPERTY = "onestep.hook.statusbar";
     private static final String PRIMARY_HOME_ENHANCEMENT_PROPERTY =
             "onestep.hook.primaryhome_enhancement";
+    private static final String IME_GUARD_PROPERTY =
+            "onestep.hook.ime_guard";
     private static final String ACTIVE_MARKER =
             "/data/system/onestep-lsposed-backend-active";
     private static final AtomicBoolean SYSTEM_SERVER_STARTED = new AtomicBoolean();
@@ -53,7 +57,7 @@ public final class OneStepLsposedEntry implements IXposedHookLoadPackage {
                     loadPackageParam.packageName, loadPackageParam.processName,
                     loadPackageParam.classLoader);
         }
-        if (!SYSTEM_FRAMEWORK_PACKAGE.equals(loadPackageParam.packageName)
+        if (!isSystemFrameworkPackage(loadPackageParam.packageName)
                 && !SETTINGS_PACKAGE.equals(loadPackageParam.packageName)
                 && !SYSTEM_UI_PACKAGE.equals(loadPackageParam.packageName)
                 && !MIUI_HOME_PACKAGE.equals(loadPackageParam.packageName)) {
@@ -80,8 +84,8 @@ public final class OneStepLsposedEntry implements IXposedHookLoadPackage {
             OneStepNativeStatusBarHook.install(loadPackageParam.classLoader);
             return;
         }
-        if (!SYSTEM_FRAMEWORK_PACKAGE.equals(loadPackageParam.packageName)
-                || !SYSTEM_SERVER_PROCESS.equals(loadPackageParam.processName)
+        if (!isSystemFrameworkPackage(loadPackageParam.packageName)
+                || !isSystemServerProcess(loadPackageParam.processName)
                 || !SYSTEM_SERVER_STARTED.compareAndSet(false, true)) {
             return;
         }
@@ -90,9 +94,11 @@ public final class OneStepLsposedEntry implements IXposedHookLoadPackage {
         boolean statusBarEnabled = readBooleanProperty(STATUS_BAR_PROPERTY);
         boolean primaryHomeEnhancementEnabled =
                 readBooleanProperty(PRIMARY_HOME_ENHANCEMENT_PROPERTY);
+        boolean imeGuardEnabled = readBooleanProperty(IME_GUARD_PROPERTY);
         Log.i(TAG, "LSPosed backend selected: secure=" + secureWindowEnabled
                 + ", statusbar=" + statusBarEnabled
-                + ", primaryHome=" + primaryHomeEnhancementEnabled);
+                + ", primaryHome=" + primaryHomeEnhancementEnabled
+                + ", imeGuard=" + imeGuardEnabled);
         OneStepRootVirtualDisplayCompatHook.bootstrap(loadPackageParam.classLoader);
         OneStepBackgroundTaskActivationHook.bootstrap(loadPackageParam.classLoader);
         if (secureWindowEnabled) {
@@ -104,6 +110,20 @@ public final class OneStepLsposedEntry implements IXposedHookLoadPackage {
         if (primaryHomeEnhancementEnabled) {
             OneStepPrimaryHomeHook.bootstrap(loadPackageParam.classLoader);
         }
+        if (imeGuardEnabled) {
+            OneStepImeGuardHook.bootstrap(loadPackageParam.classLoader);
+        }
+    }
+
+    static boolean isSystemFrameworkPackage(String packageName) {
+        return SYSTEM_FRAMEWORK_PACKAGE.equals(packageName)
+                || SYSTEM_FRAMEWORK_PACKAGE_ALIAS.equals(packageName);
+    }
+
+    static boolean isSystemServerProcess(String processName) {
+        return SYSTEM_SERVER_PROCESS.equals(processName)
+                || SYSTEM_FRAMEWORK_PACKAGE_ALIAS.equals(processName)
+                || SYSTEM_SERVER_PROCESS_ALIAS.equals(processName);
     }
 
     private static boolean readBooleanProperty(String key) {

@@ -33,6 +33,45 @@ public final class OneStepPrimaryHomeHook {
     private static final long CLASS_WAIT_INTERVAL_MS = 100L;
 
     private static volatile boolean installed;
+    private static final java.util.Map<Object, Intent> STASHED_INTENTS =
+            Collections.synchronizedMap(new java.util.WeakHashMap<>());
+
+    private static void stashOriginalIntent(Object interceptor) {
+        try {
+            Object rawIntent = readField(interceptor, "mIntent");
+            if (rawIntent instanceof Intent) {
+                STASHED_INTENTS.put(interceptor, new Intent((Intent) rawIntent));
+            }
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            Log.w(TAG, "stash original HOME intent failed", e);
+        }
+    }
+
+    private static void restoreStashedIntent(Object interceptor) {
+        Intent stashed = STASHED_INTENTS.remove(interceptor);
+        if (stashed == null) {
+            return;
+        }
+        try {
+            Object rawIntent = readField(interceptor, "mIntent");
+            if (rawIntent instanceof Intent) {
+                Intent current = (Intent) rawIntent;
+                if (!stashed.getComponent().equals(current.getComponent())
+                        || !stashed.filterEquals(current)) {
+                    writeIntentField(interceptor, "mIntent", new Intent(stashed));
+                    Log.i(TAG, "restored marked HOME intent after rewrite: component="
+                            + stashed.getComponent());
+                }
+            }
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            Log.w(TAG, "restore original HOME intent failed", e);
+        }
+    }
+
+    private static void writeIntentField(Object target, String name, Intent value)
+            throws ReflectiveOperationException {
+        findField(target.getClass(), name).set(target, value);
+    }
 
     private OneStepPrimaryHomeHook() {
     }
@@ -117,10 +156,19 @@ public final class OneStepPrimaryHomeHook {
             protected void beforeHookedMethod(MethodHookParam param) {
                 try {
                     if (shouldPreservePrimaryHome(param.thisObject)) {
-                        param.setResult(false);
+                        stashOriginalIntent(param.thisObject);
                     }
                 } catch (Throwable t) {
                     Log.e(TAG, "primary HOME interception decision failed", t);
+                }
+            }
+
+            @Override
+            protected void afterHookedMethod(MethodHookParam param) {
+                try {
+                    restoreStashedIntent(param.thisObject);
+                } catch (Throwable t) {
+                    Log.e(TAG, "primary HOME intent restore failed", t);
                 }
             }
         });

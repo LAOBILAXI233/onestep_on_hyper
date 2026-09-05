@@ -16,9 +16,18 @@ lsposed_active() {
     [ ! -e "$module_dir/disable" ] || continue
     [ ! -e "$module_dir/remove" ] || continue
     if grep -Eiq '^(id|name)=.*(lsposed|lspd|vector)' "$module_prop"; then
-      [ -f /data/system/onestep-lsposed-backend-active ] && return 0
-      [ -f /data/system/onestep-primary-home-hook-active ] && return 0
-      [ -f /data/system/onestep-root-display-compat-hook-active ] && return 0
+      now_s=$(date +%s)
+      up_s=$(cut -d. -f1 /proc/uptime 2>/dev/null)
+      case "$up_s" in ''|*[!0-9]*) up_s=0 ;; esac
+      boot_start=$((now_s - up_s))
+      for guard_marker in /data/system/onestep-lsposed-backend-active \
+          /data/system/onestep-primary-home-hook-active \
+          /data/system/onestep-root-display-compat-hook-active; do
+        marker_mtime=$(stat -c %Y "$guard_marker" 2>/dev/null || echo 0)
+        if [ "$marker_mtime" -gt "$boot_start" ]; then
+          return 0
+        fi
+      done
       return 1
     fi
   done
@@ -121,6 +130,11 @@ if [ -e "$MODDIR/hook-config/disable-primary-home-enhancement" ]; then
 else
   primary_home_enhancement=1
 fi
+if [ -e "$MODDIR/hook-config/disable-ime-guard" ]; then
+  ime_guard=0
+else
+  ime_guard=1
+fi
 if [ -e "$MODDIR/hook-config/enable-image-drag-sharing" ]; then
   set_hook_property onestep.hook.image_drag 1
 else
@@ -149,6 +163,7 @@ if [ "$lsposed_detected" = "1" ]; then
   set_hook_property onestep.hook.backend lsposed
   set_hook_property onestep.hook.primaryhome_enhancement \
     "$primary_home_enhancement"
+  set_hook_property onestep.hook.ime_guard "$ime_guard"
   rm -rf "$MODDIR/zygisk"
   exit 0
 fi
@@ -173,3 +188,4 @@ rm -rf "$MODDIR/zygisk"
 mv "$STAGING_DIR" "$MODDIR/zygisk"
 set_hook_property onestep.hook.primaryhome_enhancement \
   "$primary_home_enhancement"
+set_hook_property onestep.hook.ime_guard "$ime_guard"

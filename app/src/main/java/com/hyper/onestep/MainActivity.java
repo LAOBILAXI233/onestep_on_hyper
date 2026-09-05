@@ -712,6 +712,8 @@ public class MainActivity extends Activity {
     private LinearLayout topNavRightControls;
     private ImageView topNavPageLeftControl;
     private ImageView topNavPageRightControl;
+    private ImageView topNavReloadControl;
+    private long mainAppReloadAvailableAtUptime;
     private ImageView topNavSettingsControl;
     private ImageView topNavExpandLeftControl;
     private ImageView topNavExpandRightControl;
@@ -975,6 +977,7 @@ public class MainActivity extends Activity {
         hostWindow.getDecorView().setBackgroundColor(Color.BLACK);
         systemUiController = new SystemUiController(
                 this, this::shouldHideStatusBarForOneStep,
+                () -> fullHomeInitialized && !directBootHome,
                 () -> activityDestroyed, this::isSystemAppInstall, this::handleSystemBack);
         getWindow().getDecorView().post(() -> Log.i(TAG, "Hardware acceleration: decor="
                 + getWindow().getDecorView().isHardwareAccelerated()));
@@ -1478,6 +1481,15 @@ public class MainActivity extends Activity {
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
+        if (hasFocus && (!fullHomeInitialized || activeMainSlot < 0
+                || activeMainSlot >= windowApps.length || windowApps[activeMainSlot] == null)) {
+            for (EmbeddedAppHost host : embeddedHosts) {
+                if (host instanceof RootVirtualDisplayHost) {
+                    ((RootVirtualDisplayHost) host).restoreDefaultDisplayImeFocus();
+                    break;
+                }
+            }
+        }
         if (directBootHome || !fullHomeInitialized) {
             return;
         }
@@ -3241,6 +3253,7 @@ public class MainActivity extends Activity {
             return;
         }
         activateEdgeMainPaneForFullscreen();
+        backgroundOpenedApps();
         boolean refreshMainSizeForFullscreen = needsMainSizeRefresh(
                 workspace == null ? 0 : workspace.getWidth(),
                 workspace == null ? 0 : workspace.getHeight(),
@@ -3249,7 +3262,12 @@ public class MainActivity extends Activity {
         applyStatusBarForCurrentMode();
         setTopChromeVisible(false, true);
         updateCornerTriggers();
-        applyWindowLayoutWithMainSizeRefresh(refreshMainSizeForFullscreen);
+        applyWindowLayout(true, () -> {
+            refreshAllEmbeddedSlotLayouts();
+            if (refreshMainSizeForFullscreen) {
+                refreshMainSizeAfterLayout();
+            }
+        });
     }
 
     private boolean needsMainSizeRefreshForCurrentLayout(String targetMode) {
@@ -3333,6 +3351,11 @@ public class MainActivity extends Activity {
         topNavPageRightControl = createTopNavImageControl(
                 R.drawable.top_nav_page_right, "应用列表向右");
         topNavPageRightControl.setOnClickListener(v -> scrollTopAppStripPage(-1));
+        topNavReloadControl = createTopNavImageControl(
+                R.drawable.ic_lucide_rotate_cw, "重载当前应用");
+        topNavReloadControl.setImageTintList(ColorStateList.valueOf(Color.WHITE));
+        topNavReloadControl.setTooltipText("重载当前应用");
+        topNavReloadControl.setOnClickListener(v -> reloadMainApp());
         topNavSettingsControl = createTopNavImageControl(
                 R.drawable.top_nav_settings, "设置");
         topNavSettingsControl.setOnClickListener(v -> showInternalSettingsPage());
@@ -3397,21 +3420,25 @@ public class MainActivity extends Activity {
     private void updateTopNavigationControls() {
         if (topNavLeftControls == null || topNavRightControls == null
                 || topNavPageLeftControl == null || topNavPageRightControl == null
+                || topNavReloadControl == null
                 || topNavSettingsControl == null || topNavExpandLeftControl == null
                 || topNavExpandRightControl == null) {
             return;
         }
         topNavLeftControls.removeAllViews();
         topNavRightControls.removeAllViews();
+        updateMainAppReloadControl();
         if (verticalWindowLayout || mainOnLeft) {
             addTopNavControl(topNavLeftControls, topNavPageLeftControl);
             addTopNavControl(topNavLeftControls, topNavPageRightControl);
+            addTopNavControl(topNavLeftControls, topNavReloadControl);
             addTopNavControl(topNavRightControls, topNavSettingsControl);
             addTopNavControl(topNavRightControls, topNavExpandRightControl);
             return;
         }
         addTopNavControl(topNavLeftControls, topNavExpandLeftControl);
         addTopNavControl(topNavLeftControls, topNavSettingsControl);
+        addTopNavControl(topNavRightControls, topNavReloadControl);
         addTopNavControl(topNavRightControls, topNavPageLeftControl);
         addTopNavControl(topNavRightControls, topNavPageRightControl);
     }
@@ -3423,6 +3450,73 @@ public class MainActivity extends Activity {
             layoutParams.leftMargin = dp(TOP_NAV_BUTTON_SPACING_DP);
         }
         container.addView(control, layoutParams);
+    }
+
+    private void updateMainAppReloadControl() {
+        if (topNavReloadControl == null) {
+            return;
+        }
+        int slot = activeMainSlot;
+        boolean enabled = !activityDestroyed && slot >= 0 && slot < MAX_WINDOWS
+                && windowApps[slot] != null && windowViews[slot] != null
+                && !isInternalSettingsSlot(slot) && !isDesktopHomeSlot(slot)
+                && !embeddedSlotClosing[slot] && embeddedHosts[slot] != null
+                && SystemClock.uptimeMillis() >= mainAppReloadAvailableAtUptime;
+        topNavReloadControl.setEnabled(enabled);
+        topNavReloadControl.setImageAlpha(enabled ? 217 : 80);
+    }
+
+    private void reloadMainApp() {
+        int slot = activeMainSlot;
+        if (activityDestroyed || suppressEmbeddedStarts || exitOneStepPending
+                || isWindowSwitchInputGated() || isCrossAppRouteUiBusy()
+                || slot < 0 || slot >= MAX_WINDOWS || embeddedSlotClosing[slot]
+                || SystemClock.uptimeMillis() < mainAppReloadAvailableAtUptime
+                || isInternalSettingsSlot(slot) || isDesktopHomeSlot(slot)) {
+            return;
+        }
+        LauncherApp app = windowApps[slot];
+        EmbeddedAppHost host = embeddedHosts[slot];
+        OneStepWindowView windowView = windowViews[slot];
+        if (app == null || host == null || windowView == null) {
+            return;
+        }
+        embeddedSyncGenerations[slot]++;
+        boolean accepted;
+        try {
+            if (host instanceof RootVirtualDisplayHost) {
+                accepted = ((RootVirtualDisplayHost) host).reload(app);
+            } else {
+                host.refreshContainerSize(true);
+                accepted = host.restart(app);
+                if (accepted) {
+                    windowView.setLiveAppVisible(true);
+                }
+            }
+        } catch (RuntimeException e) {
+            Log.w(TAG, "Reload main app failed: slot=" + slot
+                    + ", app=" + app.packageName, e);
+            accepted = false;
+        }
+        if (!accepted) {
+            Toast.makeText(this, "重载失败，请稍后重试", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        Log.i(TAG, "Reload main app requested: slot=" + slot
+                + ", app=" + app.packageName + ", user=" + app.userId());
+        mainAppReloadAvailableAtUptime = SystemClock.uptimeMillis() + 800L;
+        updateMainAppReloadControl();
+        if (topNavReloadControl != null) {
+            topNavReloadControl.animate().cancel();
+            topNavReloadControl.setRotation(0f);
+            topNavReloadControl.animate().rotation(360f).setDuration(600L)
+                    .withEndAction(() -> topNavReloadControl.setRotation(0f)).start();
+        }
+        mainHandler.postDelayed(() -> {
+            if (!activityDestroyed) {
+                updateMainAppReloadControl();
+            }
+        }, 800L);
     }
 
     private TextView createTopNavControl(String symbol, float sizeDp, String description) {
@@ -6780,12 +6874,13 @@ public class MainActivity extends Activity {
                     boolean secureWindowEnabled,
                     boolean statusBarOverlayEnabled,
                     boolean primaryHomeEnhancementEnabled,
+                    boolean imeGuardEnabled,
                     boolean imageDragSharingEnabled,
                     SettingsPanelController.HookSettingsResultCallback callback) {
                 MainActivity.this.saveZygiskHookSettings(
                         secureWindowEnabled, statusBarOverlayEnabled,
-                        primaryHomeEnhancementEnabled, imageDragSharingEnabled,
-                        callback);
+                        primaryHomeEnhancementEnabled, imeGuardEnabled,
+                        imageDragSharingEnabled, callback);
             }
             @Override public void rebootDevice() {
                 MainActivity.this.rebootDeviceForHookSettings();
@@ -11169,6 +11264,7 @@ public class MainActivity extends Activity {
         for (int i = 0; i < MAX_WINDOWS; i++) {
             windowViews[i].bind(windowApps[i], i);
         }
+        updateMainAppReloadControl();
         updateShortcutAppStatuses();
         requestRunningTaskStatusRefresh();
         scheduleSideInputProtectionSync();
@@ -11483,13 +11579,14 @@ public class MainActivity extends Activity {
             boolean secureWindowEnabled,
             boolean statusBarOverlayEnabled,
             boolean primaryHomeEnhancementEnabled,
+            boolean imeGuardEnabled,
             boolean imageDragSharingEnabled,
             SettingsPanelController.HookSettingsResultCallback callback) {
         hookSettingsExecutor.execute(() -> {
             ShellCommandResult result = runMainPrivilegedCommand(
                     ZygiskHookConfig.writeCommand(
                             secureWindowEnabled, statusBarOverlayEnabled,
-                            primaryHomeEnhancementEnabled,
+                            primaryHomeEnhancementEnabled, imeGuardEnabled,
                             imageDragSharingEnabled),
                     "save Zygisk hook settings", false);
             ZygiskHookConfig.State state = result.isSuccess()

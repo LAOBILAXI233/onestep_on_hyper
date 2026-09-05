@@ -195,6 +195,7 @@ class OneStepSettingsPage(
         var secureWindowEnabled by mutableStateOf(true)
         var statusBarOverlayEnabled by mutableStateOf(false)
         var primaryHomeEnhancementEnabled by mutableStateOf(false)
+        var imeGuardEnabled by mutableStateOf(true)
         var imageDragSharingEnabled by mutableStateOf(false)
         var moduleInstalled by mutableStateOf(false)
         var lsposedInstalled by mutableStateOf(false)
@@ -444,10 +445,12 @@ class OneStepSettingsPage(
         secureWindow: Boolean = state.secureWindowEnabled,
         statusBarOverlay: Boolean = state.statusBarOverlayEnabled,
         primaryHomeEnhancement: Boolean = state.primaryHomeEnhancementEnabled,
+        imeGuard: Boolean = state.imeGuardEnabled,
         imageDragSharing: Boolean = state.imageDragSharingEnabled,
     ) {
         callbacks.saveZygiskHookSettings(
-            secureWindow, statusBarOverlay, primaryHomeEnhancement, imageDragSharing
+            secureWindow, statusBarOverlay, primaryHomeEnhancement, imeGuard,
+            imageDragSharing
         ) { zygiskState, error ->
             postUi { applyZygiskState(zygiskState, error) }
         }
@@ -464,6 +467,7 @@ class OneStepSettingsPage(
         state.secureWindowEnabled = zygiskState.secureWindowEnabled
         state.statusBarOverlayEnabled = zygiskState.statusBarOverlayEnabled
         state.primaryHomeEnhancementEnabled = zygiskState.primaryHomeEnhancementEnabled
+        state.imeGuardEnabled = zygiskState.imeGuardEnabled
         state.imageDragSharingEnabled = zygiskState.imageDragSharingEnabled
         
         
@@ -635,9 +639,10 @@ internal fun VanStepSettingsApp(page: OneStepSettingsPage) {
                     page = page,
                     onBack = { backStack.removeAt(backStack.lastIndex) },
                 )
-                VanRoute.About -> AboutPage(
+                VanRoute.About -> VanStepAboutPage(
                     page = page,
                     onBack = { backStack.removeAt(backStack.lastIndex) },
+                    onOpenLicenses = { backStack.add(VanRoute.License) },
                 )
                 VanRoute.License -> LicensePage(
                     page = page,
@@ -792,6 +797,16 @@ private fun MainPage(
                         onCheckedChange = { checked ->
                             state.primaryHomeEnhancementEnabled = checked
                             page.saveZygiskHookSettings(primaryHomeEnhancement = checked)
+                        },
+                    )
+                    SwitchPreference(
+                        title = "输入法保护",
+                        summary = "开启且 Hook 生效时阻止系统侧隐藏虚拟屏输入法，重启后生效",
+                        checked = state.imeGuardEnabled,
+                        enabled = state.hookLoaded,
+                        onCheckedChange = { checked ->
+                            state.imeGuardEnabled = checked
+                            page.saveZygiskHookSettings(imeGuard = checked)
                         },
                     )
                 }
@@ -1044,7 +1059,7 @@ private fun EnhancementStatusCard(
         else -> Color(0xFFFAEEEE)
     }
     val accentColor = if (allReady) Color(0xFF36D167) else Color(0xFFD13636)
-    val title = if (allReady) "Van Step 增强" else "增强功能未完全启用"
+    val title = if (allReady) "Van Step 增强" else "功能尚完全启用"
     val summary = if (allReady) {
         "KSU 模块、ROOT、LSPosed 与无障碍均已就绪"
     } else {
@@ -1164,121 +1179,6 @@ private fun PercentSlider(
         onValueChange = { raw -> onLiveChange(raw.toInt()) },
         onValueChangeFinished = { onFinished(value) },
     )
-}
-
-private data class RepoLink(val name: String, val summary: String, val url: String)
-
-private val PROJECT_REPOS = listOf(
-    RepoLink(
-        "Van Step",
-        "本项目 · onestep_on_hyper",
-        "https://github.com/LAOBILAXI233/onestep_on_hyper",
-    ),
-    RepoLink(
-        "OneStep4",
-        "基础建设与思路提供",
-        "https://github.com/SangLuoCN/OneStep4",
-    ),
-    RepoLink(
-        "Smartisan OneStep",
-        "上游 · packages_apps_OneStep",
-        "https://github.com/SmartisanTech/packages_apps_OneStep",
-    ),
-    RepoLink(
-        "smartisan-launcher-maintained",
-        "锤子桌面",
-        "https://github.com/rianlu/smartisan-launcher-maintained",
-    ),
-    RepoLink(
-        "Miuix",
-        "Compose UI 框架",
-        "https://github.com/compose-miuix-ui/miuix",
-    ),
-    RepoLink(
-        "Lucide",
-        "图标集",
-        "https://lucide.dev/",
-    ),
-    RepoLink(
-        "HyperDragShare",
-        "拖拽思路实现",
-        "https://github.com/Leaf-lsgtky/HyperDragShare/tree/main",
-    ),
-    RepoLink(
-        "LSPosed",
-        "可选增强框架",
-        "https://github.com/LSPosed/LSPosed",
-    ),
-    RepoLink(
-        "SukiSU-Ultra",
-        "美术参考及基础建设 · KernelSU",
-        "https://github.com/SukiSU-Ultra/SukiSU-Ultra",
-    ),
-)
-
-@Composable
-private fun AboutPage(page: OneStepSettingsPage, onBack: () -> Unit) {
-    PageScaffold(
-        title = "关于和他的伙伴们",
-        onBack = onBack,
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(vertical = 20.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            AndroidView(
-                factory = { ctx ->
-                    ImageView(ctx).apply { setImageResource(R.mipmap.ic_launcher) }
-                },
-                modifier = Modifier.size(72.dp),
-            )
-            Spacer(Modifier.height(12.dp))
-            Text(text = "Van Step", fontSize = 24.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(4.dp))
-            Text(
-                text = "v${BuildConfig.VERSION_NAME}",
-                fontSize = 12.sp,
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-            )
-            Spacer(Modifier.height(20.dp))
-            Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                Column {
-                    PROJECT_REPOS.forEach { repo ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { page.openUrl(repo.url) }
-                                .padding(horizontal = 16.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Column(Modifier.weight(1f)) {
-                                Text(text = repo.name, fontSize = 15.sp)
-                                Text(
-                                    text = repo.summary,
-                                    fontSize = 11.sp,
-                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                )
-                            }
-                            Text(
-                                text = "↗",
-                                fontSize = 15.sp,
-                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                            )
-                        }
-                    }
-                }
-            }
-            Spacer(Modifier.height(12.dp))
-            Text(
-                text = "© 2026 ·Van Step- GPL-3.0",
-                fontSize = 11.sp,
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-            )
-        }
-    }
 }
 
 @Composable
