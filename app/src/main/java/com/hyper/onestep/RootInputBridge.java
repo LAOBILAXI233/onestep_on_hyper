@@ -357,7 +357,8 @@ public final class RootInputBridge {
                 return removeTask(parts);
             } else if ("moveTaskToDisplay".equals(parts[0]) && parts.length == 4) {
                 return moveTaskToDisplay(parts);
-            } else if ("transferTask".equals(parts[0]) && parts.length == 7) {
+            } else if ("transferTask".equals(parts[0]) && (parts.length == 7
+                    || parts.length == 8)) {
                 return transferTask(parts);
             } else if ("key".equals(parts[0]) && parts.length == 3) {
                 injectKey(parts);
@@ -736,9 +737,12 @@ public final class RootInputBridge {
         int userId = Integer.parseInt(parts[4]);
         ComponentName component = ComponentName.unflattenFromString(parts[5]);
         boolean onTop = Boolean.parseBoolean(parts[6]);
+        boolean leaveHidden = parts.length == 8
+                && Boolean.parseBoolean(parts[7]);
         int result = 0;
         Object taskToken = null;
         boolean moved = false;
+        int actualSource = sourceDisplay;
         try {
             if (component == null || taskId <= 0 || sourceDisplay < 0 || targetDisplay < 0) {
                 throw new IllegalArgumentException("invalid task transfer");
@@ -755,8 +759,11 @@ public final class RootInputBridge {
             }
             ComponentName base = matched.baseIntent == null ? null
                     : matched.baseIntent.getComponent();
+            Integer actualDisplayId = (Integer) readOptionalField(matched, "displayId");
+            if (actualDisplayId != null && actualDisplayId >= 0) {
+                actualSource = actualDisplayId;
+            }
             if ((Integer) readOptionalField(matched, "userId") != userId
-                    || (Integer) readOptionalField(matched, "displayId") != sourceDisplay
                     || !matchesTaskPackage(component.getPackageName(), base,
                     matched.baseActivity, matched.topActivity)) {
                 throw new IllegalStateException("task identity or display changed");
@@ -766,7 +773,7 @@ public final class RootInputBridge {
             getMoveRootTaskToDisplayMethod().invoke(
                     getActivityTaskManagerService(), taskId, targetDisplay);
             moved = true;
-            applyTaskVisibility(taskToken, false, onTop);
+            applyTaskVisibility(taskToken, leaveHidden, leaveHidden ? null : onTop);
             result = 1;
         } catch (ReflectiveOperationException | RuntimeException e) {
             throwIfSystemServiceDead(e);
@@ -777,7 +784,7 @@ public final class RootInputBridge {
                 try {
                     if (moved) {
                         getMoveRootTaskToDisplayMethod().invoke(
-                                getActivityTaskManagerService(), taskId, sourceDisplay);
+                                getActivityTaskManagerService(), taskId, actualSource);
                     }
                     applyTaskVisibility(taskToken, false, !onTop);
                 } catch (ReflectiveOperationException | RuntimeException e) {
@@ -786,6 +793,7 @@ public final class RootInputBridge {
             }
         }
         Log.i(TAG, "Task transfer: task=" + taskId + ", source=" + sourceDisplay
+                + ", actualSource=" + actualSource
                 + ", target=" + targetDisplay + ", onTop=" + onTop + ", result=" + result);
         return "transferTask " + taskId + " " + targetDisplay + " " + result;
     }

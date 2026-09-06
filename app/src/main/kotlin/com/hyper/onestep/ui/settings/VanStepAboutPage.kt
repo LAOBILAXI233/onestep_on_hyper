@@ -31,6 +31,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.graphics.ImageDecoder
+import android.graphics.drawable.Animatable
 import android.widget.ImageView
 import androidx.compose.ui.viewinterop.AndroidView
 import com.hyper.onestep.BuildConfig
@@ -241,7 +243,14 @@ private fun VanStepAboutContent(
             val iconProgress = aboutFadeProgress(scrollProgress, 0.35f, 0.50f)
             AndroidView(
                 factory = { ctx ->
-                    ImageView(ctx).apply { setImageResource(R.mipmap.ic_launcher) }
+                    ImageView(ctx).apply {
+                        scaleType = ImageView.ScaleType.CENTER_CROP
+                        val drawable = ImageDecoder.decodeDrawable(
+                            ImageDecoder.createSource(ctx.resources, R.drawable.van_step_about),
+                        )
+                        setImageDrawable(drawable)
+                        (drawable as? Animatable)?.start()
+                    }
                 },
                 modifier = Modifier
                     .size(100.dp)
@@ -251,6 +260,9 @@ private fun VanStepAboutContent(
                         scaleX = 1f - iconProgress * 0.05f
                         scaleY = 1f - iconProgress * 0.05f
                     },
+                onRelease = { imageView ->
+                    (imageView.drawable as? Animatable)?.stop()
+                },
             )
             val nameProgress = aboutFadeProgress(scrollProgress, 0.20f, 0.35f)
             Text(

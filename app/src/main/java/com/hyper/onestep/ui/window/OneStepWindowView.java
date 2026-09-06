@@ -10,10 +10,12 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewParent;
+import android.view.SurfaceView;
 import android.view.VelocityTracker;
 import android.view.ViewConfiguration;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
+import android.util.Log;
 
 import com.hyper.onestep.R;
 import com.hyper.onestep.lsp.MultiTaskController;
@@ -23,6 +25,7 @@ import com.hyper.onestep.ui.widget.FixedViewportFrameLayout;
 import com.leaf.hyperdragshare.codex.DragShareSuppression;
 
 public final class OneStepWindowView extends FrameLayout {
+    private static final String SHELF_TRACE = "[SHELFDBG] ";
     public interface Callbacks {
         View createDesktopHome();
 
@@ -344,6 +347,27 @@ public final class OneStepWindowView extends FrameLayout {
         return slot;
     }
 
+    public View getEmbeddedSurfaceView() {
+        return findSurfaceView(embeddedContainer);
+    }
+
+    private View findSurfaceView(View view) {
+        if (view instanceof SurfaceView) {
+            return view;
+        }
+        if (!(view instanceof ViewGroup)) {
+            return null;
+        }
+        ViewGroup group = (ViewGroup) view;
+        for (int index = 0; index < group.getChildCount(); index++) {
+            View found = findSurfaceView(group.getChildAt(index));
+            if (found != null) {
+                return found;
+            }
+        }
+        return null;
+    }
+
     public void setDropHovered(boolean hovered) {
         animate().cancel();
         float targetScale = hovered ? 0.96f : 1f;
@@ -413,10 +437,14 @@ public final class OneStepWindowView extends FrameLayout {
                 recycleSideVelocity();
                 sideVelocity = VelocityTracker.obtain();
                 sideVelocity.addMovement(event);
-                if (callbacks.resumeSideShelve(slot)) {
+                boolean resumedShelf = callbacks.resumeSideShelve(slot);
+                if (resumedShelf) {
                     sideGesture.resumeShelving();
                     sideTouchMoved = true;
                 }
+                Log.i("VanStep", SHELF_TRACE + "touch down slot=" + slot
+                        + " shelf=" + resumedShelf
+                        + " x=" + sideTouchDownX + " y=" + sideTouchDownY);
                 animate().cancel();
                 ViewParent parent = getParent();
                 if (parent != null) {
@@ -464,6 +492,11 @@ public final class OneStepWindowView extends FrameLayout {
         SideSlotGesturePolicy.Direction previous = sideGesture.direction();
         SideSlotGesturePolicy.Direction gestureDirection = sideGesture.move(dx, dy, touchSlop,
                 callbacks.isVerticalWindowLayout(), callbacks.getSideDismissDirection());
+        if (gestureDirection != previous) {
+            Log.i("VanStep", SHELF_TRACE + "direction slot=" + slot
+                    + " from=" + previous + " to=" + gestureDirection
+                    + " dx=" + dx + " dy=" + dy);
+        }
         if (gestureDirection == SideSlotGesturePolicy.Direction.SHELVE) {
             if (previous != gestureDirection && !callbacks.beginSideShelve(slot)) {
                 sideGesture.cancel();
@@ -505,19 +538,31 @@ public final class OneStepWindowView extends FrameLayout {
             }
             boolean commit = SideSlotGesturePolicy.shouldShelve(-dy, -velocityY,
                     callbacks.getSideDismissDistancePx(), dp(850));
+            Log.i("VanStep", SHELF_TRACE + "finish slot=" + slot
+                    + " direction=SHELVE commit=" + commit
+                    + " dx=" + dx + " dy=" + dy
+                    + " vx=" + velocityX + " vy=" + velocityY);
             callbacks.finishSideShelve(slot, commit, velocityX, velocityY);
         } else if (sideGesture.direction() == SideSlotGesturePolicy.Direction.DISMISS
                 && callbacks.canDismissSlot(slot)
                 && callbacks.movedPastSideDismissThreshold(dx, dy)) {
+            Log.i("VanStep", SHELF_TRACE + "finish slot=" + slot
+                    + " direction=DISMISS dx=" + dx + " dy=" + dy);
             callbacks.dismissSideWindow(slot);
         } else if (!sideTouchMoved) {
+            Log.i("VanStep", SHELF_TRACE + "finish slot=" + slot
+                    + " direction=CLICK dx=" + dx + " dy=" + dy);
             performClick();
         } else {
+            Log.i("VanStep", SHELF_TRACE + "finish slot=" + slot
+                    + " direction=BACK dx=" + dx + " dy=" + dy);
             callbacks.settleSideWindowBack(this);
         }
     }
 
     private void cancelSideGesture() {
+        Log.i("VanStep", SHELF_TRACE + "cancel slot=" + slot
+                + " direction=" + sideGesture.direction());
         if (sideGesture.direction() == SideSlotGesturePolicy.Direction.SHELVE) {
             callbacks.finishSideShelve(slot, false, 0f, 0f);
         } else {

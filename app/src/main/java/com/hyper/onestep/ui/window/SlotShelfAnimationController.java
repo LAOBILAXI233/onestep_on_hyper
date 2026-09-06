@@ -13,6 +13,7 @@ import android.graphics.drawable.Drawable;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.Log;
 import android.view.Gravity;
 import android.view.PixelCopy;
 import android.view.SurfaceView;
@@ -32,6 +33,7 @@ import java.util.Map;
 import java.util.function.Consumer;
 
 public final class SlotShelfAnimationController {
+    private static final String SHELF_TRACE = "[SHELFDBG] ";
     public interface Callbacks {
         LauncherApp app(int slot);
         OneStepWindowView window(int slot);
@@ -39,6 +41,7 @@ public final class SlotShelfAnimationController {
         Rect iconBounds(LauncherApp app);
         void setHidden(int slot, boolean hidden);
         void shelve(int slot, LauncherApp app, Consumer<Boolean> completion);
+        void restoreTask(int slot, LauncherApp app, Consumer<Boolean> completion);
         void onIdle();
     }
 
@@ -61,7 +64,8 @@ public final class SlotShelfAnimationController {
     }
 
     public boolean isActive(int slot) {
-        return sessions.containsKey(slot);
+        Session session = sessions.get(slot);
+        return session != null;
     }
 
     public boolean isReturning(int slot) {
@@ -72,11 +76,11 @@ public final class SlotShelfAnimationController {
     public boolean resumeOrPrepare(int slot) {
         Session session = sessions.get(slot);
         if (session != null) {
-            if (session.committing) {
-                session.restore(null);
-            } else {
-                session.grab();
-            }
+            Log.i("VanStep", SHELF_TRACE + "resume slot=" + slot
+                    + " committing=" + session.committing
+                    + " taskShelved=" + session.taskShelved
+                    + " settling=" + session.settling);
+            session.beginTouch();
             return true;
         }
         prepare(slot);
@@ -127,6 +131,11 @@ public final class SlotShelfAnimationController {
             prepare(slot);
             capture = captures.get(slot);
         }
+        if (capture == null) {
+            capture = new Capture(app);
+            capture.ready = true;
+            captures.put(slot, capture);
+        }
         if (capture == null || !ensureOverlay()) {
             return false;
         }
@@ -149,19 +158,26 @@ public final class SlotShelfAnimationController {
 
     public void drag(int slot, float dx, float dy) {
         Session session = sessions.get(slot);
-        if (session != null && !session.committing && !session.settling) {
+        if (session != null && !session.settling) {
             session.drag(dx, dy);
         }
     }
 
     public void finish(int slot, boolean commit, float velocityX, float velocityY) {
         Session session = sessions.get(slot);
-        if (session == null || session.committing) {
+        if (session == null) {
             return;
         }
-        session.returning = !commit;
-        RectF destination = commit ? session.target : bounds(callbacks.window(slot));
-        session.animate(destination, velocityX * 0.4f, velocityY * 0.82f, true);
+        Log.i("VanStep", SHELF_TRACE + "finish slot=" + slot
+                + " commit=" + commit + " committing=" + session.committing
+                + " taskShelved=" + session.taskShelved);
+        session.finish(commit, velocityX, velocityY);
+    }
+
+    public void discardIdleCapture(int slot) {
+        if (!sessions.containsKey(slot)) {
+            discardCapture(slot);
+        }
     }
 
     public boolean restore(LauncherApp app, Runnable afterRestore) {
@@ -230,6 +246,10 @@ public final class SlotShelfAnimationController {
         if (sessions.get(session.slot) != session) {
             return;
         }
+        Log.i("VanStep", SHELF_TRACE + "remove slot=" + session.slot
+                + " committing=" + session.committing
+                + " taskShelved=" + session.taskShelved
+                + " returning=" + session.returning);
         session.settling = false;
         session.stopSprings();
         sessions.remove(session.slot);
@@ -237,7 +257,7 @@ public final class SlotShelfAnimationController {
         discardCapture(session.slot);
         removeOverlayIfIdle();
         if (overlay != null) {
-            overlay.invalidate();
+            overlay.invalidateFrame();
         }
         if (sessions.isEmpty()) {
             callbacks.onIdle();
@@ -283,6 +303,7 @@ public final class SlotShelfAnimationController {
         final RectF source;
         final RectF target;
         final RectF grabbed;
+        final Drawable icon;
         final Axis x;
         final Axis y;
         final Axis width;
@@ -292,7 +313,15 @@ public final class SlotShelfAnimationController {
         boolean settling;
         boolean returning;
         boolean committing;
+        boolean restoreRequested;
+        boolean touchActive;
+        boolean pendingCommit;
+        boolean taskShelved;
+        BackendAction backendAction = BackendAction.NONE;
+        int backendGeneration;
         Runnable afterRestore;
+
+        enum BackendAction { NONE, SHELVING, RESTORING }
 
         Session(int slot, LauncherApp app, Capture capture, RectF source, RectF target) {
             this.slot = slot;
@@ -300,6 +329,10 @@ public final class SlotShelfAnimationController {
             this.capture = capture;
             this.source = source;
             this.target = target;
+            Drawable.ConstantState iconState = app.icon == null
+                    ? null : app.icon.getConstantState();
+            icon = iconState == null ? app.icon
+                    : iconState.newDrawable(activity.getResources()).mutate();
             grabbed = new RectF(source);
             x = new Axis(source.centerX(), 280f);
             y = new Axis(source.centerY(), 360f);
@@ -320,23 +353,35 @@ public final class SlotShelfAnimationController {
                 callbacks.setHidden(slot, true);
             }
             if (overlay != null) {
-                overlay.invalidate();
+                overlay.invalidateFrame();
             }
         }
 
-        RectF frame() {
+        void frame(RectF output) {
             float w = Math.max(1f, width.value.getValue());
             float h = Math.max(1f, height.value.getValue());
-            return new RectF(x.value.getValue() - w / 2f, y.value.getValue() - h / 2f,
+            output.set(x.value.getValue() - w / 2f, y.value.getValue() - h / 2f,
                     x.value.getValue() + w / 2f, y.value.getValue() + h / 2f);
         }
 
-        void grab() {
+        void beginTouch() {
             settling = false;
-            returning = false;
+            touchActive = true;
+            pendingCommit = false;
             afterRestore = null;
             stopSprings();
-            grabbed.set(frame());
+            frame(grabbed);
+            returning = false;
+            restoreRequested = committing || taskShelved;
+        }
+
+        void finish(boolean commit, float velocityX, float velocityY) {
+            touchActive = false;
+            pendingCommit = commit;
+            returning = !commit;
+            restoreRequested = !commit;
+            RectF destination = commit ? target : bounds(callbacks.window(slot));
+            animate(destination, velocityX * 0.4f, velocityY * 0.82f, true);
         }
 
         void drag(float dx, float dy) {
@@ -347,13 +392,18 @@ public final class SlotShelfAnimationController {
             width.value.setValue(grabbed.width() * scale);
             height.value.setValue(grabbed.height() * scale);
             if (overlay != null) {
-                overlay.invalidate();
+                overlay.invalidateFrame();
             }
         }
 
         void restore(Runnable completion) {
+            touchActive = false;
+            pendingCommit = false;
             returning = true;
-            afterRestore = completion;
+            if (completion != null) {
+                afterRestore = completion;
+            }
+            restoreRequested = true;
             animate(bounds(callbacks.window(slot)), 0f, 0f, false);
         }
 
@@ -383,10 +433,20 @@ public final class SlotShelfAnimationController {
                     return;
                 }
             }
+            settling = false;
+            Log.i("VanStep", SHELF_TRACE + "settled slot=" + slot
+                    + " returning=" + returning + " committing=" + committing
+                    + " taskShelved=" + taskShelved
+                    + " restoreRequested=" + restoreRequested
+                    + " touchActive=" + touchActive);
             if (committing) {
                 return;
             }
             if (returning) {
+                if (taskShelved) {
+                    startRestoreTask();
+                    return;
+                }
                 Runnable action = afterRestore;
                 remove(this);
                 if (action != null && !released) {
@@ -394,16 +454,99 @@ public final class SlotShelfAnimationController {
                 }
                 return;
             }
+            if (taskShelved) {
+                remove(this);
+                return;
+            }
+            startShelve();
+        }
+
+        void startShelve() {
+            if (committing || taskShelved || sessions.get(slot) != this) {
+                return;
+            }
             committing = true;
+            backendAction = BackendAction.SHELVING;
+            int generation = ++backendGeneration;
+            Log.i("VanStep", SHELF_TRACE + "shelve start slot=" + slot
+                    + " generation=" + generation);
             callbacks.shelve(slot, app, success -> {
-                committing = false;
-                if (sessions.get(slot) != this) {
+                if (sessions.get(slot) != this
+                        || backendAction != BackendAction.SHELVING
+                        || generation != backendGeneration) {
                     return;
                 }
-                if (success) {
+                committing = false;
+                backendAction = BackendAction.NONE;
+                Log.i("VanStep", SHELF_TRACE + "shelve done slot=" + slot
+                        + " generation=" + generation + " success=" + success
+                        + " touchActive=" + touchActive
+                        + " restoreRequested=" + restoreRequested);
+                if (!success) {
+                    if (touchActive) {
+                        restoreRequested = false;
+                        return;
+                    }
+                    restore(afterRestore);
+                    return;
+                }
+                taskShelved = true;
+                if (touchActive) {
+                    return;
+                }
+                if (restoreRequested) {
+                    startRestoreTask();
+                } else if (!settling) {
                     remove(this);
+                }
+            });
+        }
+
+        void startRestoreTask() {
+            if (committing || !taskShelved || sessions.get(slot) != this) {
+                return;
+            }
+            committing = true;
+            backendAction = BackendAction.RESTORING;
+            int generation = ++backendGeneration;
+            Log.i("VanStep", SHELF_TRACE + "restore start slot=" + slot
+                    + " generation=" + generation);
+            callbacks.restoreTask(slot, app, restored -> {
+                if (sessions.get(slot) != this
+                        || backendAction != BackendAction.RESTORING
+                        || generation != backendGeneration) {
+                    return;
+                }
+                committing = false;
+                backendAction = BackendAction.NONE;
+                Log.i("VanStep", SHELF_TRACE + "restore done slot=" + slot
+                        + " generation=" + generation + " restored=" + restored
+                        + " touchActive=" + touchActive
+                        + " pendingCommit=" + pendingCommit);
+                if (!restored) {
+                    if (touchActive) {
+                        restoreRequested = true;
+                        return;
+                    }
+                    Runnable action = afterRestore;
+                    remove(this);
+                    if (action != null && !released) {
+                        action.run();
+                    }
+                    return;
+                }
+                taskShelved = false;
+                if (touchActive) {
+                    return;
+                }
+                if (pendingCommit) {
+                    pendingCommit = false;
+                    restoreRequested = false;
+                    returning = false;
+                    animate(target, 0f, 0f, false);
                 } else {
                     restore(afterRestore);
+                    settled();
                 }
             });
         }
@@ -422,7 +565,7 @@ public final class SlotShelfAnimationController {
                 spring.addUpdateListener((animation, position, currentVelocity) -> {
                     velocity = currentVelocity;
                     if (overlay != null) {
-                        overlay.invalidate();
+                        overlay.invalidateFrame();
                     }
                 });
                 spring.addEndListener((animation, cancelled, position, finalVelocity) -> {
@@ -445,29 +588,40 @@ public final class SlotShelfAnimationController {
     private final class Overlay extends View {
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
         private final Path clip = new Path();
+        private final RectF frame = new RectF();
         private final RectF imageBounds = new RectF();
         private final Rect iconBounds = new Rect();
+        private final Rect previousIconBounds = new Rect();
         private final int[] origin = new int[2];
+        private boolean frameInvalidated;
 
         Overlay() {
             super(activity);
             setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
         }
 
+        void invalidateFrame() {
+            if (!frameInvalidated) {
+                frameInvalidated = true;
+                invalidate();
+            }
+        }
+
         @Override
         protected void onDraw(Canvas canvas) {
+            frameInvalidated = false;
             getLocationOnScreen(origin);
             canvas.translate(-origin[0], -origin[1]);
             for (Session session : sessions.values()) {
                 if (!session.visible) {
                     continue;
                 }
-                RectF frame = session.frame();
+                session.frame(frame);
                 float progress = Math.max(0f, Math.min(1f,
                         (session.source.height() - frame.height())
                                 / Math.max(1f, session.source.height() - session.target.height())));
                 float radius = Math.min(frame.width(), frame.height()) * (0.02f + progress * 0.22f);
-                clip.reset();
+                clip.rewind();
                 clip.addRoundRect(frame, radius, radius, Path.Direction.CW);
                 int checkpoint = canvas.save();
                 canvas.clipPath(clip);
@@ -477,7 +631,7 @@ public final class SlotShelfAnimationController {
                 paint.setColor(Color.BLACK);
                 paint.setAlpha(Math.round(255f * (1f - iconAlpha)));
                 canvas.drawRect(frame, paint);
-                if (bitmap != null && !bitmap.isRecycled()) {
+                if (bitmap != null && !bitmap.isRecycled() && iconAlpha < 1f) {
                     float scale = Math.max(frame.width() / bitmap.getWidth(),
                             frame.height() / bitmap.getHeight());
                     float w = bitmap.getWidth() * scale;
@@ -487,20 +641,26 @@ public final class SlotShelfAnimationController {
                     paint.setAlpha(Math.round(255f * (1f - iconAlpha)));
                     canvas.drawBitmap(bitmap, null, imageBounds, paint);
                 }
-                Drawable icon = session.app.icon;
+                Drawable icon = session.icon;
                 if (icon != null && iconAlpha > 0f) {
                     float size = Math.min(frame.width(), frame.height());
                     iconBounds.set(Math.round(frame.centerX() - size / 2f),
                             Math.round(frame.centerY() - size / 2f),
                             Math.round(frame.centerX() + size / 2f),
                             Math.round(frame.centerY() + size / 2f));
-                    Rect previous = new Rect(icon.getBounds());
-                    int previousAlpha = icon.getAlpha();
+                    boolean sharedIcon = icon == session.app.icon;
+                    int previousAlpha = 255;
+                    if (sharedIcon) {
+                        icon.copyBounds(previousIconBounds);
+                        previousAlpha = icon.getAlpha();
+                    }
                     icon.setBounds(iconBounds);
                     icon.setAlpha(Math.round(iconAlpha * 255f));
                     icon.draw(canvas);
-                    icon.setBounds(previous);
-                    icon.setAlpha(previousAlpha);
+                    if (sharedIcon) {
+                        icon.setBounds(previousIconBounds);
+                        icon.setAlpha(previousAlpha);
+                    }
                 }
                 canvas.restoreToCount(checkpoint);
             }

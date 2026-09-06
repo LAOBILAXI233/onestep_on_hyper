@@ -125,6 +125,7 @@ import com.hyper.onestep.ui.window.AppLaunchPlacement;
 import com.hyper.onestep.ui.window.EmptySideSlotClickPolicy;
 import com.hyper.onestep.ui.window.MainPaneFullscreenPolicy;
 import com.hyper.onestep.ui.window.OneStepWindowView;
+import com.hyper.onestep.ui.window.SlotShelfAnimationController;
 import com.hyper.onestep.ui.window.SideWindowInputShieldController;
 import com.hyper.onestep.ui.window.WindowAnimationController;
 import com.hyper.onestep.ui.window.WindowLayoutCalculator;
@@ -343,6 +344,8 @@ public class MainActivity extends Activity {
     private final int[] releasedToForegroundTaskIds = new int[MAX_WINDOWS];
     private final List<AppShortcutView> shortcutViews = new ArrayList<>();
     private final Set<String> taskBackedAppInstances = new HashSet<>();
+    private final Map<String, Integer> shelvedTaskIds = new LinkedHashMap<>();
+    private final Map<Integer, LauncherApp> pendingShelvedSlots = new LinkedHashMap<>();
     private final List<Integer> sideSlotOrder = new ArrayList<>();
     private final ArrayDeque<RoutedAppLaunch> pendingCrossAppRoutes = new ArrayDeque<>();
     private final Map<String, Intent> routedLaunchIntents = new HashMap<>();
@@ -547,6 +550,39 @@ public class MainActivity extends Activity {
                 }
 
                 @Override
+                public boolean beginSideShelve(int slot) {
+                    return slot >= 0 && slot < MAX_WINDOWS && !isMainPaneSlot(slot)
+                            && !embeddedSlotClosing[slot] && !isWindowSwitchInputGated()
+                            && embeddedHosts[slot] instanceof RootVirtualDisplayHost
+                            && windowApps[slot] != null && !windowApps[slot].isHomeEntry()
+                            && slotShelfAnimationController != null
+                            && slotShelfAnimationController.begin(slot);
+                }
+
+                @Override
+                public boolean resumeSideShelve(int slot) {
+                    return slot >= 0 && slot < MAX_WINDOWS && !embeddedSlotClosing[slot]
+                            && embeddedHosts[slot] instanceof RootVirtualDisplayHost
+                            && slotShelfAnimationController != null
+                            && slotShelfAnimationController.resumeOrPrepare(slot);
+                }
+
+                @Override
+                public void dragSideShelve(int slot, float dx, float dy) {
+                    if (slotShelfAnimationController != null) {
+                        slotShelfAnimationController.drag(slot, dx, dy);
+                    }
+                }
+
+                @Override
+                public void finishSideShelve(int slot, boolean commit,
+                                              float velocityX, float velocityY) {
+                    if (slotShelfAnimationController != null) {
+                        slotShelfAnimationController.finish(slot, commit, velocityX, velocityY);
+                    }
+                }
+
+                @Override
                 public void onAppDroppedInSlot(int slot, String componentFlat) {
                     handleLegacyAppDrop(slot, componentFlat);
                 }
@@ -555,6 +591,15 @@ public class MainActivity extends Activity {
                     
                     if (imageDragSessionController != null) {
                         imageDragSessionController.onTouch(view.getSlot(), event);
+                    }
+                    if (event.getActionMasked() == MotionEvent.ACTION_UP
+                            || event.getActionMasked() == MotionEvent.ACTION_CANCEL) {
+                        int slot = view.getSlot();
+                        mainHandler.post(() -> {
+                            if (slotShelfAnimationController != null) {
+                                slotShelfAnimationController.discardIdleCapture(slot);
+                            }
+                        });
                     }
                 }
                 @Override public boolean onNativeContentDragInWindow(OneStepWindowView view,
@@ -569,6 +614,19 @@ public class MainActivity extends Activity {
                 @Override public LauncherApp[] windowApps() { return windowApps; }
                 @Override public OneStepWindowView[] windowViews() { return windowViews; }
                 @Override public boolean[] embeddedSlotClosing() { return embeddedSlotClosing; }
+                @Override public int shelvedTaskId(LauncherApp app) {
+                    if (app == null) {
+                        return -1;
+                    }
+                    Integer taskId = shelvedTaskIds.get(app.instanceKey());
+                    return taskId == null ? -1 : taskId;
+                }
+                @Override public void onShelvedTaskConsumed(LauncherApp app, int taskId) {
+                    if (app != null) {
+                        shelvedTaskIds.remove(app.instanceKey());
+                    }
+                    requestRunningTaskStatusRefresh();
+                }
                 @Override public Handler mainHandler() { return mainHandler; }
                 @Override public ExecutorService displayImePolicyExecutor() {
                     return displayImePolicyExecutor;
@@ -782,6 +840,7 @@ public class MainActivity extends Activity {
     private LauncherApp directBootPrewarmDesktopApp;
     private boolean embeddedResourcesReleased;
     private WindowAnimationController windowAnimationController;
+    private SlotShelfAnimationController slotShelfAnimationController;
     private boolean windowSwitchAnimationCritical;
     private int deferredWindowSwitchUiWork;
     private boolean staleSensorUidOverridesRecoveryAttempted;
@@ -944,6 +1003,7 @@ public class MainActivity extends Activity {
         loadBuiltInDesktopAppsForStartup();
         reconcileDirectBootPrewarmDesktop();
         setContentView(createDesktop());
+        slotShelfAnimationController = createSlotShelfAnimationController();
         directBootRootContainer = null;
         finishFullHomeInitialization();
     }
@@ -1622,6 +1682,24 @@ public class MainActivity extends Activity {
         }
     }
 
+    private boolean isTaskBeingShelved(int taskId) {
+        if (taskId <= 0) {
+            return false;
+        }
+        for (Integer shelvedTaskId : shelvedTaskIds.values()) {
+            if (shelvedTaskId != null && shelvedTaskId == taskId) {
+                return true;
+            }
+        }
+        for (EmbeddedAppHost host : embeddedHosts) {
+            if (host instanceof RootVirtualDisplayHost
+                    && ((RootVirtualDisplayHost) host).isShelvingTask(taskId)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private void onSystemTaskEvent(
             int event, int displayId, int taskId, String packageName, String componentName) {
         if (Looper.myLooper() == Looper.getMainLooper()) {
@@ -1697,6 +1775,11 @@ public class MainActivity extends Activity {
                 && displayId == Display.DEFAULT_DISPLAY
                 && !TextUtils.equals(packageName, getPackageName());
         if (embeddedAppOpenedToDefaultDisplay) {
+            if (isTaskBeingShelved(taskId)) {
+                Log.i(TAG, "[SHELFDBG] ignore default-display task event while shelving: task="
+                        + taskId + ", package=" + packageName);
+                return;
+            }
             int hostedSlot = findSlotHostingPackage(packageName);
             if (hostedSlot >= 0) {
                 handleEmbeddedAppReleasedToForeground(
@@ -1781,6 +1864,21 @@ public class MainActivity extends Activity {
             return;
         }
         LauncherApp currentApp = currentMainApp;
+        if (event == RootVirtualDisplayBridge.TASK_EVENT_MOVED_TO_FRONT
+                && eventHost != null
+                && eventSlot == eventHost.getSlot()
+                && displayId == eventHost.getDisplayId()
+                && currentApp != null
+                && currentApp.isHomeEntry()
+                && taskId > 0
+                && !TextUtils.isEmpty(packageName)
+                && !TextUtils.equals(packageName, getPackageName())
+                && !isBuiltInDesktopHomeTask(packageName, componentName)) {
+            if (adoptHostedAppFromTaskEvent(
+                    eventSlot, eventHost, taskId, packageName, componentName)) {
+                return;
+            }
+        }
         if (currentApp == null || currentApp.isHomeEntry()) {
             return;
         }
@@ -1830,6 +1928,36 @@ public class MainActivity extends Activity {
         if (displayId <= Display.DEFAULT_DISPLAY) {
             rootHost.checkHostedTaskAfterSystemTaskChange();
         }
+    }
+
+    private boolean adoptHostedAppFromTaskEvent(
+            int slot, RootVirtualDisplayHost host, int taskId,
+            String packageName, String componentName) {
+        if (slot < 0 || slot >= MAX_WINDOWS || host == null
+                || !isMainPaneSlot(slot) || windowApps[slot] == null
+                || !windowApps[slot].isHomeEntry()
+                || TextUtils.equals(packageName, getPackageName())) {
+            return false;
+        }
+        LauncherApp app = findLauncherAppByFlatComponent(componentName);
+        if (app == null || !TextUtils.equals(app.packageName, packageName)) {
+            app = createLauncherAppForPackage(packageName);
+        }
+        if (app == null || app.isHomeEntry() || isBuiltInDesktopPackage(app.packageName)
+                || !host.adoptHostedTask(app, taskId)) {
+            return false;
+        }
+        embeddedSyncGenerations[slot]++;
+        windowApps[slot] = app;
+        windowViews[slot].hideDesktopHome();
+        setHostedSurfaceAlpha(slot, 1f);
+        windowViews[slot].setLiveAppVisible(true);
+        renderWindows();
+        Log.i(TAG, "Adopt foreground hosted task: slot=" + slot
+                + ", display=" + host.getDisplayId()
+                + ", task=" + taskId + ", app=" + packageName
+                + ", component=" + componentName);
+        return true;
     }
 
     private void clearInactiveMainAfterTaskRemoval(int slot, LauncherApp removedApp) {
@@ -2058,6 +2186,10 @@ public class MainActivity extends Activity {
         if (imageDragSessionController != null) {
             imageDragSessionController.cancel();
             imageDragSessionController = null;
+        }
+        if (slotShelfAnimationController != null) {
+            slotShelfAnimationController.release();
+            slotShelfAnimationController = null;
         }
         ImageDragBridgeRegistry.unregister(imageDragBridgeListener);
         removeMainPaneSwapWindow(true);
@@ -3670,6 +3802,7 @@ public class MainActivity extends Activity {
                 visibleKeys.add(app.instanceKey());
             }
         }
+        visibleKeys.addAll(shelvedTaskIds.keySet());
         return visibleKeys;
     }
 
@@ -3726,12 +3859,24 @@ public class MainActivity extends Activity {
         int preservedScrollX = scrollView == null ? 0 : scrollView.getScrollX();
         int preservedScrollY = scrollView == null ? 0 : scrollView.getScrollY();
         boolean animate = row.isLaidOut() && row.getWidth() > 0 && row.isShown();
-        row.removeAllViews();
-        for (String key : desiredOrder) {
-            View child = viewsByKey.get(key);
-            if (child != null) {
-                row.addView(child);
+        row.suppressLayout(true);
+        try {
+            int targetIndex = 0;
+            for (String key : desiredOrder) {
+                View child = viewsByKey.get(key);
+                if (child != null) {
+                    if (row.getChildAt(targetIndex) != child) {
+                        row.removeView(child);
+                        row.addView(child, targetIndex);
+                    }
+                    targetIndex++;
+                }
             }
+            while (row.getChildCount() > targetIndex) {
+                row.removeViewAt(row.getChildCount() - 1);
+            }
+        } finally {
+            row.suppressLayout(false);
         }
         int animationGeneration = ++topAppStripOrderAnimationGeneration;
         if (!animate) {
@@ -7926,6 +8071,95 @@ public class MainActivity extends Activity {
         }
     }
 
+    private SlotShelfAnimationController createSlotShelfAnimationController() {
+        return new SlotShelfAnimationController(this,
+                new SlotShelfAnimationController.Callbacks() {
+                    @Override public LauncherApp app(int slot) {
+                        return slot >= 0 && slot < MAX_WINDOWS ? windowApps[slot] : null;
+                    }
+
+                    @Override public OneStepWindowView window(int slot) {
+                        return slot >= 0 && slot < MAX_WINDOWS ? windowViews[slot] : null;
+                    }
+
+                    @Override public View surface(int slot) {
+                        OneStepWindowView window = window(slot);
+                        return window == null ? null : window.getEmbeddedSurfaceView();
+                    }
+
+                    @Override public Rect iconBounds(LauncherApp app) {
+                        if (app == null) {
+                            return null;
+                        }
+                        for (AppShortcutView shortcut : shortcutViews) {
+                            if (app.instanceKey().equals(shortcut.getInstanceKeyValue())) {
+                                Rect bounds = new Rect();
+                                shortcut.getGlobalVisibleRect(bounds);
+                                return bounds;
+                            }
+                        }
+                        return null;
+                    }
+
+                    @Override public void setHidden(int slot, boolean hidden) {
+                        if (slot < 0 || slot >= MAX_WINDOWS) {
+                            return;
+                        }
+                        if (!hidden) {
+                            LauncherApp app = pendingShelvedSlots.remove(slot);
+                            if (app != null) {
+                                finishShelvedSlot(slot, app);
+                            }
+                        }
+                        windowViews[slot].setShelfAnimationActive(hidden);
+                        EmbeddedAppHost host = embeddedHosts[slot];
+                        if (host instanceof RootVirtualDisplayHost) {
+                            ((RootVirtualDisplayHost) host).setShelfAnimationHidden(hidden);
+                        }
+                    }
+
+                    @Override public void shelve(int slot, LauncherApp app,
+                                                 java.util.function.Consumer<Boolean> completion) {
+                        EmbeddedAppHost host = slot >= 0 && slot < MAX_WINDOWS
+                                ? embeddedHosts[slot] : null;
+                        if (!(host instanceof RootVirtualDisplayHost)) {
+                            completion.accept(false);
+                            return;
+                        }
+                        ((RootVirtualDisplayHost) host).shelveApp(app, taskId -> {
+                            if (taskId > 0) {
+                                shelvedTaskIds.put(app.instanceKey(), taskId);
+                                pendingShelvedSlots.put(slot, app);
+                            }
+                            completion.accept(taskId > 0);
+                        });
+                    }
+
+                    @Override public void restoreTask(int slot, LauncherApp app,
+                                                       java.util.function.Consumer<Boolean> completion) {
+                        pendingShelvedSlots.remove(slot);
+                        Integer taskId = app == null ? null : shelvedTaskIds.get(app.instanceKey());
+                        EmbeddedAppHost host = slot >= 0 && slot < MAX_WINDOWS
+                                ? embeddedHosts[slot] : null;
+                        if (taskId == null || !(host instanceof RootVirtualDisplayHost)) {
+                            completion.accept(false);
+                            return;
+                        }
+                        ((RootVirtualDisplayHost) host).restoreShelvedTask(app, taskId,
+                                completion);
+                    }
+
+                    @Override public void onIdle() {
+                        for (Map.Entry<Integer, LauncherApp> entry
+                                : new ArrayList<>(pendingShelvedSlots.entrySet())) {
+                            finishShelvedSlot(entry.getKey(), entry.getValue());
+                        }
+                        pendingShelvedSlots.clear();
+                        updateShortcutAppStatuses();
+                    }
+                });
+    }
+
     private ImageDragSessionController createImageDragSessionController() {
         return new ImageDragSessionController(
                 new ImageDragSessionController.Callbacks() {
@@ -8953,6 +9187,10 @@ public class MainActivity extends Activity {
         if (app == null) {
             return;
         }
+        if (slotShelfAnimationController != null
+                && slotShelfAnimationController.restore(app, () -> addOrFocusApp(app))) {
+            return;
+        }
         Log.i(TAG, "addOrFocusApp: app=" + app.componentKey()
                 + ", homeEntry=" + app.isHomeEntry()
                 + ", activeMain=" + activeMainSlot
@@ -9107,6 +9345,20 @@ public class MainActivity extends Activity {
             }
         }
         return false;
+    }
+
+    private void finishShelvedSlot(int slot, LauncherApp app) {
+        if (slot < 0 || slot >= MAX_WINDOWS || app == null
+                || windowApps[slot] == null || !app.isSameInstance(windowApps[slot])) {
+            return;
+        }
+        embeddedSyncGenerations[slot]++;
+        windowApps[slot] = null;
+        clearHostedAppRevealState(slot);
+        clearPendingMainPromotionContent(slot);
+        windowViews[slot].setLiveAppVisible(false);
+        renderWindows();
+        applyWindowLayout(false);
     }
 
     private int getPreferredNewAppMainSlot() {
@@ -10155,6 +10407,8 @@ public class MainActivity extends Activity {
         embeddedSlotClosing[slot] = true;
         embeddedSyncGenerations[slot]++;
         LauncherApp dismissedApp = windowApps[slot];
+        shelvedTaskIds.remove(dismissedApp.instanceKey());
+        pendingShelvedSlots.remove(slot);
         EmbeddedAppHost dismissedHost = embeddedHosts[slot];
         long dismissStartedUptime = SystemClock.uptimeMillis();
         OneStepWindowView windowView = windowViews[slot];
@@ -10286,6 +10540,8 @@ public class MainActivity extends Activity {
                 return;
             }
             windowApps[slot] = null;
+            shelvedTaskIds.remove(dismissedApp.instanceKey());
+            pendingShelvedSlots.remove(slot);
             clearHostedAppRevealState(slot);
             
             clearPendingMainPromotionContent(slot);
@@ -11275,7 +11531,8 @@ public class MainActivity extends Activity {
         for (AppShortcutView shortcutView : shortcutViews) {
             String instanceKey = shortcutView.getInstanceKeyValue();
             boolean taskPresent = taskBackedAppInstances.contains(instanceKey);
-            boolean foreground = findSlot(instanceKey) >= 0;
+            boolean foreground = findSlot(instanceKey) >= 0
+                    || shelvedTaskIds.containsKey(instanceKey);
             shortcutView.setActive(foreground);
             shortcutView.setPinned(topAppPinnedInstanceKeys.contains(instanceKey));
             shortcutView.setAppStatus(foreground

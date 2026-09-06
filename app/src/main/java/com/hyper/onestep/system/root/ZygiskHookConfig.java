@@ -81,6 +81,14 @@ public final class ZygiskHookConfig {
                 + readCommand();
     }
 
+    public static String writeCommand(boolean secureWindowEnabled,
+                                      boolean statusBarOverlayEnabled,
+                                      boolean primaryHomeEnhancementEnabled,
+                                      boolean imageDragSharingEnabled) {
+        return writeCommand(secureWindowEnabled, statusBarOverlayEnabled,
+                primaryHomeEnhancementEnabled, true, imageDragSharingEnabled);
+    }
+
     public static State parse(String output) {
         Map<String, String> values = new HashMap<>();
         if (output != null) {
@@ -92,23 +100,24 @@ public final class ZygiskHookConfig {
                 }
             }
         }
+        String imeGuard = values.get("ime_guard");
         if (!isBinary(values.get("secure"))
                 || !isBinary(values.get("statusbar"))
                 || !isBinary(values.get("primaryhome_enhancement"))
-                || !isBinary(values.get("ime_guard"))
                 || !isBinary(values.get("image_drag"))
                 || !isBinary(values.get("module"))
                 || !isBinary(values.get("zygisk"))
                 || !isBinary(values.get("lsposed"))
                 || !isBinary(values.get("lsposed_backend"))
-                || !isBinary(values.get("standalone_backend"))) {
+                || !isBinary(values.get("standalone_backend"))
+                || (imeGuard != null && !isBinary(imeGuard))) {
             return null;
         }
         return new State(
                 "1".equals(values.get("secure")),
                 "1".equals(values.get("statusbar")),
                 "1".equals(values.get("primaryhome_enhancement")),
-                "1".equals(values.get("ime_guard")),
+                imeGuard == null || "1".equals(imeGuard),
                 "1".equals(values.get("image_drag")),
                 "1".equals(values.get("module")),
                 "1".equals(values.get("zygisk")),

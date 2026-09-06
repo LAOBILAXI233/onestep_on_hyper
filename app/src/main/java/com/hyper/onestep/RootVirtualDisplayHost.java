@@ -218,6 +218,11 @@ public final class RootVirtualDisplayHost implements EmbeddedAppHost,
         boolean onImageDragTouch(int sourceSlot, MotionEvent event);
         void onHostedAppExitedAfterBack(
                 int slot, LauncherApp app, Runnable afterDesktopTakeover);
+        default int shelvedTaskId(LauncherApp app) {
+            return -1;
+        }
+        default void onShelvedTaskConsumed(LauncherApp app, int taskId) {
+        }
     }
 
     private static final String TAG = "VanStep";
@@ -307,6 +312,15 @@ public final class RootVirtualDisplayHost implements EmbeddedAppHost,
     private SurfaceControl windowAnimationLeash;
     private SurfaceControl windowAnimationSurface;
     private float hostedSurfaceAlpha = 1f;
+    private volatile boolean shelfAnimationHidden;
+    private volatile int shelfOperationGeneration;
+    private volatile boolean shelveInFlight;
+    private volatile int shelveInFlightTaskId = -1;
+    private volatile int shelveInFlightOperation;
+    private boolean shelvedRestoreInFlight;
+    private int shelvedRestoreTaskId = -1;
+    private String shelvedRestoreInstanceKey;
+    private List<java.util.function.Consumer<Integer>> shelvedRestoreCallbacks;
     private final ExecutorService rootExecutor = Executors.newSingleThreadExecutor();
     private final ExecutorService inputDispatchExecutor =
             Executors.newSingleThreadExecutor();
@@ -549,7 +563,7 @@ public final class RootVirtualDisplayHost implements EmbeddedAppHost,
                     .setAlpha(surfaceControl, 1f)
                     .setLayer(surfaceControl, 0)
                     .setLayer(leash, WINDOW_SURFACE_RESTING_LAYER_BASE - slot)
-                    .setAlpha(leash, hostedSurfaceAlpha)
+                    .setAlpha(leash, getEffectiveHostedSurfaceAlpha())
                     .setVisibility(leash, true)
                     .apply();
             transaction.close();
@@ -570,7 +584,7 @@ public final class RootVirtualDisplayHost implements EmbeddedAppHost,
     public void prepareWindowSurfaceAnimation(SurfaceControl.Transaction transaction, int layer) {
         transaction.setPosition(windowAnimationLeash, 0f, 0f)
                 .setScale(windowAnimationLeash, 1f, 1f)
-                .setAlpha(windowAnimationLeash, hostedSurfaceAlpha)
+                .setAlpha(windowAnimationLeash, getEffectiveHostedSurfaceAlpha())
                 .setLayer(windowAnimationLeash, layer)
                 .setLayer(windowAnimationSurface, 0)
                 .setVisibility(windowAnimationLeash, true);
@@ -591,7 +605,7 @@ public final class RootVirtualDisplayHost implements EmbeddedAppHost,
         }
         transaction.setPosition(windowAnimationLeash, 0f, 0f)
                 .setScale(windowAnimationLeash, 1f, 1f)
-                .setAlpha(windowAnimationLeash, hostedSurfaceAlpha)
+                .setAlpha(windowAnimationLeash, getEffectiveHostedSurfaceAlpha())
                 .setLayer(windowAnimationLeash, WINDOW_SURFACE_RESTING_LAYER_BASE - slot);
     }
 
@@ -612,12 +626,25 @@ public final class RootVirtualDisplayHost implements EmbeddedAppHost,
                 transaction.setPosition(windowAnimationLeash, 0f, 0f)
                         .setScale(windowAnimationLeash, 1f, 1f);
             }
-            transaction.setAlpha(windowAnimationLeash, hostedSurfaceAlpha);
+            transaction.setAlpha(windowAnimationLeash, getEffectiveHostedSurfaceAlpha());
             transaction.apply();
             transaction.close();
             return;
         }
-        surfaceView.setAlpha(hostedSurfaceAlpha);
+        surfaceView.setAlpha(getEffectiveHostedSurfaceAlpha());
+    }
+
+    private float getEffectiveHostedSurfaceAlpha() {
+        return shelfAnimationHidden ? 0f : hostedSurfaceAlpha;
+    }
+
+    public void setShelfAnimationHidden(boolean hidden) {
+        shelfAnimationHidden = hidden;
+        applyHostedSurfaceAlpha(hostedSurfaceAlpha, false);
+    }
+
+    boolean isShelvingTask(int taskId) {
+        return taskId > 0 && shelveInFlight && taskId == shelveInFlightTaskId;
     }
 
     private void releaseStaleWindowAnimationLeash() {
@@ -637,7 +664,7 @@ public final class RootVirtualDisplayHost implements EmbeddedAppHost,
                     && surfaceControl.isValid() && rootSurfaceControl != null
                     ? rootSurfaceControl.buildReparentTransaction(surfaceControl) : null;
             if (transaction != null) {
-                transaction.setAlpha(surfaceControl, hostedSurfaceAlpha)
+                transaction.setAlpha(surfaceControl, getEffectiveHostedSurfaceAlpha())
                         .setLayer(surfaceControl,
                                 WINDOW_SURFACE_RESTING_LAYER_BASE - slot)
                         .reparent(leash, null)
@@ -779,6 +806,9 @@ public final class RootVirtualDisplayHost implements EmbeddedAppHost,
         if (embeddedSlotClosing[slot]) {
             return false;
         }
+        if (shelfAnimationHidden) {
+            return false;
+        }
         final int startEpoch = callbacks.embeddedStartEpoch();
         if (!shouldRunEmbeddedStart(startEpoch)) {
             unavailableReason = "启动已取消";
@@ -802,6 +832,29 @@ public final class RootVirtualDisplayHost implements EmbeddedAppHost,
                 surfaceView.setVisibility(View.VISIBLE);
                 return true;
             }
+        }
+
+        int shelvedTaskId = forceLaunch ? -1 : callbacks.shelvedTaskId(app);
+        if (shelvedTaskId > 0) {
+            if (shelvedRestoreInFlight && app.instanceKey().equals(shelvedRestoreInstanceKey)
+                    && shelvedTaskId == shelvedRestoreTaskId) {
+                return true;
+            }
+            restoreShelvedTaskInternal(app, shelvedTaskId, result -> {
+                if (result != -1) {
+                    return;
+                }
+                callbacks.onShelvedTaskConsumed(app, shelvedTaskId);
+                LauncherApp currentApp = slot >= 0 && slot < MAX_WINDOWS
+                        ? windowApps[slot] : null;
+                if (currentApp == null || !app.isSameInstance(currentApp)
+                        || embeddedSlotClosing[slot] || shelfAnimationHidden
+                        || callbacks.isActivityDestroyed()) {
+                    return;
+                }
+                start(app, true);
+            });
+            return true;
         }
 
         if ("com.smartisanos.home".equals(app.packageName)) {
@@ -1767,6 +1820,29 @@ public final class RootVirtualDisplayHost implements EmbeddedAppHost,
         return true;
     }
 
+    boolean adoptHostedTask(LauncherApp app, int taskId) {
+        if (app == null || taskId <= 0 || displayId <= DEFAULT_DISPLAY_ID
+                || slot < 0 || slot >= MAX_WINDOWS || embeddedSlotClosing[slot]) {
+            return false;
+        }
+        taskResolutionToken++;
+        taskResolutionInFlight = false;
+        hostedTaskValidationGeneration++;
+        hostedTaskValidationInFlight = false;
+        backExitCheckGeneration++;
+        systemResumeExitCheckGeneration++;
+        routedLaunchGeneration++;
+        imageShareValidationGuardUntilUptimeMs = 0L;
+        pendingApp = null;
+        cancelHostedSurfaceReveal();
+        hostedTaskId = taskId;
+        launchRequestedPackage = app.packageName;
+        launchRequestedUserId = app.userId();
+        launchRequestedDisplayId = displayId;
+        launchRequestedAtUptimeMs = SystemClock.uptimeMillis();
+        return true;
+    }
+
     @Override
     public void sendHome() {
         if (displayId <= DEFAULT_DISPLAY_ID) {
@@ -2668,6 +2744,241 @@ public final class RootVirtualDisplayHost implements EmbeddedAppHost,
         }
     }
 
+    public void shelveApp(LauncherApp app, java.util.function.Consumer<Integer> callback) {
+        if (app == null || callback == null) {
+            if (callback != null) {
+                mainHandler.post(() -> callback.accept(0));
+            }
+            return;
+        }
+        final int operation = ++shelfOperationGeneration;
+        final String instanceKey = app.instanceKey();
+        final int sourceDisplayId = displayId;
+        final int requestedTaskId = hostedTaskId;
+        Log.i(TAG, "[SHELFDBG] shelve request slot=" + slot + ", display="
+                + sourceDisplayId + ", task=" + requestedTaskId
+                + ", operation=" + operation + ", app=" + instanceKey);
+        if (sourceDisplayId <= DEFAULT_DISPLAY_ID || embeddedSlotClosing[slot]
+                || callbacks.isActivityDestroyed()) {
+            mainHandler.post(() -> callback.accept(0));
+            return;
+        }
+        if (!isRegisteredVirtualDisplay(sourceDisplayId)) {
+            invalidateLostVirtualDisplay(sourceDisplayId, "shelve request display missing");
+            mainHandler.post(() -> callback.accept(0));
+            return;
+        }
+        shelveInFlight = true;
+        shelveInFlightTaskId = requestedTaskId;
+        shelveInFlightOperation = operation;
+        try {
+            rootExecutor.execute(() -> {
+                int taskId = requestedTaskId;
+                if (taskId <= 0) {
+                    ShellCommandResult stackList = runPrivilegedCommand(
+                            TASK_STACK_LIST_COMMAND, "resolve task before shelving", false);
+                    if (stackList.exitCode == 0 && !TextUtils.isEmpty(stackList.output)) {
+                        taskId = findHostedTaskId(stackList.output, sourceDisplayId, app);
+                    }
+                }
+                shelveInFlightTaskId = taskId;
+                int result = 0;
+                if (taskId > 0 && startRootInputBridgeIfNeeded(false)) {
+                    result = transferTask(taskId, sourceDisplayId, DEFAULT_DISPLAY_ID,
+                            app, false, true);
+                }
+                final int transferredTaskId = taskId;
+                final int transferResult = result;
+                mainHandler.post(() -> {
+                    Log.i(TAG, "[SHELFDBG] shelve result slot=" + slot
+                            + ", display=" + sourceDisplayId + ", task="
+                            + transferredTaskId + ", operation=" + operation
+                            + ", currentOperation=" + shelfOperationGeneration
+                            + ", transferResult=" + transferResult);
+                    LauncherApp currentApp = slot >= 0 && slot < MAX_WINDOWS
+                            ? windowApps[slot] : null;
+                    boolean operationCurrent = operation == shelfOperationGeneration;
+                    boolean displayCurrent = sourceDisplayId == displayId
+                            && isRegisteredVirtualDisplay(sourceDisplayId);
+                    boolean appCurrent = currentApp != null && app.isSameInstance(currentApp);
+                    boolean slotOpen = !embeddedSlotClosing[slot];
+                    boolean activityCurrent = !callbacks.isActivityDestroyed();
+                    if (shelveInFlightOperation == operation) {
+                        shelveInFlight = false;
+                        shelveInFlightTaskId = -1;
+                        shelveInFlightOperation = 0;
+                    }
+                    if (!operationCurrent || !displayCurrent || !appCurrent
+                            || !slotOpen || !activityCurrent) {
+                        if (!displayCurrent) {
+                            invalidateLostVirtualDisplay(sourceDisplayId,
+                                    "shelve result display missing");
+                        }
+                        Log.i(TAG, "[SHELFDBG] shelve rejected slot=" + slot
+                                + ", task=" + transferredTaskId
+                                + ", operationCurrent=" + operationCurrent
+                                + ", displayCurrent=" + displayCurrent
+                                + ", appCurrent=" + appCurrent
+                                + ", slotOpen=" + slotOpen
+                                + ", activityCurrent=" + activityCurrent);
+                        callback.accept(0);
+                        return;
+                    }
+                    if (transferResult == 1) {
+                        invalidateTaskResolution();
+                        pendingApp = null;
+                        launchRequestedPackage = "";
+                        launchRequestedUserId = -1;
+                        launchRequestedDisplayId = -1;
+                        launchRequestedAtUptimeMs = -1L;
+                        cancelHostedSurfaceReveal();
+                        callback.accept(transferredTaskId);
+                    } else if (transferResult < 0) {
+                        callback.accept(0);
+                    } else {
+                        callback.accept(0);
+                    }
+                });
+            });
+        } catch (RuntimeException e) {
+            if (shelveInFlightOperation == operation) {
+                shelveInFlight = false;
+                shelveInFlightTaskId = -1;
+                shelveInFlightOperation = 0;
+            }
+            mainHandler.post(() -> callback.accept(0));
+        }
+    }
+
+    public void restoreShelvedTask(LauncherApp app, int taskId,
+                                   java.util.function.Consumer<Boolean> callback) {
+        if (callback == null) {
+            return;
+        }
+        restoreShelvedTaskInternal(app, taskId, result -> {
+            if (result == 1 || result == -1) {
+                if (result == 1 || result == -1) {
+                    callbacks.onShelvedTaskConsumed(app, taskId);
+                }
+                callback.accept(result == 1);
+            } else {
+                callback.accept(false);
+            }
+        });
+    }
+
+    private void restoreShelvedTaskInternal(LauncherApp app, int taskId,
+                                            java.util.function.Consumer<Integer> callback) {
+        if (app == null || taskId <= 0 || callback == null) {
+            if (callback != null) {
+                mainHandler.post(() -> callback.accept(-1));
+            }
+            return;
+        }
+        final int operation = ++shelfOperationGeneration;
+        final int targetDisplayId = displayId;
+        final String instanceKey = app.instanceKey();
+        Log.i(TAG, "[SHELFDBG] restore request slot=" + slot + ", display="
+                + targetDisplayId + ", task=" + taskId
+                + ", operation=" + operation + ", app=" + instanceKey);
+        if (targetDisplayId <= DEFAULT_DISPLAY_ID || embeddedSlotClosing[slot]
+                || callbacks.isActivityDestroyed()) {
+            mainHandler.post(() -> callback.accept(0));
+            return;
+        }
+        if (!isRegisteredVirtualDisplay(targetDisplayId)) {
+            invalidateLostVirtualDisplay(targetDisplayId, "restore request display missing");
+            mainHandler.post(() -> callback.accept(0));
+            return;
+        }
+        if (shelvedRestoreInFlight && instanceKey.equals(shelvedRestoreInstanceKey)
+                && taskId == shelvedRestoreTaskId) {
+            return;
+        }
+        shelvedRestoreInFlight = true;
+        shelvedRestoreTaskId = taskId;
+        shelvedRestoreInstanceKey = instanceKey;
+        beginHostedSurfaceReveal(app);
+        try {
+            rootExecutor.execute(() -> {
+                int result = 0;
+                if (startRootInputBridgeIfNeeded(false)) {
+                    result = transferTask(taskId, DEFAULT_DISPLAY_ID, targetDisplayId,
+                            app, true);
+                }
+                final int transferResult = result;
+                mainHandler.post(() -> {
+                    Log.i(TAG, "[SHELFDBG] restore result slot=" + slot
+                            + ", display=" + targetDisplayId + ", task=" + taskId
+                            + ", operation=" + operation
+                            + ", currentOperation=" + shelfOperationGeneration
+                            + ", transferResult=" + transferResult);
+                    boolean displayCurrent = targetDisplayId == displayId
+                            && isRegisteredVirtualDisplay(targetDisplayId);
+                    boolean current = operation == shelfOperationGeneration
+                            && displayCurrent
+                            && app.instanceKey().equals(instanceKey)
+                            && windowApps[slot] != null
+                            && app.isSameInstance(windowApps[slot])
+                            && !embeddedSlotClosing[slot]
+                            && !callbacks.isActivityDestroyed();
+                    if (operation == shelfOperationGeneration) {
+                        shelvedRestoreInFlight = false;
+                        shelvedRestoreTaskId = -1;
+                        shelvedRestoreInstanceKey = null;
+                    }
+                    if (!displayCurrent) {
+                        invalidateLostVirtualDisplay(targetDisplayId,
+                                "restore result display missing");
+                    }
+                    if (!current) {
+                        callback.accept(0);
+                        return;
+                    }
+                    if (transferResult == 1) {
+                        hostedTaskId = taskId;
+                        launchRequestedPackage = app.packageName;
+                        launchRequestedUserId = app.userId();
+                        launchRequestedDisplayId = targetDisplayId;
+                        launchRequestedAtUptimeMs = SystemClock.uptimeMillis();
+                        scheduleHostedSurfaceReveal(app, targetDisplayId);
+                        callback.accept(1);
+                    } else if (transferResult == -1) {
+                        hostedTaskId = -1;
+                        cancelHostedSurfaceReveal();
+                        callback.accept(-1);
+                    } else {
+                        callback.accept(0);
+                    }
+                });
+            });
+        } catch (RuntimeException e) {
+            shelvedRestoreInFlight = false;
+            shelvedRestoreTaskId = -1;
+            shelvedRestoreInstanceKey = null;
+            mainHandler.post(() -> callback.accept(0));
+        }
+    }
+
+    private int transferTask(int taskId, int sourceDisplayId, int targetDisplayId,
+                             LauncherApp app, boolean onTop) {
+        return transferTask(taskId, sourceDisplayId, targetDisplayId, app, onTop, false);
+    }
+
+    private int transferTask(int taskId, int sourceDisplayId, int targetDisplayId,
+                             LauncherApp app, boolean onTop, boolean leaveHidden) {
+        if (app == null || taskId <= 0) {
+            return 0;
+        }
+        if (!startRootInputBridgeIfNeeded(false)
+                && !startRootInputBridgeIfNeeded(true)) {
+            return 0;
+        }
+        return rootInputBridgeClient.transferTask(
+                getRootInputBridgeToken(), taskId, sourceDisplayId, targetDisplayId,
+                app.userId(), app.componentName, onTop, leaveHidden);
+    }
+
     boolean moveSystemTaskToHostedDisplay(int taskId, String componentName) {
         ComponentName component = ComponentName.unflattenFromString(componentName);
         return taskId > 0 && displayId > DEFAULT_DISPLAY_ID && component != null
@@ -2916,6 +3227,60 @@ public final class RootVirtualDisplayHost implements EmbeddedAppHost,
                     + e.getClass().getSimpleName());
             return false;
         }
+    }
+
+    private boolean isRegisteredVirtualDisplay(int expectedDisplayId) {
+        if (expectedDisplayId <= DEFAULT_DISPLAY_ID || expectedDisplayId != displayId
+                || (!rootManagedVirtualDisplay && virtualDisplay == null)
+                || displayManager == null) {
+            return false;
+        }
+        try {
+            return displayManager.getDisplay(expectedDisplayId) != null;
+        } catch (RuntimeException e) {
+            Log.w(TAG, "Check requested virtual display failed for slot " + slot + ": "
+                    + e.getClass().getSimpleName());
+            return false;
+        }
+    }
+
+    private void invalidateLostVirtualDisplay(int expectedDisplayId, String reason) {
+        if (expectedDisplayId <= DEFAULT_DISPLAY_ID || expectedDisplayId != displayId) {
+            return;
+        }
+        Log.w(TAG, "Invalidate lost virtual display: slot=" + slot
+                + ", display=" + expectedDisplayId + ", reason=" + reason);
+        displayReleaseGeneration++;
+        shelfOperationGeneration++;
+        shelveInFlight = false;
+        shelveInFlightTaskId = -1;
+        shelveInFlightOperation = 0;
+        shelvedRestoreInFlight = false;
+        shelvedRestoreTaskId = -1;
+        shelvedRestoreInstanceKey = null;
+        invalidateTaskResolution();
+        invalidateDisplayImePolicySetup();
+        focusRequestGeneration++;
+        cancelHostedSurfaceReveal();
+        rootManagedVirtualDisplay = false;
+        virtualDisplay = null;
+        rootInputBridgeClient.close();
+        rootVirtualDisplayBridgeClient.close();
+        resetReleasedDisplayState(expectedDisplayId);
+        if (!surfaceView.isAttachedToWindow()) {
+            return;
+        }
+        Surface surface = surfaceView.getHolder().getSurface();
+        if (surface == null || !surface.isValid()) {
+            return;
+        }
+        surfaceView.post(() -> {
+            if (displayId <= DEFAULT_DISPLAY_ID && !embeddedSlotClosing[slot]
+                    && !callbacks.isActivityDestroyed()) {
+                surfaceChanged(surfaceView.getHolder(), 0,
+                        surfaceView.getWidth(), surfaceView.getHeight());
+            }
+        });
     }
 
     private Display getHostedDisplay() {
