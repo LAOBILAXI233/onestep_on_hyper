@@ -32,6 +32,11 @@ public interface EmbeddedAppHost {
         }
     }
 
+    default boolean isRenderingEnabled() {
+        View view = getView();
+        return view != null && view.getVisibility() == View.VISIBLE;
+    }
+
     void sendBack();
 
     void sendHome();

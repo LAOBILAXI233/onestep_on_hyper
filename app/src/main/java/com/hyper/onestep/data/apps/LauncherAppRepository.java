@@ -178,6 +178,9 @@ public final class LauncherAppRepository {
             if (useCachedResult && cachedLauncherApps != null) {
                 return new ArrayList<>(cachedLauncherApps);
             }
+            if (!useCachedResult) {
+                LauncherIconCache.get(context).invalidate();
+            }
             long startedAt = SystemClock.elapsedRealtime();
             List<LauncherActivityEntry> entries = queryLauncherActivities(null);
             entries.sort(Comparator
@@ -204,7 +207,7 @@ public final class LauncherAppRepository {
             long finishedAt = SystemClock.elapsedRealtime();
             Log.i(TAG, "Loaded launcher apps: count=" + apps.size()
                     + ", queryMs=" + (queryFinishedAt - startedAt)
-                    + ", iconMs=" + (finishedAt - queryFinishedAt)
+                    + ", metadataMs=" + (finishedAt - queryFinishedAt)
                     + ", themeCacheInvalidated=" + invalidateThemeCaches);
             return apps;
         }
@@ -294,7 +297,9 @@ public final class LauncherAppRepository {
         return new LauncherApp(
                 entry.label(),
                 entry.componentName(),
-                entry.loadIcon(themedIconLoader, context),
+                LauncherIconCache.get(context).create(
+                        entry.componentName().flattenToString() + "@" + entry.userHandle.hashCode(),
+                        () -> entry.loadIcon(themedIconLoader, context)),
                 entry.userHandle);
     }
 
@@ -302,7 +307,9 @@ public final class LauncherAppRepository {
         return LauncherApp.createHomeEntry(
                 String.valueOf(resolveInfo.loadLabel(packageManager)),
                 componentNameOf(resolveInfo),
-                themedIconLoader.loadIcon(resolveInfo), isSystemHome(resolveInfo));
+                LauncherIconCache.get(context).create(
+                        componentNameOf(resolveInfo).flattenToString() + "@" + Process.myUserHandle().hashCode(),
+                        () -> themedIconLoader.loadIcon(resolveInfo)), isSystemHome(resolveInfo));
     }
 
     private boolean isSystemHome(ResolveInfo resolveInfo) {

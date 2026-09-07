@@ -445,6 +445,8 @@ public final class RootVirtualDisplayHost implements EmbeddedAppHost,
     private int systemResumeExitCheckGeneration;
     private boolean surfaceDetached;
     private volatile boolean renderingEnabled = true;
+    private int renderingGeneration;
+    private boolean imeGestureShieldPolling;
     private int displayReleaseGeneration;
     private boolean virtualDisplayCreationInProgress;
     private int virtualDisplayCreateGeneration;
@@ -498,6 +500,9 @@ public final class RootVirtualDisplayHost implements EmbeddedAppHost,
         hostView = new FrameLayout(context);
         hostView.setClipChildren(true);
         surfaceView = new SurfaceView(context);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            surfaceView.setSurfaceLifecycle(SurfaceView.SURFACE_LIFECYCLE_FOLLOWS_ATTACHMENT);
+        }
         
         
         surfaceView.setFocusable(false);
@@ -710,6 +715,11 @@ public final class RootVirtualDisplayHost implements EmbeddedAppHost,
     }
 
     @Override
+    public boolean isRenderingEnabled() {
+        return renderingEnabled;
+    }
+
+    @Override
     public void setRenderingEnabled(boolean enabled) {
         if (renderingEnabled == enabled) {
             if (!enabled) {
@@ -720,6 +730,7 @@ public final class RootVirtualDisplayHost implements EmbeddedAppHost,
             return;
         }
         renderingEnabled = enabled;
+        int generation = ++renderingGeneration;
         Log.i(TAG, "Slot rendering changed: slot=" + slot + ", display=" + displayId
                 + ", enabled=" + enabled);
         if (!enabled) {
@@ -729,7 +740,7 @@ public final class RootVirtualDisplayHost implements EmbeddedAppHost,
             return;
         }
         surfaceView.post(() -> {
-            if (!renderingEnabled || embeddedSlotClosing[slot]
+            if (generation != renderingGeneration || !renderingEnabled || embeddedSlotClosing[slot]
                     || callbacks.isActivityDestroyed() || !surfaceView.isAttachedToWindow()) {
                 return;
             }
@@ -4273,13 +4284,21 @@ public final class RootVirtualDisplayHost implements EmbeddedAppHost,
 
     private void startImeGestureShieldPolling() {
         if (!renderingEnabled || displayId < 0 || !callbacks.isMainPaneSlot(slot)) {
+            if (imeGestureShieldPolling) {
+                stopImeGestureShield();
+            }
             return;
         }
+        if (imeGestureShieldPolling) {
+            return;
+        }
+        imeGestureShieldPolling = true;
         mainHandler.removeCallbacks(imeGestureShieldPoller);
         mainHandler.postDelayed(imeGestureShieldPoller, IME_GESTURE_SHIELD_POLL_MS);
     }
 
     private void stopImeGestureShield() {
+        imeGestureShieldPolling = false;
         mainHandler.removeCallbacks(imeGestureShieldPoller);
         imeGestureShieldStreak = 0;
         imeGestureShieldActive = false;

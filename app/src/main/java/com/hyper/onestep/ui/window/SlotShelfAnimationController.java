@@ -252,6 +252,9 @@ public final class SlotShelfAnimationController {
                 + " returning=" + session.returning);
         session.settling = false;
         session.stopSprings();
+        if (session.icon != null) {
+            session.icon.setCallback(null);
+        }
         sessions.remove(session.slot);
         callbacks.setHidden(session.slot, false);
         discardCapture(session.slot);
@@ -333,6 +336,26 @@ public final class SlotShelfAnimationController {
                     ? null : app.icon.getConstantState();
             icon = iconState == null ? app.icon
                     : iconState.newDrawable(activity.getResources()).mutate();
+            if (icon != null && icon != app.icon) {
+                icon.setCallback(new Drawable.Callback() {
+                    @Override
+                    public void invalidateDrawable(Drawable drawable) {
+                        if (overlay != null) {
+                            overlay.invalidateFrame();
+                        }
+                    }
+
+                    @Override
+                    public void scheduleDrawable(Drawable drawable, Runnable action, long when) {
+                        handler.postAtTime(action, when);
+                    }
+
+                    @Override
+                    public void unscheduleDrawable(Drawable drawable, Runnable action) {
+                        handler.removeCallbacks(action);
+                    }
+                });
+            }
             grabbed = new RectF(source);
             x = new Axis(source.centerX(), 280f);
             y = new Axis(source.centerY(), 360f);

@@ -40,6 +40,7 @@ public final class AppShortcutView extends LinearLayout {
     private AppStatus appStatus = AppStatus.NONE;
     private boolean active;
     private boolean pinned;
+    private Runnable interactionCleanup;
 
     public AppShortcutView(Context context, boolean showLabel, int iconSizeDp, float textSizeDp) {
         super(context);
@@ -104,6 +105,39 @@ public final class AppShortcutView extends LinearLayout {
         Drawable.ConstantState state = drawable == null ? null : drawable.getConstantState();
         icon.setImageDrawable(state == null ? drawable
                 : state.newDrawable(getResources()).mutate());
+    }
+
+    public void setInteractionCleanup(Runnable cleanup) {
+        if (interactionCleanup != null) {
+            interactionCleanup.run();
+        }
+        interactionCleanup = cleanup;
+    }
+
+    public void recycle() {
+        setInteractionCleanup(null);
+        animate().cancel();
+        setScaleX(1f);
+        setScaleY(1f);
+        setTranslationX(0f);
+        setTranslationY(0f);
+        setAlpha(1f);
+        setPressed(false);
+        setTag(null);
+        setOnClickListener(null);
+        setOnTouchListener(null);
+        bindIcon(null, "");
+        setActive(false);
+        setPinned(false);
+        setAppStatus(AppStatus.NONE);
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        if (interactionCleanup != null) {
+            interactionCleanup.run();
+        }
+        super.onDetachedFromWindow();
     }
 
     public String getInstanceKeyValue() {

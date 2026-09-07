@@ -1197,11 +1197,13 @@ private fun PercentSlider(
 
 @Composable
 private fun AppIconView(icon: Drawable?) {
+    val drawable = remember(icon) { icon?.constantState?.newDrawable()?.mutate() ?: icon }
     AndroidView(
         factory = { context ->
-            ImageView(context).apply { setImageDrawable(icon) }
+            ImageView(context)
         },
-        update = { view -> view.setImageDrawable(icon) },
+        update = { view -> view.setImageDrawable(drawable) },
+        onRelease = { view -> view.setImageDrawable(null) },
         modifier = Modifier.size(38.dp),
     )
 }

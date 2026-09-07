@@ -78,6 +78,9 @@ import android.widget.Toast;
 
 import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
+import androidx.recyclerview.widget.DefaultItemAnimator;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 
 import com.hyper.onestep.data.settings.OneStepSettings;
 import com.hyper.onestep.data.settings.OneStepSettingsStore;
@@ -119,6 +122,7 @@ import com.hyper.onestep.lsp.MultiTaskController;
 import com.hyper.onestep.util.MimeUtils;
 import com.hyper.onestep.view.ContentView;
 import com.hyper.onestep.ui.widget.AppShortcutView;
+import com.hyper.onestep.ui.widget.TopAppStripAdapter;
 import com.hyper.onestep.ui.widget.FixedViewportFrameLayout;
 import com.hyper.onestep.ui.widget.PagingHorizontalScrollView;
 import com.hyper.onestep.ui.window.AppLaunchPlacement;
@@ -126,6 +130,7 @@ import com.hyper.onestep.ui.window.EmptySideSlotClickPolicy;
 import com.hyper.onestep.ui.window.MainPaneFullscreenPolicy;
 import com.hyper.onestep.ui.window.OneStepWindowView;
 import com.hyper.onestep.ui.window.SlotShelfAnimationController;
+import com.hyper.onestep.ui.window.StagedSlotResumeController;
 import com.hyper.onestep.ui.window.SideWindowInputShieldController;
 import com.hyper.onestep.ui.window.WindowAnimationController;
 import com.hyper.onestep.ui.window.WindowLayoutCalculator;
@@ -782,9 +787,44 @@ public class MainActivity extends Activity {
     private WindowManager.LayoutParams mainPaneSwapWindowLayoutParams;
     private boolean mainPaneSwapWindowAttached;
     private BlurredBackgroundView oneStepBackgroundView;
-    private HorizontalScrollView topAppStripScrollView;
-    private LinearLayout topAppStripRow;
-    private int topAppStripOrderAnimationGeneration;
+    private RecyclerView topAppStripScrollView;
+    private TopAppStripAdapter topAppStripAdapter;
+    private final StagedSlotResumeController sideSlotResumeController =
+            new StagedSlotResumeController(new StagedSlotResumeController.Scheduler() {
+                @Override
+                public void post(Runnable action) {
+                    if (workspace != null) {
+                        workspace.postOnAnimationDelayed(action, 32L);
+                    }
+                }
+
+                @Override
+                public void remove(Runnable action) {
+                    if (workspace != null) {
+                        workspace.removeCallbacks(action);
+                    }
+                }
+            }, new StagedSlotResumeController.Callbacks() {
+                @Override
+                public boolean canResume() {
+                    return !activityDestroyed && activityResumed && multiWindowMode
+                            && !exitOneStepPending && !isWindowAnimationRunning();
+                }
+
+                @Override
+                public boolean shouldResume(int slot) {
+                    return shouldShowWindowSlot(slot) && !isMainPaneSlot(slot);
+                }
+
+                @Override
+                public void resumeSlot(int slot) {
+                    EmbeddedAppHost host = embeddedHosts[slot];
+                    if (host != null) {
+                        host.setRenderingEnabled(true);
+                        Log.i(TAG, "Staged slot resume: slot=" + slot);
+                    }
+                }
+            });
     private HorizontalScrollView imageDragShareTargetScrollView;
     private LinearLayout imageDragShareTargetRow;
     private View[] imageDragShareTargetViews = new View[0];
@@ -1195,6 +1235,7 @@ public class MainActivity extends Activity {
     private void resumeFullHome() {
         boolean returningToForeground = !activityResumed;
         activityResumed = true;
+        sideSlotResumeController.resume();
         startRunningTaskMonitoring();
         suppressEmbeddedStarts = false;
 
@@ -1521,6 +1562,7 @@ public class MainActivity extends Activity {
         }
         cancelScheduledHostedDisplayFocus();
         activityResumed = false;
+        sideSlotResumeController.pause();
         stopRunningTaskMonitoring();
         pauseMediaMonitoring();
         super.onPause();
@@ -2176,6 +2218,10 @@ public class MainActivity extends Activity {
     @Override
     protected void onDestroy() {
         activityDestroyed = true;
+        sideSlotResumeController.cancel();
+        if (topAppStripScrollView != null) {
+            topAppStripScrollView.setAdapter(null);
+        }
         if (directBootHome) {
             unregisterDirectBootUnlockReceiver();
             releaseDirectBootResources();
@@ -2706,25 +2752,27 @@ public class MainActivity extends Activity {
             // the animation finished, which read as a flash. The next
             // non-animated layout pass parks unused slots INVISIBLE so they
             // never intercept touches.
-            boolean visible = shouldRenderWindowSlot(slot);
+            boolean requestedVisible = shouldShowWindowSlot(slot);
+            boolean visible = requestedVisible;
             if (!visible && animate && hasLaidOutWindowFrames()) {
                 visible = windowViews[slot].getVisibility() == View.VISIBLE;
             }
             windowViews[slot].setVisibility(visible ? View.VISIBLE : View.INVISIBLE);
             EmbeddedAppHost host = embeddedHosts[slot];
             if (host != null) {
-                host.setRenderingEnabled(visible);
+                host.setRenderingEnabled(requestedVisible
+                        ? shouldRenderWindowSlot(slot) : visible && host.isRenderingEnabled());
             }
             windowViews[slot].setMainWindowMode(isMainPaneSlot(slot));
         }
 
         Runnable layoutFinished = () -> {
             for (int slot = 0; slot < MAX_WINDOWS; slot++) {
-                boolean visible = shouldRenderWindowSlot(slot);
+                boolean visible = shouldShowWindowSlot(slot);
                 windowViews[slot].setVisibility(visible ? View.VISIBLE : View.INVISIBLE);
                 EmbeddedAppHost host = embeddedHosts[slot];
                 if (host != null) {
-                    host.setRenderingEnabled(visible);
+                    host.setRenderingEnabled(shouldRenderWindowSlot(slot));
                 }
             }
             restoreWindowInputRoutingAfterLayout();
@@ -2736,6 +2784,7 @@ public class MainActivity extends Activity {
                 refreshAllEmbeddedSlotLayouts();
             }
             scheduleEmbeddedSlotRefresh();
+            sideSlotResumeController.resume();
         };
 
         if (!animate || !hasLaidOutWindowFrames()) {
@@ -2753,6 +2802,11 @@ public class MainActivity extends Activity {
     }
 
     private boolean shouldRenderWindowSlot(int slot) {
+        return shouldShowWindowSlot(slot)
+                && (isMainPaneSlot(slot) || !sideSlotResumeController.isPending(slot));
+    }
+
+    private boolean shouldShowWindowSlot(int slot) {
         return isWindowSlotEnabled(slot) && !embeddedSlotClosing[slot]
                 && (multiWindowMode || slot == activeMainSlot);
     }
@@ -3224,6 +3278,9 @@ public class MainActivity extends Activity {
         if (topChromeContainer == null || topChromeContent == null) {
             return;
         }
+        if (topAppStripScrollView != null) {
+            topAppStripScrollView.setAdapter(null);
+        }
         shortcutViews.clear();
         topChromeContent.removeAllViews();
         topChromeContent.setPadding(0, getStatusBarSpacingHeight(), 0, 0);
@@ -3375,12 +3432,20 @@ public class MainActivity extends Activity {
     }
 
     private void enterOneStepMode(boolean sideFromLeft) {
+        sideSlotResumeController.cancel();
         suppressEmbeddedStarts = false;
         mainOnLeft = !sideFromLeft;
         updateTopNavigationControls();
         multiWindowMode = false;
         applyWindowLayout(false);
         multiWindowMode = true;
+        List<Integer> pendingSlots = new ArrayList<>();
+        for (int slot : sideSlotOrder) {
+            if (isWindowSlotEnabled(slot) && !isMainPaneSlot(slot)) {
+                pendingSlots.add(slot);
+            }
+        }
+        sideSlotResumeController.begin(pendingSlots);
         boolean refreshMainSizeForOneStep = needsMainSizeRefreshForCurrentLayout(
                 "OneStep mode");
         applyStatusBarForCurrentMode();
@@ -3394,6 +3459,7 @@ public class MainActivity extends Activity {
             return;
         }
         exitOneStepPending = true;
+        sideSlotResumeController.pause();
         requestPipUndock();
         applyStatusBarForCurrentMode();
         suspendEmbeddedStartsForFullscreen();
@@ -3413,6 +3479,7 @@ public class MainActivity extends Activity {
                 workspace == null ? 0 : workspace.getHeight(),
                 "fullscreen");
         multiWindowMode = false;
+        sideSlotResumeController.cancel();
         applyStatusBarForCurrentMode();
         setTopChromeVisible(false, true);
         updateCornerTriggers();
@@ -3686,16 +3753,11 @@ public class MainActivity extends Activity {
     }
 
     private void scrollTopAppStripPage(int visualDirection) {
-        HorizontalScrollView scrollView = topAppStripScrollView;
-        if (scrollView == null || scrollView.getChildCount() == 0 || scrollView.getWidth() <= 0) {
+        RecyclerView scrollView = topAppStripScrollView;
+        if (scrollView == null || scrollView.getWidth() <= 0) {
             return;
         }
-        int pageWidth = Math.max(1, scrollView.getWidth());
-        int childWidth = scrollView.getChildAt(0).getWidth();
-        int maxScrollX = Math.max(0, childWidth - scrollView.getWidth());
-        int targetScrollX = scrollView.getScrollX() + visualDirection * pageWidth;
-        targetScrollX = Math.max(0, Math.min(maxScrollX, targetScrollX));
-        scrollView.smoothScrollTo(targetScrollX, 0);
+        scrollView.smoothScrollBy(visualDirection * scrollView.getWidth(), 0);
     }
 
     private void initMediaMonitoring() {
@@ -3748,36 +3810,50 @@ public class MainActivity extends Activity {
         stripRoot.setClipChildren(true);
         stripRoot.setClipToPadding(true);
 
-        HorizontalScrollView scrollView = new HorizontalScrollView(this);
+        RecyclerView scrollView = new RecyclerView(this);
         topAppStripScrollView = scrollView;
         scrollView.setHorizontalScrollBarEnabled(false);
         scrollView.setOverScrollMode(View.OVER_SCROLL_NEVER);
+        scrollView.setLayoutManager(new LinearLayoutManager(this, RecyclerView.HORIZONTAL, false));
+        scrollView.setHasFixedSize(true);
+        scrollView.setItemViewCacheSize(2);
+        scrollView.setPadding(dp(getTopAppStripSidePaddingDp()), dp(getTopAppStripVerticalPaddingDp()),
+                dp(getTopAppStripSidePaddingDp()), dp(getTopAppStripVerticalPaddingDp()));
+        DefaultItemAnimator itemAnimator = new DefaultItemAnimator();
+        itemAnimator.setSupportsChangeAnimations(false);
+        itemAnimator.setMoveDuration(TOP_APP_REORDER_ANIMATION_MS);
+        scrollView.setItemAnimator(itemAnimator);
         stripRoot.addView(scrollView, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, getTopAppStripHeight(), Gravity.TOP));
 
-        LinearLayout row = new LinearLayout(this);
-        topAppStripRow = row;
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(dp(getTopAppStripSidePaddingDp()), dp(getTopAppStripVerticalPaddingDp()),
-                dp(getTopAppStripSidePaddingDp()), dp(getTopAppStripVerticalPaddingDp()));
-        scrollView.addView(row, new HorizontalScrollView.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        int iconSizeDp = getTopAppIconSizeDp();
+        topAppStripAdapter = new TopAppStripAdapter(iconSizeDp,
+                dp(getTopAppStripCellWidthDp(iconSizeDp)), new TopAppStripAdapter.Callbacks() {
+                    @Override
+                    public void bind(AppShortcutView shortcut, LauncherApp app) {
+                        shortcut.setOnClickListener(v -> addOrFocusApp(app));
+                        installPressDragGesture(shortcut, app);
+                        updateShortcutAppStatus(shortcut);
+                    }
 
-        for (LauncherApp app : getPrioritizedTopAppStripApps()) {
-            int iconSizeDp = getTopAppIconSizeDp();
-            AppShortcutView shortcut = new AppShortcutView(this, false, iconSizeDp, 0);
-            shortcut.setStatusIndicatorEnabled(true);
-            shortcut.bind(app);
-            shortcut.setTag(app);
-            shortcut.setOnClickListener(v -> addOrFocusApp(app));
-            installPressDragGesture(shortcut, app);
-            int cellWidthDp = getTopAppStripCellWidthDp(iconSizeDp);
-            LinearLayout.LayoutParams shortcutLp = new LinearLayout.LayoutParams(dp(cellWidthDp),
-                    ViewGroup.LayoutParams.MATCH_PARENT);
-            row.addView(shortcut, shortcutLp);
-            shortcutViews.add(shortcut);
-        }
+                    @Override
+                    public void attached(AppShortcutView shortcut) {
+                        if (!shortcutViews.contains(shortcut)) {
+                            shortcutViews.add(shortcut);
+                        }
+                        updateShortcutAppStatus(shortcut);
+                    }
+
+                    @Override
+                    public void detached(AppShortcutView shortcut) {
+                        shortcutViews.remove(shortcut);
+                        if (hoveredContentDropIcon == shortcut) {
+                            setContentDropHoverIcon(null);
+                        }
+                    }
+                });
+        scrollView.setAdapter(topAppStripAdapter);
+        topAppStripAdapter.submitApps(getPrioritizedTopAppStripApps());
 
         imageDragShareTargetScrollView = createImageDragShareTargetStrip();
         imageDragShareTargetScrollView.setVisibility(View.INVISIBLE);
@@ -3829,8 +3905,7 @@ public class MainActivity extends Activity {
     }
 
     private void updateTopAppStripOrder() {
-        LinearLayout row = topAppStripRow;
-        if (row == null) {
+        if (topAppStripAdapter == null) {
             return;
         }
         Set<String> visibleKeys = getVisibleWindowAppInstanceKeys();
@@ -3855,100 +3930,18 @@ public class MainActivity extends Activity {
         List<String> desiredOrder = new ArrayList<>(visibleOrder);
         desiredOrder.addAll(pinnedOrder);
         desiredOrder.addAll(restOrder);
-        Map<String, View> viewsByKey = new HashMap<>();
-        List<String> currentOrder = new ArrayList<>(row.getChildCount());
-        for (int index = 0; index < row.getChildCount(); index++) {
-            View child = row.getChildAt(index);
-            if (!(child instanceof AppShortcutView)) {
-                continue;
-            }
-            String key = ((AppShortcutView) child).getInstanceKeyValue();
-            currentOrder.add(key);
-            viewsByKey.put(key, child);
+        Map<String, LauncherApp> appsByKey = new HashMap<>();
+        for (LauncherApp app : topAppStripApps) {
+            appsByKey.put(app.instanceKey(), app);
         }
-        if (currentOrder.equals(desiredOrder)) {
-            return;
-        }
-
-        Map<String, Float> visualLeftByKey = new HashMap<>();
-        for (Map.Entry<String, View> entry : viewsByKey.entrySet()) {
-            View child = entry.getValue();
-            child.animate().cancel();
-            visualLeftByKey.put(entry.getKey(), child.getLeft() + child.getTranslationX());
-            child.setTranslationX(0f);
-        }
-        HorizontalScrollView scrollView = topAppStripScrollView;
-        int preservedScrollX = scrollView == null ? 0 : scrollView.getScrollX();
-        int preservedScrollY = scrollView == null ? 0 : scrollView.getScrollY();
-        boolean animate = row.isLaidOut() && row.getWidth() > 0 && row.isShown();
-        row.suppressLayout(true);
-        try {
-            int targetIndex = 0;
-            for (String key : desiredOrder) {
-                View child = viewsByKey.get(key);
-                if (child != null) {
-                    if (row.getChildAt(targetIndex) != child) {
-                        row.removeView(child);
-                        row.addView(child, targetIndex);
-                    }
-                    targetIndex++;
-                }
+        List<LauncherApp> orderedApps = new ArrayList<>(desiredOrder.size());
+        for (String key : desiredOrder) {
+            LauncherApp app = appsByKey.get(key);
+            if (app != null) {
+                orderedApps.add(app);
             }
-            while (row.getChildCount() > targetIndex) {
-                row.removeViewAt(row.getChildCount() - 1);
-            }
-        } finally {
-            row.suppressLayout(false);
         }
-        int animationGeneration = ++topAppStripOrderAnimationGeneration;
-        if (!animate) {
-            if (scrollView != null) {
-                scrollView.scrollTo(preservedScrollX, preservedScrollY);
-            }
-            return;
-        }
-
-        ViewTreeObserver.OnPreDrawListener listener = new ViewTreeObserver.OnPreDrawListener() {
-            @Override
-            public boolean onPreDraw() {
-                ViewTreeObserver observer = row.getViewTreeObserver();
-                if (observer.isAlive()) {
-                    observer.removeOnPreDrawListener(this);
-                }
-                if (animationGeneration != topAppStripOrderAnimationGeneration
-                        || row != topAppStripRow) {
-                    return true;
-                }
-                if (scrollView != null) {
-                    scrollView.scrollTo(preservedScrollX, preservedScrollY);
-                }
-                for (int index = 0; index < row.getChildCount(); index++) {
-                    View child = row.getChildAt(index);
-                    if (!(child instanceof AppShortcutView)) {
-                        continue;
-                    }
-                    String key = ((AppShortcutView) child).getInstanceKeyValue();
-                    Float previousVisualLeft = visualLeftByKey.get(key);
-                    if (previousVisualLeft == null) {
-                        continue;
-                    }
-                    float startTranslation = previousVisualLeft - child.getLeft();
-                    if (Math.abs(startTranslation) < 0.5f) {
-                        child.setTranslationX(0f);
-                        continue;
-                    }
-                    child.setTranslationX(startTranslation);
-                    child.animate()
-                            .translationX(0f)
-                            .setDuration(TOP_APP_REORDER_ANIMATION_MS)
-                            .setInterpolator(new AccelerateDecelerateInterpolator())
-                            .start();
-                }
-                return true;
-            }
-        };
-        row.getViewTreeObserver().addOnPreDrawListener(listener);
-        row.requestLayout();
+        topAppStripAdapter.submitApps(orderedApps);
     }
 
     private HorizontalScrollView createImageDragShareTargetStrip() {
@@ -5246,6 +5239,12 @@ public class MainActivity extends Activity {
             public boolean onTouch(View v, MotionEvent event) {
                 switch (event.getActionMasked()) {
                     case MotionEvent.ACTION_DOWN:
+                        if (v instanceof AppShortcutView) {
+                            ((AppShortcutView) v).setInteractionCleanup(() -> {
+                                decided = true;
+                                v.removeCallbacks(pressDrag);
+                            });
+                        }
                         downX = event.getRawX();
                         downY = event.getRawY();
                         downAt = event.getEventTime();
@@ -11569,18 +11568,22 @@ public class MainActivity extends Activity {
     private void updateShortcutAppStatuses() {
         updateTopAppStripOrder();
         for (AppShortcutView shortcutView : shortcutViews) {
-            String instanceKey = shortcutView.getInstanceKeyValue();
-            boolean taskPresent = taskBackedAppInstances.contains(instanceKey);
-            boolean foreground = findSlot(instanceKey) >= 0
-                    || settingsStore.shelvedTaskId(instanceKey) > 0;
-            shortcutView.setActive(foreground);
-            shortcutView.setPinned(topAppPinnedInstanceKeys.contains(instanceKey));
-            shortcutView.setAppStatus(foreground
-                    ? AppShortcutView.AppStatus.FOREGROUND
-                    : taskPresent
-                    ? AppShortcutView.AppStatus.BACKGROUND
-                    : AppShortcutView.AppStatus.NONE);
+            updateShortcutAppStatus(shortcutView);
         }
+    }
+
+    private void updateShortcutAppStatus(AppShortcutView shortcutView) {
+        String instanceKey = shortcutView.getInstanceKeyValue();
+        boolean taskPresent = taskBackedAppInstances.contains(instanceKey);
+        boolean foreground = findSlot(instanceKey) >= 0
+                || settingsStore.shelvedTaskId(instanceKey) > 0;
+        shortcutView.setActive(foreground);
+        shortcutView.setPinned(topAppPinnedInstanceKeys.contains(instanceKey));
+        shortcutView.setAppStatus(foreground
+                ? AppShortcutView.AppStatus.FOREGROUND
+                : taskPresent
+                ? AppShortcutView.AppStatus.BACKGROUND
+                : AppShortcutView.AppStatus.NONE);
     }
 
     private boolean shouldShieldSideInput(int slot) {
