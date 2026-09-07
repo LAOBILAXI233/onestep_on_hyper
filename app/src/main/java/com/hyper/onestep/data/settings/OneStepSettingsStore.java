@@ -4,6 +4,7 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.net.Uri;
+import android.provider.Settings;
 import android.text.TextUtils;
 
 import org.json.JSONArray;
@@ -38,6 +39,8 @@ public final class OneStepSettingsStore {
     private static final String PREF_SHARE_TARGET_PINNED = "share_target_pinned";
     private static final String PREF_APP_LAUNCH_COUNTS = "app_launch_counts";
     private static final String PREF_TOP_COMPONENTS_VISIBLE = "top_components_visible";
+    private static final String PREF_TOP_COMPONENT_SCALE = "top_component_height_scale";
+    private static final String PREF_TOP_COMPONENT_SCALE_LEGACY = "top_component_scale";
     private static final String PREF_STATUS_BAR_SPACING_ENABLED =
             "status_bar_spacing_enabled";
     private static final String PREF_MEDIA_PLAYER_VISIBLE_LEGACY = "media_player_visible";
@@ -62,11 +65,53 @@ public final class OneStepSettingsStore {
 
     private final SharedPreferences preferences;
     private final SharedPreferences directBootPreferences;
+    private final SharedPreferences shelvedTaskPreferences;
 
     public OneStepSettingsStore(Context context) {
         preferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         directBootPreferences = context.createDeviceProtectedStorageContext()
                 .getSharedPreferences(DIRECT_BOOT_PREFS_NAME, Context.MODE_PRIVATE);
+        shelvedTaskPreferences = context.getSharedPreferences(
+                "onestep_shelved_tasks", Context.MODE_PRIVATE);
+        int bootCount = Settings.Global.getInt(
+                context.getContentResolver(), Settings.Global.BOOT_COUNT, -1);
+        synchronized (shelvedTaskPreferences) {
+            if (shelvedTaskPreferences.getInt("boot_count", -2) != bootCount) {
+                shelvedTaskPreferences.edit().clear().putInt("boot_count", bootCount).apply();
+            }
+        }
+    }
+
+    public Map<String, Integer> loadShelvedTasks() {
+        Map<String, Integer> tasks = new LinkedHashMap<>();
+        for (Map.Entry<String, ?> entry : shelvedTaskPreferences.getAll().entrySet()) {
+            if (!"boot_count".equals(entry.getKey()) && entry.getValue() instanceof Integer
+                    && (Integer) entry.getValue() > 0) {
+                tasks.put(entry.getKey(), (Integer) entry.getValue());
+            }
+        }
+        return tasks;
+    }
+
+    public int shelvedTaskId(String instanceKey) {
+        return shelvedTaskPreferences.getInt(instanceKey, -1);
+    }
+
+    public boolean saveShelvedTask(String instanceKey, int taskId) {
+        if (taskId <= 0) {
+            return false;
+        }
+        synchronized (shelvedTaskPreferences) {
+            return shelvedTaskPreferences.edit().putInt(instanceKey, taskId).commit();
+        }
+    }
+
+    public void removeShelvedTask(String instanceKey, int taskId) {
+        synchronized (shelvedTaskPreferences) {
+            if (shelvedTaskPreferences.getInt(instanceKey, -1) == taskId) {
+                shelvedTaskPreferences.edit().remove(instanceKey).apply();
+            }
+        }
     }
 
     public OneStepSettings load() {
@@ -94,6 +139,7 @@ public final class OneStepSettingsStore {
                         PREF_TOP_APP_STRIP_VERTICAL_PADDING_SCALE,
                         OneStepSettings.TOP_APP_STRIP_VERTICAL_PADDING_SCALE_DEFAULT)),
                 topComponentsVisible,
+                loadTopComponentScale(),
                 preferences.getBoolean(PREF_STATUS_BAR_SPACING_ENABLED, false),
                 verticalWindowLayout,
                 OneStepSettings.sanitizeAllowedSideWindowCount(preferences.getInt(
@@ -147,6 +193,13 @@ public final class OneStepSettingsStore {
 
     public void saveTopAppStripVerticalPaddingScale(int scalePct) {
         preferences.edit().putInt(PREF_TOP_APP_STRIP_VERTICAL_PADDING_SCALE, scalePct).apply();
+    }
+
+    public void saveTopComponentScale(int scalePct) {
+        preferences.edit().putInt(PREF_TOP_COMPONENT_SCALE,
+                OneStepSettings.sanitizeTopComponentScale(scalePct))
+                .remove(PREF_TOP_COMPONENT_SCALE_LEGACY)
+                .apply();
     }
 
     public TopAppListConfig loadTopAppListConfig() {
@@ -427,6 +480,21 @@ public final class OneStepSettingsStore {
                 OneStepSettings.TOP_APP_ICON_SIZE_DEFAULT_DP);
         return legacyDp <= 0 ? OneStepSettings.TOP_APP_ICON_SCALE_DEFAULT
                 : Math.round(legacyDp * 100f / OneStepSettings.TOP_APP_ICON_SIZE_DEFAULT_DP);
+    }
+
+    private int loadTopComponentScale() {
+        if (preferences.contains(PREF_TOP_COMPONENT_SCALE)) {
+            return preferences.getInt(PREF_TOP_COMPONENT_SCALE,
+                    OneStepSettings.TOP_COMPONENT_SCALE_DEFAULT);
+        }
+        if (!preferences.contains(PREF_TOP_COMPONENT_SCALE_LEGACY)) {
+            return OneStepSettings.TOP_COMPONENT_SCALE_DEFAULT;
+        }
+        int legacyScale = preferences.getInt(PREF_TOP_COMPONENT_SCALE_LEGACY, 70);
+        int scale = OneStepSettings.sanitizeTopComponentScale(
+                Math.round(legacyScale * 100f / 70f));
+        saveTopComponentScale(scale);
+        return scale;
     }
 
     private int loadTopNavVerticalMarginScale() {

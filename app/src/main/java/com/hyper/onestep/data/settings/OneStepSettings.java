@@ -19,6 +19,9 @@ public final class OneStepSettings {
     public static final int TOP_APP_STRIP_VERTICAL_PADDING_SCALE_DEFAULT = 100;
     public static final int TOP_APP_STRIP_VERTICAL_PADDING_SCALE_MIN = 40;
     public static final int TOP_APP_STRIP_VERTICAL_PADDING_SCALE_MAX = 120;
+    public static final int TOP_COMPONENT_SCALE_DEFAULT = 100;
+    public static final int TOP_COMPONENT_SCALE_MIN = 50;
+    public static final int TOP_COMPONENT_SCALE_MAX = 150;
     public static final int TOP_NAV_VERTICAL_MARGIN_SCALE_DEFAULT = 100;
     public static final int TOP_NAV_VERTICAL_MARGIN_SCALE_MIN = 40;
     public static final int TOP_NAV_VERTICAL_MARGIN_SCALE_MAX = 120;
@@ -42,6 +45,7 @@ public final class OneStepSettings {
     public final int topAppStripSpacingScalePct;
     public final int topAppStripVerticalPaddingScalePct;
     public final boolean topComponentsVisible;
+    public final int topComponentScalePct;
     public final boolean statusBarSpacingEnabled;
     public final boolean verticalWindowLayout;
     public final int sideWindowCount;
@@ -53,6 +57,7 @@ public final class OneStepSettings {
     public OneStepSettings(int desktopGridRows, int desktopGridColumns,
                            int topAppIconScalePct, int topAppStripSpacingScalePct,
                            int topAppStripVerticalPaddingScalePct, boolean topComponentsVisible,
+                           int topComponentScalePct,
                            boolean statusBarSpacingEnabled, boolean verticalWindowLayout,
                            int sideWindowCount,
                            int topNavVerticalMarginScalePct, int oneStepTriggerAreaScalePct,
@@ -63,6 +68,7 @@ public final class OneStepSettings {
         this.topAppStripSpacingScalePct = topAppStripSpacingScalePct;
         this.topAppStripVerticalPaddingScalePct = topAppStripVerticalPaddingScalePct;
         this.topComponentsVisible = topComponentsVisible;
+        this.topComponentScalePct = sanitizeTopComponentScale(topComponentScalePct);
         this.statusBarSpacingEnabled = statusBarSpacingEnabled;
         this.verticalWindowLayout = verticalWindowLayout;
         this.sideWindowCount = sideWindowCount;
@@ -97,6 +103,10 @@ public final class OneStepSettings {
     public static int sanitizeTopNavVerticalMarginScale(int scale) {
         return clamp(scale, TOP_NAV_VERTICAL_MARGIN_SCALE_MIN,
                 TOP_NAV_VERTICAL_MARGIN_SCALE_MAX);
+    }
+
+    public static int sanitizeTopComponentScale(int scale) {
+        return clamp(scale, TOP_COMPONENT_SCALE_MIN, TOP_COMPONENT_SCALE_MAX);
     }
 
     public static int sanitizeOneStepTriggerAreaScale(int scale) {

@@ -51,7 +51,7 @@ public final class RootInputBridge {
     private static final int ARG_ALLOWED_UID = 0;
     private static final int ARG_BRIDGE_TOKEN = 1;
     private static final String SOCKET_NAME_PREFIX = "onestep_input_bridge_";
-    public static final String HELLO_RESPONSE_PREFIX = "onestep-input-bridge-v25";
+    public static final String HELLO_RESPONSE_PREFIX = "onestep-input-bridge-v26";
     private static final int ROOT_UID = 0;
     private static final int SHELL_UID = 2000;
     private static final int WINDOWING_MODE_PINNED = 2;
@@ -357,6 +357,8 @@ public final class RootInputBridge {
                 return removeTask(parts);
             } else if ("moveTaskToDisplay".equals(parts[0]) && parts.length == 4) {
                 return moveTaskToDisplay(parts);
+            } else if ("setTaskHidden".equals(parts[0]) && parts.length == 6) {
+                return setTaskHidden(parts);
             } else if ("transferTask".equals(parts[0]) && (parts.length == 7
                     || parts.length == 8)) {
                 return transferTask(parts);
@@ -694,6 +696,54 @@ public final class RootInputBridge {
                 + " success=" + success
                 + (failure.isEmpty() ? "" : " failure=" + failure));
         return "moveTaskToDisplay " + taskId + " " + displayId + " " + success;
+    }
+
+    private String setTaskHidden(String[] parts) {
+        int taskId = Integer.parseInt(parts[1]);
+        boolean hidden = Boolean.parseBoolean(parts[2]);
+        int displayId = Integer.parseInt(parts[3]);
+        int userId = Integer.parseInt(parts[4]);
+        ComponentName component = ComponentName.unflattenFromString(parts[5]);
+        boolean success = false;
+        String failure = "";
+        try {
+            if (activityManager == null) {
+                throw new IllegalStateException("activity service unavailable");
+            }
+            ActivityManager.RunningTaskInfo matched = null;
+            for (ActivityManager.RunningTaskInfo task : activityManager.getRunningTasks(256)) {
+                if (task.taskId == taskId) {
+                    matched = task;
+                    break;
+                }
+            }
+            if (matched == null) {
+                throw new IllegalStateException("task not found: " + taskId);
+            }
+            ComponentName base = matched.baseIntent == null ? null
+                    : matched.baseIntent.getComponent();
+            if (component == null
+                    || !Integer.valueOf(displayId).equals(readOptionalField(matched, "displayId"))
+                    || !Integer.valueOf(userId).equals(readOptionalField(matched, "userId"))
+                    || !matchesTaskPackage(component.getPackageName(), base,
+                    matched.baseActivity, matched.topActivity)) {
+                throw new IllegalStateException("task identity or display changed");
+            }
+            Object taskToken = readOptionalField(matched, "token");
+            if (taskToken == null) {
+                throw new IllegalStateException("task token unavailable: " + taskId);
+            }
+            applyTaskVisibility(taskToken, hidden, hidden ? null : Boolean.TRUE);
+            success = true;
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            throwIfSystemServiceDead(e);
+            failure = describeThrowable(e);
+        }
+        int priority = success ? Log.INFO : Log.WARN;
+        Log.println(priority, TAG, "SetTaskHidden task=" + taskId + " hidden=" + hidden
+                + " success=" + success
+                + (failure.isEmpty() ? "" : " failure=" + failure));
+        return "setTaskHidden " + taskId + " " + hidden + " " + success;
     }
 
     private static void refreshActivityOnDisplay(ComponentName component, int displayId)

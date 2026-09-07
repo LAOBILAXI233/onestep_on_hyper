@@ -121,6 +121,9 @@ import com.hyper.onestep.BuildConfig
 import com.hyper.onestep.MainActivity
 import com.hyper.onestep.R
 import com.hyper.onestep.data.settings.OneStepSettings.canUseSideWindowCount
+import com.hyper.onestep.data.settings.OneStepSettings.TOP_COMPONENT_SCALE_DEFAULT
+import com.hyper.onestep.data.settings.OneStepSettings.TOP_COMPONENT_SCALE_MIN
+import com.hyper.onestep.data.settings.OneStepSettings.TOP_COMPONENT_SCALE_MAX
 import com.hyper.onestep.model.LauncherApp
 import com.hyper.onestep.system.root.ZygiskHookConfig
 import com.hyper.onestep.ui.window.OneStepWindowView
@@ -167,6 +170,7 @@ private val RANGE_NAV_MARGIN = 40f..120f
 private val RANGE_ICON_SCALE = 60f..120f
 private val RANGE_STRIP_SPACING = 50f..120f
 private val RANGE_STRIP_PADDING = 40f..120f
+private val RANGE_TOP_COMPONENT = TOP_COMPONENT_SCALE_MIN.toFloat()..TOP_COMPONENT_SCALE_MAX.toFloat()
 
 class OneStepSettingsPage(
     private val activity: MainActivity,
@@ -181,6 +185,7 @@ class OneStepSettingsPage(
         var stripSpacingPct by mutableIntStateOf(100)
         var stripPaddingPct by mutableIntStateOf(100)
         var topComponentsVisible by mutableStateOf(true)
+        var topComponentScalePct by mutableIntStateOf(TOP_COMPONENT_SCALE_DEFAULT)
         var statusBarSpacingEnabled by mutableStateOf(false)
         var logRecordingEnabled by mutableStateOf(false)
         var sideWindowCount by mutableIntStateOf(4)
@@ -411,6 +416,7 @@ class OneStepSettingsPage(
         state.stripSpacingPct = callbacks.topAppStripSpacingScalePct()
         state.stripPaddingPct = callbacks.topAppStripVerticalPaddingScalePct()
         state.topComponentsVisible = callbacks.topComponentsVisible()
+        state.topComponentScalePct = callbacks.topComponentScalePct()
         state.statusBarSpacingEnabled = callbacks.statusBarSpacingEnabled()
         state.logRecordingEnabled = callbacks.logRecordingEnabled()
         state.sideWindowCount = callbacks.sideWindowCount()
@@ -919,6 +925,14 @@ private fun MainPage(
                             callbacks.saveTopAppStripVerticalPaddingScale(value)
                         },
                     ) { state.stripPaddingPct = it }
+                    PercentSlider(
+                        title = "顶部组件高度",
+                        value = state.topComponentScalePct,
+                        range = RANGE_TOP_COMPONENT,
+                        onFinished = { value ->
+                            callbacks.saveTopComponentScale(value)
+                        },
+                    ) { state.topComponentScalePct = it }
                 }
             }
 

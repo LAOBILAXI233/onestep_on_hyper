@@ -96,6 +96,7 @@ import com.hyper.onestep.ui.topbar.TopComponentPagerAdapter;
 import com.hyper.onestep.ui.format.DurationFormatter;
 import com.hyper.onestep.ui.background.BlurredBackgroundView;
 import com.hyper.onestep.ui.widget.AppShortcutView;
+import com.hyper.onestep.ui.widget.FixedViewportFrameLayout;
 import com.hyper.onestep.view.ContentView;
 import com.hyper.onestep.ui.widget.PagingHorizontalScrollView;
 import com.hyper.onestep.ui.media.MediaPlaybackPanel;
@@ -172,6 +173,7 @@ public final class TopPanelController implements AutoCloseable {
         String shellQuote(String value);
         GradientDrawable panelBackground(int fillColor, int strokeColor, float radius);
         int topMediaPlayerTopMargin();
+        int topMediaPlayerHeight();
         int topMediaAreaHeight();
         int pipDockTopInset();
         FrameLayout rootContainer();
@@ -382,11 +384,11 @@ public final class TopPanelController implements AutoCloseable {
                 ViewGroup.LayoutParams.WRAP_CONTENT, dp(12),
                 Gravity.TOP | Gravity.CENTER_HORIZONTAL);
         indexLp.topMargin = getTopMediaPlayerTopMargin()
-                + dp(TOP_MEDIA_PLAYER_HEIGHT_DP) + dp(2);
+                + callbacks.topMediaPlayerHeight() + dp(2);
         mediaArea.addView(indexView, indexLp);
 
         FrameLayout.LayoutParams playerLp = new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(TOP_MEDIA_PLAYER_HEIGHT_DP),
+                ViewGroup.LayoutParams.MATCH_PARENT, callbacks.topMediaPlayerHeight(),
                 Gravity.TOP);
         playerLp.topMargin = getTopMediaPlayerTopMargin();
         mediaArea.addView(pager, playerLp);
@@ -436,11 +438,19 @@ public final class TopPanelController implements AutoCloseable {
     private View createTopComponentPage(View card) {
         FrameLayout page = new FrameLayout(activity);
         card.setVisibility(View.VISIBLE);
+        FixedViewportFrameLayout viewport = new FixedViewportFrameLayout(activity);
+        viewport.setViewportSize(Math.max(1,
+                activity.getResources().getDisplayMetrics().widthPixels - dp(32)),
+                dp(TOP_MEDIA_PLAYER_HEIGHT_DP));
+        viewport.getViewport().addView(card, matchFrame());
+        viewport.addOnLayoutChangeListener((view, left, top, right, bottom,
+                oldLeft, oldTop, oldRight, oldBottom) ->
+                viewport.setViewportSize(right - left, dp(TOP_MEDIA_PLAYER_HEIGHT_DP)));
         FrameLayout.LayoutParams cardParams = new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
         cardParams.leftMargin = dp(16);
         cardParams.rightMargin = dp(16);
-        page.addView(card, cardParams);
+        page.addView(viewport, cardParams);
         return page;
     }
 
@@ -545,15 +555,14 @@ public final class TopPanelController implements AutoCloseable {
     }
 
     public ContentView.ContentType findTopRegionEntryAt(int screenX, int screenY) {
-        int[] location = new int[2];
+        Rect visibleBounds = new Rect();
         for (Map.Entry<ContentView.ContentType, View> item : topRegionEntries.entrySet()) {
             View entry = item.getValue();
             if (entry.getParent() == null || entry.getWidth() <= 0 || entry.getHeight() <= 0) {
                 continue;
             }
-            entry.getLocationOnScreen(location);
-            if (screenX >= location[0] && screenX < location[0] + entry.getWidth()
-                    && screenY >= location[1] && screenY < location[1] + entry.getHeight()) {
+            if (entry.getGlobalVisibleRect(visibleBounds)
+                    && visibleBounds.contains(screenX, screenY)) {
                 return item.getKey();
             }
         }

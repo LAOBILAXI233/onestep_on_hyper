@@ -344,7 +344,6 @@ public class MainActivity extends Activity {
     private final int[] releasedToForegroundTaskIds = new int[MAX_WINDOWS];
     private final List<AppShortcutView> shortcutViews = new ArrayList<>();
     private final Set<String> taskBackedAppInstances = new HashSet<>();
-    private final Map<String, Integer> shelvedTaskIds = new LinkedHashMap<>();
     private final Map<Integer, LauncherApp> pendingShelvedSlots = new LinkedHashMap<>();
     private final List<Integer> sideSlotOrder = new ArrayList<>();
     private final ArrayDeque<RoutedAppLaunch> pendingCrossAppRoutes = new ArrayDeque<>();
@@ -615,15 +614,18 @@ public class MainActivity extends Activity {
                 @Override public OneStepWindowView[] windowViews() { return windowViews; }
                 @Override public boolean[] embeddedSlotClosing() { return embeddedSlotClosing; }
                 @Override public int shelvedTaskId(LauncherApp app) {
-                    if (app == null) {
+                    if (app == null || settingsStore == null) {
                         return -1;
                     }
-                    Integer taskId = shelvedTaskIds.get(app.instanceKey());
-                    return taskId == null ? -1 : taskId;
+                    return settingsStore.shelvedTaskId(app.instanceKey());
+                }
+                @Override public boolean onShelvedTaskPrepared(LauncherApp app, int taskId) {
+                    return app != null && settingsStore != null
+                            && settingsStore.saveShelvedTask(app.instanceKey(), taskId);
                 }
                 @Override public void onShelvedTaskConsumed(LauncherApp app, int taskId) {
-                    if (app != null) {
-                        shelvedTaskIds.remove(app.instanceKey());
+                    if (app != null && settingsStore != null) {
+                        settingsStore.removeShelvedTask(app.instanceKey(), taskId);
                     }
                     requestRunningTaskStatusRefresh();
                 }
@@ -868,6 +870,7 @@ public class MainActivity extends Activity {
     private int topAppStripVerticalPaddingScalePct =
             TOP_APP_STRIP_VERTICAL_PADDING_SCALE_DEFAULT;
     private boolean topComponentsVisible = true;
+    private int topComponentScalePct = OneStepSettings.TOP_COMPONENT_SCALE_DEFAULT;
     private boolean statusBarSpacingEnabled;
     private boolean verticalWindowLayout;
     private int sideWindowCount = DEFAULT_SIDE_WINDOWS;
@@ -1194,7 +1197,7 @@ public class MainActivity extends Activity {
         activityResumed = true;
         startRunningTaskMonitoring();
         suppressEmbeddedStarts = false;
-        
+
         if (settingsStore.loadTopAppSortMode() == 1) {
             refreshTopAppUsageAsync();
         }
@@ -1686,7 +1689,9 @@ public class MainActivity extends Activity {
         if (taskId <= 0) {
             return false;
         }
-        for (Integer shelvedTaskId : shelvedTaskIds.values()) {
+        Map<String, Integer> shelvedTasks = settingsStore == null
+                ? Collections.emptyMap() : settingsStore.loadShelvedTasks();
+        for (Integer shelvedTaskId : shelvedTasks.values()) {
             if (shelvedTaskId != null && shelvedTaskId == taskId) {
                 return true;
             }
@@ -2249,7 +2254,7 @@ public class MainActivity extends Activity {
         routedLaunchIntents.clear();
         pauseMediaMonitoring();
         if (!supersededOnDefaultDisplay && (isFinishing() || exitOneStepPending)) {
-            backgroundOpenedApps();
+            cancelPendingEmbeddedStarts();
         }
         if (topPanelController != null) {
             topPanelController.close();
@@ -2701,15 +2706,27 @@ public class MainActivity extends Activity {
             // the animation finished, which read as a flash. The next
             // non-animated layout pass parks unused slots INVISIBLE so they
             // never intercept touches.
-            boolean visible = isWindowSlotEnabled(slot) && !embeddedSlotClosing[slot];
+            boolean visible = shouldRenderWindowSlot(slot);
             if (!visible && animate && hasLaidOutWindowFrames()) {
                 visible = windowViews[slot].getVisibility() == View.VISIBLE;
             }
             windowViews[slot].setVisibility(visible ? View.VISIBLE : View.INVISIBLE);
+            EmbeddedAppHost host = embeddedHosts[slot];
+            if (host != null) {
+                host.setRenderingEnabled(visible);
+            }
             windowViews[slot].setMainWindowMode(isMainPaneSlot(slot));
         }
 
         Runnable layoutFinished = () -> {
+            for (int slot = 0; slot < MAX_WINDOWS; slot++) {
+                boolean visible = shouldRenderWindowSlot(slot);
+                windowViews[slot].setVisibility(visible ? View.VISIBLE : View.INVISIBLE);
+                EmbeddedAppHost host = embeddedHosts[slot];
+                if (host != null) {
+                    host.setRenderingEnabled(visible);
+                }
+            }
             restoreWindowInputRoutingAfterLayout();
             configureMainDesktopHomeViewports();
             keepMainPaneSwapControlOnTop();
@@ -2733,6 +2750,11 @@ public class MainActivity extends Activity {
         }
 
         animateWindowFrames(targetRects, layoutFinished, allowSurfaceLayerAnimation);
+    }
+
+    private boolean shouldRenderWindowSlot(int slot) {
+        return isWindowSlotEnabled(slot) && !embeddedSlotClosing[slot]
+                && (multiWindowMode || slot == activeMainSlot);
     }
 
     private void configureDesktopHomeViewport(OneStepWindowView windowView) {
@@ -3385,7 +3407,7 @@ public class MainActivity extends Activity {
             return;
         }
         activateEdgeMainPaneForFullscreen();
-        backgroundOpenedApps();
+        cancelPendingEmbeddedStarts();
         boolean refreshMainSizeForFullscreen = needsMainSizeRefresh(
                 workspace == null ? 0 : workspace.getWidth(),
                 workspace == null ? 0 : workspace.getHeight(),
@@ -3802,7 +3824,7 @@ public class MainActivity extends Activity {
                 visibleKeys.add(app.instanceKey());
             }
         }
-        visibleKeys.addAll(shelvedTaskIds.keySet());
+        visibleKeys.addAll(settingsStore.loadShelvedTasks().keySet());
         return visibleKeys;
     }
 
@@ -6169,6 +6191,7 @@ public class MainActivity extends Activity {
         topAppStripSpacingScalePct = settings.topAppStripSpacingScalePct;
         topAppStripVerticalPaddingScalePct = settings.topAppStripVerticalPaddingScalePct;
         topComponentsVisible = settings.topComponentsVisible;
+        topComponentScalePct = settings.topComponentScalePct;
         statusBarSpacingEnabled = settings.statusBarSpacingEnabled;
         verticalWindowLayout = settings.verticalWindowLayout;
         sideWindowCount = settings.sideWindowCount;
@@ -6883,6 +6906,7 @@ public class MainActivity extends Activity {
             @Override public int topAppStripVerticalPaddingScalePct() {
                 return topAppStripVerticalPaddingScalePct;
             }
+            @Override public int topComponentScalePct() { return topComponentScalePct; }
             @Override public boolean topComponentsVisible() { return topComponentsVisible; }
             @Override public boolean statusBarSpacingEnabled() {
                 return statusBarSpacingEnabled;
@@ -6986,6 +7010,9 @@ public class MainActivity extends Activity {
             @Override public void saveTopComponentsVisible(boolean visible) {
                 MainActivity.this.saveTopComponentsVisible(visible);
             }
+            @Override public void saveTopComponentScale(int value) {
+                MainActivity.this.saveTopComponentScale(value);
+            }
             @Override public void saveStatusBarSpacingEnabled(boolean enabled) {
                 MainActivity.this.saveStatusBarSpacingEnabled(enabled);
             }
@@ -7066,6 +7093,7 @@ public class MainActivity extends Activity {
             @Override public int topMediaPlayerTopMargin() {
                 return getTopMediaPlayerTopMargin();
             }
+            @Override public int topMediaPlayerHeight() { return getTopMediaPlayerHeight(); }
             @Override public int topMediaAreaHeight() { return getTopMediaAreaHeight(); }
             @Override public int pipDockTopInset() { return getPipDockTopInset(); }
             @Override public FrameLayout rootContainer() { return rootContainer; }
@@ -7569,6 +7597,18 @@ public class MainActivity extends Activity {
         scheduleEmbeddedSlotRefresh(true);
     }
 
+    private void saveTopComponentScale(int scalePct) {
+        int sanitized = OneStepSettings.sanitizeTopComponentScale(scalePct);
+        if (sanitized == topComponentScalePct) {
+            return;
+        }
+        topComponentScalePct = sanitized;
+        settingsStore.saveTopComponentScale(sanitized);
+        updateSettingsPageViews();
+        rebuildTopChromeContent();
+        scheduleEmbeddedSlotRefresh(true);
+    }
+
     private void saveStatusBarSpacingEnabled(boolean enabled) {
         if (enabled == statusBarSpacingEnabled) {
             return;
@@ -7986,6 +8026,7 @@ public class MainActivity extends Activity {
             directBootPrewarmDesktopApp = null;
             prewarmHost.completeDirectBootPrewarm();
             embeddedHosts[slot] = prewarmHost;
+            prewarmHost.setRenderingEnabled(shouldRenderWindowSlot(slot));
             windowViews[slot].attachEmbeddedHost(prewarmHost.getView());
             Log.i(TAG, "Adopted Direct Boot virtual display for slot " + slot
                     + ": display=" + prewarmHost.getDisplayId());
@@ -7993,6 +8034,7 @@ public class MainActivity extends Activity {
         }
         EmbeddedAppHost host = createEmbeddedHost(this, slot);
         embeddedHosts[slot] = host;
+        host.setRenderingEnabled(shouldRenderWindowSlot(slot));
         if (host.isAvailable()) {
             windowViews[slot].attachEmbeddedHost(host.getView());
             Log.i(TAG, "Embedded host ready for slot " + slot);
@@ -8128,7 +8170,6 @@ public class MainActivity extends Activity {
                         }
                         ((RootVirtualDisplayHost) host).shelveApp(app, taskId -> {
                             if (taskId > 0) {
-                                shelvedTaskIds.put(app.instanceKey(), taskId);
                                 pendingShelvedSlots.put(slot, app);
                             }
                             completion.accept(taskId > 0);
@@ -8138,10 +8179,10 @@ public class MainActivity extends Activity {
                     @Override public void restoreTask(int slot, LauncherApp app,
                                                        java.util.function.Consumer<Boolean> completion) {
                         pendingShelvedSlots.remove(slot);
-                        Integer taskId = app == null ? null : shelvedTaskIds.get(app.instanceKey());
+                        int taskId = rootVirtualDisplayCallbacks.shelvedTaskId(app);
                         EmbeddedAppHost host = slot >= 0 && slot < MAX_WINDOWS
                                 ? embeddedHosts[slot] : null;
-                        if (taskId == null || !(host instanceof RootVirtualDisplayHost)) {
+                        if (taskId <= 0 || !(host instanceof RootVirtualDisplayHost)) {
                             completion.accept(false);
                             return;
                         }
@@ -9876,6 +9917,13 @@ public class MainActivity extends Activity {
                 continue;
             }
             EmbeddedAppHost host = embeddedHosts[slot];
+            boolean renderingEnabled = shouldRenderWindowSlot(slot);
+            if (host != null) {
+                host.setRenderingEnabled(renderingEnabled);
+            }
+            if (!renderingEnabled) {
+                continue;
+            }
             windowViews[slot].requestLayout();
             windowViews[slot].invalidate();
             if (host != null) {
@@ -10211,26 +10259,16 @@ public class MainActivity extends Activity {
         renderWindows();
     }
 
-    private void backgroundOpenedApps() {
-        if (!suppressEmbeddedStarts) {
-            suppressEmbeddedStarts = true;
-            embeddedStartEpoch++;
-            embeddedStartEpochStore.persist(embeddedStartEpoch);
-        }
+    private void cancelPendingEmbeddedStarts() {
+        suspendEmbeddedStartsForFullscreen();
         mainSlotSwitchGeneration++;
         clearPendingMainSlotSwitch();
         for (int slot = 0; slot < MAX_WINDOWS; slot++) {
             if (windowApps[slot] == null || embeddedHosts[slot] == null) {
                 continue;
             }
-            embeddedHosts[slot].invalidateTaskResolution();
-        }
-        for (int slot = 0; slot < MAX_WINDOWS; slot++) {
-            if (windowApps[slot] == null || embeddedHosts[slot] == null) {
-                continue;
-            }
             embeddedSyncGenerations[slot]++;
-            embeddedHosts[slot].sendHome();
+            embeddedHosts[slot].invalidateTaskResolution();
         }
     }
 
@@ -10407,7 +10445,8 @@ public class MainActivity extends Activity {
         embeddedSlotClosing[slot] = true;
         embeddedSyncGenerations[slot]++;
         LauncherApp dismissedApp = windowApps[slot];
-        shelvedTaskIds.remove(dismissedApp.instanceKey());
+        settingsStore.removeShelvedTask(dismissedApp.instanceKey(),
+                settingsStore.shelvedTaskId(dismissedApp.instanceKey()));
         pendingShelvedSlots.remove(slot);
         EmbeddedAppHost dismissedHost = embeddedHosts[slot];
         long dismissStartedUptime = SystemClock.uptimeMillis();
@@ -10540,7 +10579,8 @@ public class MainActivity extends Activity {
                 return;
             }
             windowApps[slot] = null;
-            shelvedTaskIds.remove(dismissedApp.instanceKey());
+            settingsStore.removeShelvedTask(dismissedApp.instanceKey(),
+                    settingsStore.shelvedTaskId(dismissedApp.instanceKey()));
             pendingShelvedSlots.remove(slot);
             clearHostedAppRevealState(slot);
             
@@ -11532,7 +11572,7 @@ public class MainActivity extends Activity {
             String instanceKey = shortcutView.getInstanceKeyValue();
             boolean taskPresent = taskBackedAppInstances.contains(instanceKey);
             boolean foreground = findSlot(instanceKey) >= 0
-                    || shelvedTaskIds.containsKey(instanceKey);
+                    || settingsStore.shelvedTaskId(instanceKey) > 0;
             shortcutView.setActive(foreground);
             shortcutView.setPinned(topAppPinnedInstanceKeys.contains(instanceKey));
             shortcutView.setAppStatus(foreground
@@ -11679,12 +11719,14 @@ public class MainActivity extends Activity {
         if (!shouldShowTopComponentArea()) {
             return 0;
         }
+        int componentAreaHeight = dp(TOP_MEDIA_AREA_MIN_HEIGHT_DP
+                * topComponentScalePct / 100f);
         if (!pipActive) {
-            return dp(TOP_MEDIA_AREA_MIN_HEIGHT_DP);
+            return componentAreaHeight;
         }
         int pipHeight = pipRestoreBounds.height() > 0
                 ? pipRestoreBounds.height() : dp(TOP_MEDIA_PLAYER_HEIGHT_DP);
-        return Math.max(dp(TOP_MEDIA_AREA_MIN_HEIGHT_DP),
+        return Math.max(componentAreaHeight,
                 getPipDockTopInset() + pipHeight + dp(8));
     }
 
@@ -11764,8 +11806,14 @@ public class MainActivity extends Activity {
     }
 
     private int getTopMediaPlayerTopMargin() {
-        int centeredTop = (getTopMediaAreaHeight() - dp(TOP_MEDIA_PLAYER_HEIGHT_DP)) / 2;
-        return centeredTop;
+        int centeredTop = (getTopMediaAreaHeight() - getTopMediaPlayerHeight()) / 2;
+        int maxTop = getTopMediaAreaHeight() - getTopMediaPlayerHeight() - dp(14);
+        return Math.max(0, Math.min(centeredTop, maxTop));
+    }
+
+    private int getTopMediaPlayerHeight() {
+        return Math.min(dp(TOP_MEDIA_PLAYER_HEIGHT_DP),
+                Math.max(1, getTopMediaAreaHeight() - dp(14)));
     }
 
     private int getStatusBarHeight() {

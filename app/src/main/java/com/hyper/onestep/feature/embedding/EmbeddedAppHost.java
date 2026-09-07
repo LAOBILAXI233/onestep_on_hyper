@@ -25,6 +25,13 @@ public interface EmbeddedAppHost {
         refreshContainerSize();
     }
 
+    default void setRenderingEnabled(boolean enabled) {
+        View view = getView();
+        if (view != null) {
+            view.setVisibility(enabled ? View.VISIBLE : View.INVISIBLE);
+        }
+    }
+
     void sendBack();
 
     void sendHome();

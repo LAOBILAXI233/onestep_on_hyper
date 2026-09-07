@@ -106,6 +106,7 @@ public final class SettingsPanelController {
         int topAppStripSpacingScalePct();
         int topAppStripVerticalPaddingScalePct();
         boolean topComponentsVisible();
+        int topComponentScalePct();
         boolean statusBarSpacingEnabled();
         boolean verticalWindowLayout();
         boolean logRecordingEnabled();
@@ -150,6 +151,7 @@ public final class SettingsPanelController {
         void saveTopAppStripSpacingScale(int value);
         void saveTopAppStripVerticalPaddingScale(int value);
         void saveTopComponentsVisible(boolean visible);
+        void saveTopComponentScale(int value);
         void saveStatusBarSpacingEnabled(boolean enabled);
         void saveVerticalWindowLayout(boolean enabled);
         void saveLogRecordingEnabled(boolean enabled);
