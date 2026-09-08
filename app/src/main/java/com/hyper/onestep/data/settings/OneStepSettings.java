@@ -47,6 +47,7 @@ public final class OneStepSettings {
     public final boolean topComponentsVisible;
     public final int topComponentScalePct;
     public final boolean statusBarSpacingEnabled;
+    public final boolean bottomGestureSpacingEnabled;
     public final boolean verticalWindowLayout;
     public final int sideWindowCount;
     public final int topNavVerticalMarginScalePct;
@@ -58,7 +59,8 @@ public final class OneStepSettings {
                            int topAppIconScalePct, int topAppStripSpacingScalePct,
                            int topAppStripVerticalPaddingScalePct, boolean topComponentsVisible,
                            int topComponentScalePct,
-                           boolean statusBarSpacingEnabled, boolean verticalWindowLayout,
+                           boolean statusBarSpacingEnabled, boolean bottomGestureSpacingEnabled,
+                           boolean verticalWindowLayout,
                            int sideWindowCount,
                            int topNavVerticalMarginScalePct, int oneStepTriggerAreaScalePct,
                            int cornerTriggerSensitivityPct, boolean logRecordingEnabled) {
@@ -70,6 +72,7 @@ public final class OneStepSettings {
         this.topComponentsVisible = topComponentsVisible;
         this.topComponentScalePct = sanitizeTopComponentScale(topComponentScalePct);
         this.statusBarSpacingEnabled = statusBarSpacingEnabled;
+        this.bottomGestureSpacingEnabled = bottomGestureSpacingEnabled;
         this.verticalWindowLayout = verticalWindowLayout;
         this.sideWindowCount = sideWindowCount;
         this.topNavVerticalMarginScalePct = topNavVerticalMarginScalePct;

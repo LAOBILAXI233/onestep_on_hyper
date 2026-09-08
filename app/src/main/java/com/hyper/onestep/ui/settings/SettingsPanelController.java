@@ -108,6 +108,7 @@ public final class SettingsPanelController {
         boolean topComponentsVisible();
         int topComponentScalePct();
         boolean statusBarSpacingEnabled();
+        boolean bottomGestureSpacingEnabled();
         boolean verticalWindowLayout();
         boolean logRecordingEnabled();
         int sideWindowCount();
@@ -153,6 +154,7 @@ public final class SettingsPanelController {
         void saveTopComponentsVisible(boolean visible);
         void saveTopComponentScale(int value);
         void saveStatusBarSpacingEnabled(boolean enabled);
+        void saveBottomGestureSpacingEnabled(boolean enabled);
         void saveVerticalWindowLayout(boolean enabled);
         void saveLogRecordingEnabled(boolean enabled);
         void saveSideWindowCount(int count);

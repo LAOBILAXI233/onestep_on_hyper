@@ -3,21 +3,27 @@ package com.hyper.onestep.hook;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+import android.os.IBinder;
+import android.os.ResultReceiver;
+
 import java.lang.reflect.Method;
 
 import org.junit.Test;
 
 public class OneStepImeGuardHookTest {
     @Test
-    public void acceptsAndroid16HideCurrentInputLockedOverloads() throws Exception {
+    public void acceptsCompleteSignatureAndRejectsUnknownOverloads() throws Exception {
+        Method completeOverload = Android13Methods.class.getDeclaredMethod(
+                "hideCurrentInputLocked", IBinder.class, int.class, ResultReceiver.class, int.class);
         Method binderOverload = Android16Methods.class.getDeclaredMethod(
-                "hideCurrentInputLocked", Object.class, int.class, int.class, int.class);
+                "hideCurrentInputLocked", IBinder.class, int.class, int.class, int.class);
         Method trackerOverload = Android16Methods.class.getDeclaredMethod(
                 "hideCurrentInputLocked", Object.class, Object.class, int.class,
                 Object.class, int.class, int.class);
 
-        assertTrue(OneStepImeGuardHook.isHideCurrentInputLockedTarget(binderOverload));
-        assertTrue(OneStepImeGuardHook.isHideCurrentInputLockedTarget(trackerOverload));
+        assertTrue(OneStepImeGuardHook.isHideCurrentInputLockedTarget(completeOverload));
+        assertFalse(OneStepImeGuardHook.isHideCurrentInputLockedTarget(binderOverload));
+        assertFalse(OneStepImeGuardHook.isHideCurrentInputLockedTarget(trackerOverload));
     }
 
     @Test
@@ -31,14 +37,21 @@ public class OneStepImeGuardHookTest {
         assertFalse(OneStepImeGuardHook.isHideCurrentInputLockedTarget(emptyMethod));
     }
 
+    private static final class Android13Methods {
+        private boolean hideCurrentInputLocked(
+                IBinder token, int flags, ResultReceiver receiver, int reason) {
+            return false;
+        }
+    }
+
     private static final class Android16Methods {
-        private boolean hideCurrentInputLocked(Object token, int reason, int flags, int displayId) {
+        private boolean hideCurrentInputLocked(IBinder token, int flags, int reason, int userId) {
             return false;
         }
 
         private boolean hideCurrentInputLocked(
-                Object token, Object imeTrackerToken, int reason, Object receiver,
-                int flags, int displayId) {
+                Object token, Object imeTrackerToken, int flags, Object receiver,
+                int reason, int userId) {
             return false;
         }
     }

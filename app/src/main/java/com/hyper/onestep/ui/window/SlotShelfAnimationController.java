@@ -1,5 +1,8 @@
 package com.hyper.onestep.ui.window;
 
+import android.animation.Animator;
+import android.animation.AnimatorListenerAdapter;
+import android.animation.ValueAnimator;
 import android.app.Activity;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
@@ -19,6 +22,7 @@ import android.view.PixelCopy;
 import android.view.SurfaceView;
 import android.view.View;
 import android.view.WindowManager;
+import android.view.animation.LinearInterpolator;
 
 import androidx.dynamicanimation.animation.FloatValueHolder;
 import androidx.dynamicanimation.animation.SpringAnimation;
@@ -34,11 +38,13 @@ import java.util.function.Consumer;
 
 public final class SlotShelfAnimationController {
     private static final String SHELF_TRACE = "[SHELFDBG] ";
+    private static final long FALLBACK_ANIMATION_MS = 220L;
     public interface Callbacks {
         LauncherApp app(int slot);
         OneStepWindowView window(int slot);
         View surface(int slot);
         Rect iconBounds(LauncherApp app);
+        Rect shelfBounds();
         void setHidden(int slot, boolean hidden);
         void shelve(int slot, LauncherApp app, Consumer<Boolean> completion);
         void restoreTask(int slot, LauncherApp app, Consumer<Boolean> completion);
@@ -139,13 +145,19 @@ public final class SlotShelfAnimationController {
         if (capture == null || !ensureOverlay()) {
             return false;
         }
-        Rect target = callbacks.iconBounds(app);
-        if (target == null || target.isEmpty()) {
-            discardCapture(slot);
-            removeOverlayIfIdle();
-            return false;
+        Rect iconBounds = callbacks.iconBounds(app);
+        boolean fadeToCenter = iconBounds == null || iconBounds.isEmpty();
+        RectF target;
+        if (fadeToCenter) {
+            Rect shelfBounds = callbacks.shelfBounds();
+            RectF shelf = shelfBounds == null || shelfBounds.isEmpty()
+                    ? bounds(activity.getWindow().getDecorView()) : new RectF(shelfBounds);
+            target = new RectF(shelf.centerX() - 0.5f, shelf.centerY() - 0.5f,
+                    shelf.centerX() + 0.5f, shelf.centerY() + 0.5f);
+        } else {
+            target = new RectF(iconBounds);
         }
-        Session session = new Session(slot, app, capture, bounds(window), new RectF(target));
+        Session session = new Session(slot, app, capture, bounds(window), target, fadeToCenter);
         sessions.put(slot, session);
         session.reveal();
         handler.postDelayed(() -> {
@@ -251,7 +263,7 @@ public final class SlotShelfAnimationController {
                 + " taskShelved=" + session.taskShelved
                 + " returning=" + session.returning);
         session.settling = false;
-        session.stopSprings();
+        session.stopAnimations();
         if (session.icon != null) {
             session.icon.setCallback(null);
         }
@@ -306,12 +318,14 @@ public final class SlotShelfAnimationController {
         final RectF source;
         final RectF target;
         final RectF grabbed;
+        final boolean fadeToCenter;
         final Drawable icon;
         final Axis x;
         final Axis y;
         final Axis width;
         final Axis height;
         final Axis[] axes;
+        ValueAnimator fallbackAnimator;
         boolean visible;
         boolean settling;
         boolean returning;
@@ -326,12 +340,14 @@ public final class SlotShelfAnimationController {
 
         enum BackendAction { NONE, SHELVING, RESTORING }
 
-        Session(int slot, LauncherApp app, Capture capture, RectF source, RectF target) {
+        Session(int slot, LauncherApp app, Capture capture, RectF source, RectF target,
+                boolean fadeToCenter) {
             this.slot = slot;
             this.app = app;
             this.capture = capture;
             this.source = source;
             this.target = target;
+            this.fadeToCenter = fadeToCenter;
             Drawable.ConstantState iconState = app.icon == null
                     ? null : app.icon.getConstantState();
             icon = iconState == null ? app.icon
@@ -392,7 +408,7 @@ public final class SlotShelfAnimationController {
             touchActive = true;
             pendingCommit = false;
             afterRestore = null;
-            stopSprings();
+            stopAnimations();
             frame(grabbed);
             returning = false;
             restoreRequested = committing || taskShelved;
@@ -433,6 +449,13 @@ public final class SlotShelfAnimationController {
         void animate(RectF destination, float vx, float vy, boolean releasedByFinger) {
             revealNow();
             settling = true;
+            if (fadeToCenter) {
+                stopAnimations();
+                if (!returning) {
+                    animateToCenter(destination);
+                    return;
+                }
+            }
             x.animate(destination.centerX(), releasedByFinger ? vx : x.velocity);
             y.animate(destination.centerY(), releasedByFinger ? vy : y.velocity);
             float sizeVelocity = releasedByFinger ? vy * 0.6f : height.velocity;
@@ -441,14 +464,55 @@ public final class SlotShelfAnimationController {
             height.animate(destination.height(), sizeVelocity);
         }
 
-        void stopSprings() {
+        void animateToCenter(RectF destination) {
+            float[] start = {x.value.getValue(), y.value.getValue(),
+                    width.value.getValue(), height.value.getValue()};
+            float[] end = {destination.centerX(), destination.centerY(),
+                    destination.width(), destination.height()};
+            ValueAnimator animator = ValueAnimator.ofFloat(0f, 1f);
+            fallbackAnimator = animator;
+            animator.setDuration(FALLBACK_ANIMATION_MS);
+            animator.setInterpolator(new LinearInterpolator());
+            animator.addUpdateListener(animation -> {
+                float progress = (float) animation.getAnimatedValue();
+                for (int i = 0; i < axes.length; i++) {
+                    axes[i].value.setValue(start[i] + (end[i] - start[i]) * progress);
+                    axes[i].velocity = (end[i] - start[i]) * 1000f / FALLBACK_ANIMATION_MS;
+                }
+                if (overlay != null) {
+                    overlay.invalidateFrame();
+                }
+            });
+            animator.addListener(new AnimatorListenerAdapter() {
+                @Override
+                public void onAnimationEnd(Animator animation) {
+                    if (fallbackAnimator == animation) {
+                        fallbackAnimator = null;
+                        for (Axis axis : axes) {
+                            axis.velocity = 0f;
+                        }
+                        settled();
+                    }
+                }
+            });
+            animator.start();
+        }
+
+        void stopAnimations() {
+            if (fallbackAnimator != null) {
+                ValueAnimator animator = fallbackAnimator;
+                fallbackAnimator = null;
+                animator.removeAllListeners();
+                animator.removeAllUpdateListeners();
+                animator.cancel();
+            }
             for (Axis axis : axes) {
                 axis.spring.cancel();
             }
         }
 
         void settled() {
-            if (!settling || sessions.get(slot) != this) {
+            if (!settling || fallbackAnimator != null || sessions.get(slot) != this) {
                 return;
             }
             for (Axis axis : axes) {
@@ -643,17 +707,23 @@ public final class SlotShelfAnimationController {
                 float progress = Math.max(0f, Math.min(1f,
                         (session.source.height() - frame.height())
                                 / Math.max(1f, session.source.height() - session.target.height())));
+                float alpha = session.fadeToCenter ? 1f - progress : 1f;
+                if (alpha <= 0f) {
+                    continue;
+                }
                 float radius = Math.min(frame.width(), frame.height()) * (0.02f + progress * 0.22f);
                 clip.rewind();
                 clip.addRoundRect(frame, radius, radius, Path.Direction.CW);
                 int checkpoint = canvas.save();
                 canvas.clipPath(clip);
                 Bitmap bitmap = session.capture.image;
-                float iconAlpha = bitmap == null ? 1f
+                float iconAlpha = bitmap == null ? 1f : session.fadeToCenter ? 0f
                         : Math.max(0f, Math.min(1f, (progress - 0.76f) / 0.24f));
-                paint.setColor(Color.BLACK);
-                paint.setAlpha(Math.round(255f * (1f - iconAlpha)));
-                canvas.drawRect(frame, paint);
+                if (!session.fadeToCenter) {
+                    paint.setColor(Color.BLACK);
+                    paint.setAlpha(Math.round(255f * (1f - iconAlpha)));
+                    canvas.drawRect(frame, paint);
+                }
                 if (bitmap != null && !bitmap.isRecycled() && iconAlpha < 1f) {
                     float scale = Math.max(frame.width() / bitmap.getWidth(),
                             frame.height() / bitmap.getHeight());
@@ -661,7 +731,7 @@ public final class SlotShelfAnimationController {
                     float h = bitmap.getHeight() * scale;
                     imageBounds.set(frame.centerX() - w / 2f, frame.centerY() - h / 2f,
                             frame.centerX() + w / 2f, frame.centerY() + h / 2f);
-                    paint.setAlpha(Math.round(255f * (1f - iconAlpha)));
+                    paint.setAlpha(Math.round(255f * (1f - iconAlpha) * alpha));
                     canvas.drawBitmap(bitmap, null, imageBounds, paint);
                 }
                 Drawable icon = session.icon;
@@ -678,7 +748,7 @@ public final class SlotShelfAnimationController {
                         previousAlpha = icon.getAlpha();
                     }
                     icon.setBounds(iconBounds);
-                    icon.setAlpha(Math.round(iconAlpha * 255f));
+                    icon.setAlpha(Math.round(iconAlpha * 255f * alpha));
                     icon.draw(canvas);
                     if (sharedIcon) {
                         icon.setBounds(previousIconBounds);

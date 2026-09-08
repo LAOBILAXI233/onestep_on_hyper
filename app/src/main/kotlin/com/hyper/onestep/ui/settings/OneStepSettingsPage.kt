@@ -187,6 +187,7 @@ class OneStepSettingsPage(
         var topComponentsVisible by mutableStateOf(true)
         var topComponentScalePct by mutableIntStateOf(TOP_COMPONENT_SCALE_DEFAULT)
         var statusBarSpacingEnabled by mutableStateOf(false)
+        var bottomGestureSpacingEnabled by mutableStateOf(false)
         var logRecordingEnabled by mutableStateOf(false)
         var sideWindowCount by mutableIntStateOf(4)
         var topAppCandidates by mutableStateOf<List<LauncherApp>>(emptyList())
@@ -418,6 +419,7 @@ class OneStepSettingsPage(
         state.topComponentsVisible = callbacks.topComponentsVisible()
         state.topComponentScalePct = callbacks.topComponentScalePct()
         state.statusBarSpacingEnabled = callbacks.statusBarSpacingEnabled()
+        state.bottomGestureSpacingEnabled = callbacks.bottomGestureSpacingEnabled()
         state.logRecordingEnabled = callbacks.logRecordingEnabled()
         state.sideWindowCount = callbacks.sideWindowCount()
         state.topAppCandidates = callbacks.topAppCandidates()?.toList() ?: emptyList()
@@ -869,6 +871,14 @@ private fun MainPage(
                         onCheckedChange = { checked ->
                             state.statusBarSpacingEnabled = checked
                             callbacks.saveStatusBarSpacingEnabled(checked)
+                        },
+                    )
+                    SwitchPreference(
+                        title = "底部手势避让",
+                        checked = state.bottomGestureSpacingEnabled,
+                        onCheckedChange = { checked ->
+                            state.bottomGestureSpacingEnabled = checked
+                            callbacks.saveBottomGestureSpacingEnabled(checked)
                         },
                     )
                 }

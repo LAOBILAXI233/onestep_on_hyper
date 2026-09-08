@@ -53,7 +53,6 @@ devlog*.txt
 *-main.zip
 *-debug-*.zip
 /oneapp/
-*.zip
 
 # ===== NDK 构建产物（zygisk） =====
 /zygisk/.objs/

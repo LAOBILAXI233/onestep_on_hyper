@@ -80,6 +80,14 @@ for zygisk_library in \
         echo "Zygisk 构建产物缺少原生多显示器状态栏 Hook：$zygisk_library" >&2
         exit 1
     fi
+    if ! strings "$zygisk_library" | grep -F 'OneStepImeGuardHook' >/dev/null; then
+        echo "Zygisk 构建产物缺少 IME guard Hook：$zygisk_library" >&2
+        exit 1
+    fi
+    if ! strings "$zygisk_library" | grep -F "/$APK_ENTRY" >/dev/null; then
+        echo "Zygisk APK 加载路径与模块不一致：$zygisk_library" >&2
+        exit 1
+    fi
 done
 
 if [[ ! -f "$SMARTISAN_HOME_APK" ]]; then

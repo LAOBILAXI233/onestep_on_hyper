@@ -669,6 +669,7 @@ public class MainActivity extends Activity {
                     return MainActivity.this.activateMainPane(slot, false);
                 }
                 @Override public boolean isActivityDestroyed() { return activityDestroyed; }
+                @Override public boolean isActivityResumed() { return activityResumed; }
                 @Override public boolean isWindowFrameAnimationRunning() {
                     return isWindowAnimationRunning();
                 }
@@ -868,7 +869,7 @@ public class MainActivity extends Activity {
     private boolean multiWindowMode;
     private boolean exitOneStepPending;
     private boolean activityDestroyed;
-    private boolean activityResumed;
+    private volatile boolean activityResumed;
     private boolean activityLifecycleResumed;
     private boolean nonDefaultDisplayHomeRelay;
     private boolean directBootHome;
@@ -912,6 +913,10 @@ public class MainActivity extends Activity {
     private boolean topComponentsVisible = true;
     private int topComponentScalePct = OneStepSettings.TOP_COMPONENT_SCALE_DEFAULT;
     private boolean statusBarSpacingEnabled;
+    private boolean bottomGestureSpacingEnabled;
+    private int bottomGestureSafeInsetHeight;
+    private int appliedBottomGestureSpacingHeight;
+    private boolean bottomGestureLayoutUpdatePending;
     private boolean verticalWindowLayout;
     private int sideWindowCount = DEFAULT_SIDE_WINDOWS;
     private int topNavVerticalMarginScalePct = TOP_NAV_VERTICAL_MARGIN_SCALE_DEFAULT;
@@ -1562,6 +1567,11 @@ public class MainActivity extends Activity {
         }
         cancelScheduledHostedDisplayFocus();
         activityResumed = false;
+        for (EmbeddedAppHost host : embeddedHosts) {
+            if (host instanceof RootVirtualDisplayHost) {
+                ((RootVirtualDisplayHost) host).suspendHostedInputFocus();
+            }
+        }
         sideSlotResumeController.pause();
         stopRunningTaskMonitoring();
         pauseMediaMonitoring();
@@ -2607,6 +2617,10 @@ public class MainActivity extends Activity {
     private View createDesktop() {
         FrameLayout root = new FrameLayout(this);
         rootContainer = root;
+        root.setOnApplyWindowInsetsListener((view, insets) -> {
+            updateBottomGestureSafeInsetHeight(insets);
+            return insets;
+        });
         root.setOnDragListener(this::handleNativeContentDrag);
         root.setBackground(makeWallpaperFallback());
         try {
@@ -2739,6 +2753,7 @@ public class MainActivity extends Activity {
             return;
         }
 
+        appliedBottomGestureSpacingHeight = getBottomGestureSpacingHeight();
         Rect[] targetRects = calculateWindowRects();
         suspendWindowInputRouting();
         updateScreenContainerBackground();
@@ -2785,6 +2800,7 @@ public class MainActivity extends Activity {
             }
             scheduleEmbeddedSlotRefresh();
             sideSlotResumeController.resume();
+            scheduleBottomGestureLayoutUpdate();
         };
 
         if (!animate || !hasLaidOutWindowFrames()) {
@@ -2849,12 +2865,14 @@ public class MainActivity extends Activity {
             return;
         }
         int topMargin = multiWindowMode ? getTopChromeHeight() : 0;
+        int bottomMargin = getBottomGestureSpacingHeight();
         FrameLayout.LayoutParams layoutParams =
                 (FrameLayout.LayoutParams) screenContainerBackground.getLayoutParams();
-        if (layoutParams.topMargin == topMargin) {
+        if (layoutParams.topMargin == topMargin && layoutParams.bottomMargin == bottomMargin) {
             return;
         }
         layoutParams.topMargin = topMargin;
+        layoutParams.bottomMargin = bottomMargin;
         screenContainerBackground.setLayoutParams(layoutParams);
     }
 
@@ -2868,7 +2886,7 @@ public class MainActivity extends Activity {
         return WindowLayoutCalculator.calculate(
                 MAX_WINDOWS,
                 workspace.getWidth(),
-                workspace.getHeight(),
+                workspace.getHeight() - getBottomGestureSpacingHeight(),
                 dp(2),
                 getTopChromeHeight(),
                 multiWindowMode,
@@ -5878,19 +5896,7 @@ public class MainActivity extends Activity {
         if (activityDestroyed || origin == null) {
             return;
         }
-        RootVirtualDisplayHost sibling = null;
-        for (int i = 0; i < embeddedHosts.length && sibling == null; i++) {
-            if (i != activeMainSlot && embeddedHosts[i] instanceof RootVirtualDisplayHost
-                    && ((RootVirtualDisplayHost) embeddedHosts[i]).getDisplayId() > 0) {
-                sibling = (RootVirtualDisplayHost) embeddedHosts[i];
-            }
-        }
-        if (sibling == null) {
-            origin.imeFocusCycleAsync();
-            return;
-        }
-        sibling.focusHostedDisplayAsync("ime focus cycle away",
-                () -> origin.focusHostedDisplayAsync("ime focus cycle back", null));
+        origin.imeFocusCycleAsync();
     }
 
     private void showDraggedTextPasteToast(LauncherApp app,
@@ -6192,6 +6198,7 @@ public class MainActivity extends Activity {
         topComponentsVisible = settings.topComponentsVisible;
         topComponentScalePct = settings.topComponentScalePct;
         statusBarSpacingEnabled = settings.statusBarSpacingEnabled;
+        bottomGestureSpacingEnabled = settings.bottomGestureSpacingEnabled;
         verticalWindowLayout = settings.verticalWindowLayout;
         sideWindowCount = settings.sideWindowCount;
         topNavVerticalMarginScalePct = settings.topNavVerticalMarginScalePct;
@@ -6910,6 +6917,9 @@ public class MainActivity extends Activity {
             @Override public boolean statusBarSpacingEnabled() {
                 return statusBarSpacingEnabled;
             }
+            @Override public boolean bottomGestureSpacingEnabled() {
+                return bottomGestureSpacingEnabled;
+            }
             @Override public boolean verticalWindowLayout() { return verticalWindowLayout; }
             @Override public boolean logRecordingEnabled() { return logRecordingEnabled; }
             @Override public int sideWindowCount() { return sideWindowCount; }
@@ -7014,6 +7024,9 @@ public class MainActivity extends Activity {
             }
             @Override public void saveStatusBarSpacingEnabled(boolean enabled) {
                 MainActivity.this.saveStatusBarSpacingEnabled(enabled);
+            }
+            @Override public void saveBottomGestureSpacingEnabled(boolean enabled) {
+                MainActivity.this.saveBottomGestureSpacingEnabled(enabled);
             }
             @Override public void saveVerticalWindowLayout(boolean enabled) {
                 MainActivity.this.saveVerticalWindowLayout(enabled);
@@ -7620,6 +7633,17 @@ public class MainActivity extends Activity {
         scheduleEmbeddedSlotRefresh(true);
     }
 
+    private void saveBottomGestureSpacingEnabled(boolean enabled) {
+        if (enabled == bottomGestureSpacingEnabled) {
+            return;
+        }
+        bottomGestureSpacingEnabled = enabled;
+        settingsStore.saveBottomGestureSpacingEnabled(enabled);
+        updateSettingsPageViews();
+        updateBottomGestureSafeInsetHeight(getWindow().getDecorView().getRootWindowInsets());
+        scheduleBottomGestureLayoutUpdate();
+    }
+
     private void saveVerticalWindowLayout(boolean enabled) {
         if (enabled == verticalWindowLayout) {
             return;
@@ -8133,11 +8157,30 @@ public class MainActivity extends Activity {
                             return null;
                         }
                         for (AppShortcutView shortcut : shortcutViews) {
-                            if (app.instanceKey().equals(shortcut.getInstanceKeyValue())) {
+                            if (topAppStripScrollView != null
+                                    && topAppStripScrollView.findContainingViewHolder(shortcut) != null
+                                    && shortcut.isShown() && shortcut.getAlpha() > 0f
+                                    && app.instanceKey().equals(shortcut.getInstanceKeyValue())) {
                                 Rect bounds = new Rect();
-                                shortcut.getGlobalVisibleRect(bounds);
-                                return bounds;
+                                if (shortcut.getGlobalVisibleRect(bounds) && !bounds.isEmpty()) {
+                                    return bounds;
+                                }
                             }
+                        }
+                        return null;
+                    }
+
+                    @Override public Rect shelfBounds() {
+                        Rect bounds = new Rect();
+                        if (topAppStripScrollView != null && topAppStripScrollView.isShown()
+                                && topAppStripScrollView.getGlobalVisibleRect(bounds)
+                                && !bounds.isEmpty()) {
+                            return bounds;
+                        }
+                        if (topAppStripRoot != null && topAppStripRoot.isShown()
+                                && topAppStripRoot.getGlobalVisibleRect(bounds)
+                                && !bounds.isEmpty()) {
+                            return bounds;
                         }
                         return null;
                     }
@@ -11759,6 +11802,56 @@ public class MainActivity extends Activity {
                     windowInsets.getDisplayCutout().getSafeInsetTop());
         }
         return safeInsetHeight;
+    }
+
+    private void updateBottomGestureSafeInsetHeight(WindowInsets insets) {
+        if (insets == null) {
+            return;
+        }
+        int bottomInset;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            bottomInset = insets.getInsetsIgnoringVisibility(
+                    WindowInsets.Type.navigationBars()
+                            | WindowInsets.Type.mandatorySystemGestures()
+                            | WindowInsets.Type.displayCutout()).bottom;
+        } else {
+            bottomInset = Math.max(insets.getStableInsetBottom(),
+                    insets.getMandatorySystemGestureInsets().bottom);
+            if (insets.getDisplayCutout() != null) {
+                bottomInset = Math.max(bottomInset,
+                        insets.getDisplayCutout().getSafeInsetBottom());
+            }
+        }
+        if (bottomGestureSafeInsetHeight == bottomInset) {
+            return;
+        }
+        bottomGestureSafeInsetHeight = bottomInset;
+        scheduleBottomGestureLayoutUpdate();
+    }
+
+    private int getBottomGestureSpacingHeight() {
+        if (!multiWindowMode || !bottomGestureSpacingEnabled || workspace == null) {
+            return 0;
+        }
+        int availableHeight = Math.max(0, workspace.getHeight() - getTopChromeHeight() - 1);
+        return Math.min(availableHeight, bottomGestureSafeInsetHeight + dp(8));
+    }
+
+    private void scheduleBottomGestureLayoutUpdate() {
+        if (activityDestroyed || workspace == null || bottomGestureLayoutUpdatePending
+                || appliedBottomGestureSpacingHeight == getBottomGestureSpacingHeight()) {
+            return;
+        }
+        bottomGestureLayoutUpdatePending = true;
+        workspace.post(() -> {
+            bottomGestureLayoutUpdatePending = false;
+            if (!activityDestroyed && workspace != null
+                    && workspace.getWidth() > 0 && workspace.getHeight() > 0
+                    && !isWindowAnimationRunning()
+                    && appliedBottomGestureSpacingHeight != getBottomGestureSpacingHeight()) {
+                applyWindowLayout(false);
+            }
+        });
     }
 
     private int getTopNavHeight() {

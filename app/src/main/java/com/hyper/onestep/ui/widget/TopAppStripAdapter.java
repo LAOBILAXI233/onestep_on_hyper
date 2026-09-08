@@ -1,6 +1,7 @@
 package com.hyper.onestep.ui.widget;
 
 import android.view.ViewGroup;
+import android.widget.FrameLayout;
 
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.DiffUtil;
@@ -58,11 +59,16 @@ public final class TopAppStripAdapter
     @NonNull
     @Override
     public Holder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+        FrameLayout cell = new FrameLayout(parent.getContext());
+        cell.setClipChildren(false);
+        cell.setClipToPadding(false);
+        cell.setLayoutParams(new RecyclerView.LayoutParams(
+                cellWidthPx, ViewGroup.LayoutParams.MATCH_PARENT));
         AppShortcutView shortcut = new AppShortcutView(parent.getContext(), false, iconSizeDp, 0);
         shortcut.setStatusIndicatorEnabled(true);
-        shortcut.setLayoutParams(new RecyclerView.LayoutParams(
-                cellWidthPx, ViewGroup.LayoutParams.MATCH_PARENT));
-        return new Holder(shortcut);
+        cell.addView(shortcut, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        return new Holder(cell, shortcut);
     }
 
     @Override
@@ -93,8 +99,8 @@ public final class TopAppStripAdapter
     static final class Holder extends RecyclerView.ViewHolder {
         final AppShortcutView shortcut;
 
-        Holder(AppShortcutView shortcut) {
-            super(shortcut);
+        Holder(FrameLayout cell, AppShortcutView shortcut) {
+            super(cell);
             this.shortcut = shortcut;
         }
     }

@@ -71,9 +71,10 @@ public final class RootInputBridgeClient implements AutoCloseable {
         }
     }
 
-    public synchronized boolean focusHostedDisplay(String bridgeToken, int displayId) {
+    public synchronized boolean focusHostedDisplay(String bridgeToken, int displayId,
+                                                    long requestedAt) {
         String response = sendRequestOnDedicatedConnection(
-                bridgeToken, "focusHostedDisplay " + displayId);
+                bridgeToken, "focusHostedDisplay " + displayId + " " + requestedAt);
         if (TextUtils.isEmpty(response)) {
             return false;
         }
@@ -87,6 +88,12 @@ public final class RootInputBridgeClient implements AutoCloseable {
         } catch (NumberFormatException e) {
             return false;
         }
+    }
+
+    public boolean releaseImeGuard(String bridgeToken, int displayId, long requestedAt) {
+        String response = sendRequestOnDedicatedConnection(bridgeToken,
+                "releaseImeGuard " + displayId + " " + requestedAt);
+        return ("releaseImeGuard " + displayId + " true").equals(response);
     }
 
     public synchronized boolean shouldShowIme(String bridgeToken, int displayId,
@@ -107,9 +114,9 @@ public final class RootInputBridgeClient implements AutoCloseable {
             return false;
         }
     }
-    public synchronized boolean imeFocusCycle(String bridgeToken, int displayId) {
+    public synchronized boolean imeFocusCycle(String bridgeToken, int displayId, long requestedAt) {
         String response = sendRequestOnDedicatedConnection(
-                bridgeToken, "imeFocusCycle " + displayId);
+                bridgeToken, "imeFocusCycle " + displayId + " " + requestedAt);
         if (TextUtils.isEmpty(response)) {
             return false;
         }
@@ -124,21 +131,23 @@ public final class RootInputBridgeClient implements AutoCloseable {
         }
     }
 
-    public synchronized boolean isImeVisible(String bridgeToken, int displayId) {
+    public Boolean isImeVisible(String bridgeToken, int displayId) {
         String response = sendRequestOnDedicatedConnection(
                 bridgeToken, "imeVisible " + displayId);
         if (TextUtils.isEmpty(response)) {
-            return false;
+            return null;
         }
         try {
             String[] parts = response.trim().split("\\s+");
-            return parts.length == 3
-                    && "imeVisible".equals(parts[0])
+            if (parts.length == 3 && "imeVisible".equals(parts[0])
                     && Integer.parseInt(parts[1]) == displayId
-                    && Boolean.parseBoolean(parts[2]);
+                    && ("true".equals(parts[2]) || "false".equals(parts[2]))) {
+                return Boolean.parseBoolean(parts[2]);
+            }
         } catch (NumberFormatException e) {
-            return false;
+            return null;
         }
+        return null;
     }
 
     public boolean removeTask(String bridgeToken, int taskId) {

@@ -186,6 +186,7 @@ public final class RootVirtualDisplayHost implements EmbeddedAppHost,
         boolean isLargeScreenDevice();
         boolean activateMainSlot(int slot);
         boolean isActivityDestroyed();
+        boolean isActivityResumed();
         boolean isWindowFrameAnimationRunning();
         boolean isMultiWindowMode();
         boolean isWindowSlotEnabled(int slot);
@@ -402,13 +403,16 @@ public final class RootVirtualDisplayHost implements EmbeddedAppHost,
             imeGestureShieldQueryInFlight = true;
             final int finalTargetDisplayId = targetDisplayId;
             rootExecutor.execute(() -> {
-                boolean imeVisible = false;
+                Boolean imeVisible;
                 try {
                     if (!renderingEnabled || displayId != finalTargetDisplayId) {
                         return;
                     }
                     imeVisible = rootInputBridgeClient.isImeVisible(
                             getRootInputBridgeToken(), finalTargetDisplayId);
+                    if (imeVisible == null) {
+                        return;
+                    }
                 } finally {
                     imeGestureShieldQueryInFlight = false;
                 }
@@ -2654,9 +2658,10 @@ public final class RootVirtualDisplayHost implements EmbeddedAppHost,
                             == focusRequestGeneration
                             && motion.displayId == displayId
                             && slot == callbacks.activeMainSlot()
+                            && callbacks.isActivityResumed()
                             && !callbacks.isActivityDestroyed();
                     boolean focused = currentRequest && rootInputBridgeClient.focusHostedDisplay(
-                            getRootInputBridgeToken(), motion.displayId);
+                            getRootInputBridgeToken(), motion.displayId, motion.event.getEventTime());
                     if (currentRequest && !focused) {
                         Log.w(TAG, "Focus hosted display before touch failed: slot=" + slot
                                 + ", display=" + motion.displayId);
@@ -2706,19 +2711,23 @@ public final class RootVirtualDisplayHost implements EmbeddedAppHost,
 
     public void imeFocusCycleAsync() {
         final int targetDisplayId = displayId;
+        final int requestGeneration = focusRequestGeneration;
+        final long requestedAt = SystemClock.uptimeMillis();
         if (targetDisplayId <= DEFAULT_DISPLAY_ID) {
             return;
         }
-        displayImePolicyExecutor.execute(() -> {
-            boolean ok = targetDisplayId == displayId
-                    && !callbacks.isActivityDestroyed()
-                    && rootInputBridgeClient.imeFocusCycle(
-                            getRootInputBridgeToken(), targetDisplayId);
-            if (!ok) {
-                Log.w(TAG, "Post-paste IME focus cycle failed: slot=" + slot
-                        + ", display=" + targetDisplayId);
-            }
-        });
+        try {
+            displayImePolicyExecutor.execute(() -> {
+                if (targetDisplayId == displayId && requestGeneration == focusRequestGeneration
+                        && slot == callbacks.activeMainSlot() && callbacks.isActivityResumed()
+                        && !callbacks.isActivityDestroyed()) {
+                    rootInputBridgeClient.imeFocusCycle(
+                            getRootInputBridgeToken(), targetDisplayId, requestedAt);
+                }
+            });
+        } catch (RuntimeException e) {
+            Log.w(TAG, "Queue IME focus cycle failed: slot=" + slot, e);
+        }
     }
 
     private void injectKeyDirectAsync(int keyCode, String description) {
@@ -2780,16 +2789,18 @@ public final class RootVirtualDisplayHost implements EmbeddedAppHost,
     void focusHostedDisplayAsync(String reason, Runnable onFinished) {
         final int targetDisplayId = displayId;
         final int requestGeneration = ++focusRequestGeneration;
+        final long requestedAt = SystemClock.uptimeMillis();
         syncLaunchRoutingSource();
         try {
             displayImePolicyExecutor.execute(() -> {
                 boolean currentRequest = requestGeneration == focusRequestGeneration
                         && targetDisplayId == displayId
                         && slot == callbacks.activeMainSlot()
+                        && callbacks.isActivityResumed()
                         && !callbacks.isActivityDestroyed();
                 boolean focused = currentRequest && targetDisplayId > DEFAULT_DISPLAY_ID
                         && rootInputBridgeClient.focusHostedDisplay(
-                        getRootInputBridgeToken(), targetDisplayId);
+                        getRootInputBridgeToken(), targetDisplayId, requestedAt);
                 if (currentRequest && !focused) {
                     Log.w(TAG, "Focus promoted display failed: slot=" + slot
                             + ", display=" + targetDisplayId + ", reason=" + reason);
@@ -3354,7 +3365,7 @@ public final class RootVirtualDisplayHost implements EmbeddedAppHost,
         shelvedRestoreCallbacks = null;
         invalidateTaskResolution();
         invalidateDisplayImePolicySetup();
-        focusRequestGeneration++;
+        suspendHostedInputFocus();
         cancelHostedSurfaceReveal();
         rootManagedVirtualDisplay = false;
         virtualDisplay = null;
@@ -3425,14 +3436,36 @@ public final class RootVirtualDisplayHost implements EmbeddedAppHost,
         if (!rootAvailable) {
             return;
         }
+        final long requestedAt = SystemClock.uptimeMillis();
         try {
-            rootInputBridgeClient.shouldShowIme(
-                    getRootInputBridgeToken(), Display.DEFAULT_DISPLAY, true);
-        } catch (RuntimeException ignored) {
+            displayImePolicyExecutor.execute(() -> {
+                rootInputBridgeClient.releaseImeGuard(
+                        getRootInputBridgeToken(), Display.DEFAULT_DISPLAY, requestedAt);
+                rootInputBridgeClient.shouldShowIme(
+                        getRootInputBridgeToken(), Display.DEFAULT_DISPLAY, true);
+            });
+        } catch (RuntimeException e) {
+            Log.w(TAG, "Queue default-display IME restoration failed", e);
         }
     }
-    void depriveHostedInputFocus() {
+
+    void suspendHostedInputFocus() {
         focusRequestGeneration++;
+        final int targetDisplayId = displayId;
+        final long requestedAt = SystemClock.uptimeMillis();
+        if (!rootAvailable || targetDisplayId <= DEFAULT_DISPLAY_ID) {
+            return;
+        }
+        try {
+            displayImePolicyExecutor.execute(() -> rootInputBridgeClient.releaseImeGuard(
+                    getRootInputBridgeToken(), targetDisplayId, requestedAt));
+        } catch (RuntimeException e) {
+            Log.w(TAG, "Queue IME guard release failed: slot=" + slot, e);
+        }
+    }
+
+    void depriveHostedInputFocus() {
+        suspendHostedInputFocus();
         if (!HostedInputFocusPolicy.shouldUseDemotedFocusWindow(Build.VERSION.SDK_INT)) {
             destroyHostedInputFocusGuard();
             Log.i(TAG, "Keep hosted task visible without focus guard: slot=" + slot
@@ -4604,7 +4637,7 @@ public final class RootVirtualDisplayHost implements EmbeddedAppHost,
         } else {
             resetSensorServiceUidOverrideAsync();
         }
-        focusRequestGeneration++;
+        suspendHostedInputFocus();
         destroyHostedInputFocusGuard();
         stopImeGestureShield();
         pendingApp = null;

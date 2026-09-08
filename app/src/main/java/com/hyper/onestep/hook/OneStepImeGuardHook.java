@@ -1,7 +1,12 @@
 package com.hyper.onestep.hook;
 
+import android.os.IBinder;
+import android.os.ResultReceiver;
 import android.os.SystemClock;
 import android.util.Log;
+import android.view.inputmethod.InputMethodManager;
+
+import com.hyper.onestep.system.input.ImeGuardLease;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -16,15 +21,9 @@ public final class OneStepImeGuardHook {
     private static final String TAG = "OneStepImeGuard";
     private static final String IMMS_CLASS =
             "com.android.server.inputmethod.InputMethodManagerService";
-    private static final String GUARD_DISPLAY_PROP = "onestep.ime.guard_display";
-    private static final String GUARD_AT_PROP = "onestep.ime.guard_at";
-    private static final long GUARD_TTL_MS = 60_000L;
-    private static final long RESTORE_DEBOUNCE_MS = 250L;
     private static final int IMMS_DISPLAY_DEFAULT = 0;
 
     private static volatile boolean installed;
-    private static volatile boolean clientHideInFlight;
-    private static volatile long lastRestoreAtUptimeMs;
 
     private OneStepImeGuardHook() {
     }
@@ -60,59 +59,111 @@ public final class OneStepImeGuardHook {
         Log.e(TAG, "timed out waiting for InputMethodManagerService", lastFailure);
     }
 
-    private static synchronized void install(Class<?> immsClass) {
+    private static synchronized void install(Class<?> immsClass)
+            throws ReflectiveOperationException {
         if (installed) {
             return;
         }
         HookBridgeCompat.disableHiddenApiRestrictions();
-        installClientHideMarkers(immsClass);
         installed = installHideInterceptor(immsClass);
         Log.i(TAG, installed ? "installed" : "inactive");
     }
 
-    private static void installClientHideMarkers(Class<?> immsClass) {
-        XC_MethodHook marker = new XC_MethodHook() {
-            @Override
-            protected void beforeHookedMethod(MethodHookParam param) {
-                clientHideInFlight = true;
-            }
-
-            @Override
-            protected void afterHookedMethod(MethodHookParam param) {
-                clientHideInFlight = false;
-            }
-        };
-        boolean marked = false;
-        for (Method method : immsClass.getDeclaredMethods()) {
-            String name = method.getName();
-            if ("hideMySoftInput".equals(name) || "hideSoftInput".equals(name)) {
-                method.setAccessible(true);
-                XposedBridge.hookMethod(method, marker);
-                marked = true;
-            }
+    private static boolean installHideInterceptor(Class<?> immsClass)
+            throws ReflectiveOperationException {
+        ClassLoader loader = immsClass.getClassLoader();
+        Class<?> reasons = Class.forName(
+                "com.android.internal.inputmethod.SoftInputShowHideReason", false, loader);
+        int transientHideReason = reasons.getField("HIDE_UNSPECIFIED_WINDOW").getInt(null);
+        Field wmField = immsClass.getDeclaredField("mWindowManagerInternal");
+        wmField.setAccessible(true);
+        Class<?> wmClass = Class.forName("com.android.server.wm.WindowManagerInternal",
+                false, loader);
+        Method topFocusedDisplay = wmClass.getMethod("getTopFocusedDisplayId");
+        Method windowDisplay = wmClass.getMethod("getDisplayIdForWindow", IBinder.class);
+        Method keyguardLocked = wmClass.getMethod("isKeyguardLocked");
+        Method imeDisplay = null;
+        try {
+            imeDisplay = immsClass.getDeclaredMethod("getCurTokenDisplayIdLocked");
+            imeDisplay.setAccessible(true);
+        } catch (NoSuchMethodException ignored) {
         }
-        Log.i(TAG, "client hide markers=" + marked);
-    }
-
-    private static boolean installHideInterceptor(Class<?> immsClass) {
+        Method currentImeDisplay = imeDisplay;
+        Method bindingControllerMethod = null;
+        Method bindingDisplayMethod = null;
+        try {
+            bindingControllerMethod = immsClass.getDeclaredMethod(
+                    "getInputMethodBindingController", int.class);
+            bindingControllerMethod.setAccessible(true);
+            bindingDisplayMethod = bindingControllerMethod.getReturnType()
+                    .getDeclaredMethod("getCurTokenDisplayId");
+            bindingDisplayMethod.setAccessible(true);
+        } catch (NoSuchMethodException ignored) {
+        }
+        Method bindingController = bindingControllerMethod;
+        Method bindingDisplay = bindingDisplayMethod;
         XC_MethodHook interceptor = new XC_MethodHook() {
             @Override
             protected void beforeHookedMethod(MethodHookParam param) {
-                if (clientHideInFlight) {
+                int reasonIndex = hideReasonIndex((Method) param.method);
+                if (reasonIndex < 0 || !(param.args[0] instanceof IBinder)
+                        || !Integer.valueOf(transientHideReason).equals(param.args[reasonIndex])) {
                     return;
                 }
-                long guardAt = parseLongProp(GUARD_AT_PROP);
-                if (guardAt <= 0L
-                        || SystemClock.uptimeMillis() - guardAt > GUARD_TTL_MS) {
+                ImeGuardLease lease = ImeGuardLease.parse(
+                        readSystemProp(ImeGuardLease.PROPERTY, "0"), SystemClock.uptimeMillis());
+                if (lease == null) {
                     return;
                 }
-                int guardDisplay = (int) parseLongProp(GUARD_DISPLAY_PROP);
-                if (guardDisplay <= IMMS_DISPLAY_DEFAULT) {
+                try {
+                    Object wm = wmField.get(param.thisObject);
+                    if (!Boolean.FALSE.equals(keyguardLocked.invoke(wm))
+                            || !Integer.valueOf(lease.displayId).equals(topFocusedDisplay.invoke(wm))
+                            || !Integer.valueOf(IMMS_DISPLAY_DEFAULT).equals(
+                                    windowDisplay.invoke(wm, param.args[0]))) {
+                        return;
+                    }
+                    Object imeDisplayId;
+                    if (param.args.length == 6) {
+                        if (bindingController == null || bindingDisplay == null) {
+                            return;
+                        }
+                        Object controller = bindingController.invoke(param.thisObject, param.args[5]);
+                        imeDisplayId = bindingDisplay.invoke(controller);
+                    } else {
+                        if (currentImeDisplay == null) {
+                            return;
+                        }
+                        imeDisplayId = currentImeDisplay.invoke(param.thisObject);
+                    }
+                    if (!Integer.valueOf(lease.displayId).equals(imeDisplayId)) {
+                        return;
+                    }
+                    if (reasonIndex == 4 && param.args[1] != null) {
+                        Class<?> tracker = Class.forName("android.view.inputmethod.ImeTracker",
+                                false, loader);
+                        Object logger = tracker.getMethod("forLogging").invoke(null);
+                        int phase = tracker.getField("PHASE_SERVER_SHOULD_HIDE").getInt(null);
+                        Class<?> tokenClass = Class.forName(
+                                "android.view.inputmethod.ImeTracker$Token", false, loader);
+                        tracker.getMethod("onCancelled", tokenClass, int.class)
+                                .invoke(logger, param.args[1], phase);
+                    }
+                } catch (ReflectiveOperationException | RuntimeException e) {
                     return;
                 }
-                param.setResult(Boolean.TRUE);
-                Log.i(TAG, "Blocked server-side IME hide while hosted display "
-                        + guardDisplay + " owns input focus");
+                Object receiver = param.args[reasonIndex - 1];
+                if (receiver instanceof ResultReceiver) {
+                    try {
+                        ((ResultReceiver) receiver).send(
+                                InputMethodManager.RESULT_UNCHANGED_SHOWN, null);
+                    } catch (RuntimeException e) {
+                        Log.w(TAG, "IME hide result delivery failed", e);
+                    }
+                }
+                param.setResult(Boolean.FALSE);
+                Log.d(TAG, "Ignored transient default-display IME hide; focused display="
+                        + lease.displayId);
             }
         };
         int hooked = 0;
@@ -133,18 +184,26 @@ public final class OneStepImeGuardHook {
     }
 
     static boolean isHideCurrentInputLockedTarget(Method method) {
-        return method != null
-                && "hideCurrentInputLocked".equals(method.getName())
-                && method.getReturnType() == boolean.class
-                && method.getParameterTypes().length > 0;
+        return hideReasonIndex(method) >= 0;
     }
 
-    private static long parseLongProp(String key) {
-        try {
-            return Long.parseLong(readSystemProp(key, "0").trim());
-        } catch (RuntimeException e) {
-            return 0L;
+    static int hideReasonIndex(Method method) {
+        if (method == null || !"hideCurrentInputLocked".equals(method.getName())
+                || method.getReturnType() != boolean.class) {
+            return -1;
         }
+        Class<?>[] types = method.getParameterTypes();
+        if (types.length == 4 && types[0] == IBinder.class && types[1] == int.class
+                && types[2] == ResultReceiver.class && types[3] == int.class) {
+            return 3;
+        }
+        if ((types.length == 5 || types.length == 6) && types[0] == IBinder.class
+                && "android.view.inputmethod.ImeTracker$Token".equals(types[1].getName())
+                && types[2] == int.class && types[3] == ResultReceiver.class
+                && types[4] == int.class && (types.length == 5 || types[5] == int.class)) {
+            return 4;
+        }
+        return -1;
     }
 
     private static String readSystemProp(String key, String fallback) {

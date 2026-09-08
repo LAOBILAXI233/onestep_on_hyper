@@ -49,12 +49,21 @@ ensure_vanstep_data_refresh() {
     write_log "VanStep：priv-app 挂载缺失（$VANSTEP_PRIV_APP）"
     return 1
   fi
-  write_log "VanStep：pm install 启动副本"
-  if run_and_log pm install -r -d --user 0 "$VANSTEP_PRIV_APP"; then
-    write_log "VanStep：pm install 成功"
-  else
-    write_log "VanStep：pm install 失败（签名冲突时保留现有安装）"
-  fi
+  installed_vanstep_apk="$(pm path "$PACKAGE_NAME" 2>/dev/null \
+    | sed -n 's/^package://p' | head -n 1)"
+  case "$installed_vanstep_apk" in
+    /data/app/*)
+      write_log "VanStep：保留已安装的更新包"
+      ;;
+    *)
+      write_log "VanStep：pm install 启动副本"
+      if run_and_log pm install -r --user 0 "$VANSTEP_PRIV_APP"; then
+        write_log "VanStep：pm install 成功"
+      else
+        write_log "VanStep：pm install 失败（保留现有安装）"
+      fi
+      ;;
+  esac
   if run_and_log cmd package install-existing --user 0 "$PACKAGE_NAME"; then
     write_log "VanStep：已为用户 0 注册"
   else

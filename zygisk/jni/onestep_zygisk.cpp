@@ -29,13 +29,16 @@ void writeStatusHookDiagnostic(const char *message) {
 
 constexpr const char *kAliuHookDex = "zygisk-runtime/aliuhook.dex";
 constexpr const char *kOneStepPackage = "com.hyper.onestep";
-constexpr const char *kOneStepApk = "/system/priv-app/VanStep/VanStep.apk";
+constexpr const char *kOneStepApk =
+        "/system/priv-app/com.hyper.onestep/com.hyper.onestep.apk";
 constexpr const char *kHookClass =
         "com.hyper.onestep.hook.OneStepSecureWindowHook";
 constexpr const char *kStatusBarOverlayHookClass =
         "com.hyper.onestep.hook.OneStepStatusBarOverlayHook";
 constexpr const char *kPrimaryHomeHookClass =
         "com.hyper.onestep.hook.OneStepPrimaryHomeHook";
+constexpr const char *kImeGuardHookClass =
+        "com.hyper.onestep.hook.OneStepImeGuardHook";
 constexpr const char *kRootVirtualDisplayCompatHookClass =
         "com.hyper.onestep.hook.OneStepRootVirtualDisplayCompatHook";
 constexpr const char *kBackgroundTaskActivationHookClass =
@@ -63,6 +66,7 @@ constexpr const char *kDisableStatusBarOverlayHook =
         "hook-config/disable-status-bar-overlay";
 constexpr const char *kDisablePrimaryHomeEnhancement =
         "hook-config/disable-primary-home-enhancement";
+constexpr const char *kDisableImeGuard = "hook-config/disable-ime-guard";
 constexpr const char *kModulesDirectory = "/data/adb/modules";
 constexpr const char *kStandaloneBackendMarker =
         "/data/system/onestep-standalone-backend-active";
@@ -679,9 +683,10 @@ public:
                 faccessat(moduleFd, kDisableStatusBarOverlayHook, F_OK, 0) != 0;
         primaryHomeEnhancementEnabled =
                 faccessat(moduleFd, kDisablePrimaryHomeEnhancement, F_OK, 0) != 0;
-        LOGI("Hook settings: secure=%d, statusbar=%d, primaryHome=%d",
+        imeGuardEnabled = faccessat(moduleFd, kDisableImeGuard, F_OK, 0) != 0;
+        LOGI("Hook settings: secure=%d, statusbar=%d, primaryHome=%d, imeGuard=%d",
              secureWindowHookEnabled, statusBarOverlayHookEnabled,
-             primaryHomeEnhancementEnabled);
+             primaryHomeEnhancementEnabled, imeGuardEnabled);
         if (activeLsposedModuleInstalled()) {
             lsposedBackendSelected = true;
             LOGI("Active LSPosed module detected; skip standalone Aliuhook/LSPlant");
@@ -707,6 +712,13 @@ public:
                         env->NewGlobalRef(localPrimaryHomeClass));
                 LOGI("Primary HOME hook runtime prepared for %s", kAbi);
             }
+            jclass localImeGuardClass = appLoader == nullptr || !imeGuardEnabled
+                    ? nullptr : loadNamedHookClass(env, appLoader, kImeGuardHookClass,
+                            "load IME guard hook class");
+            if (localImeGuardClass != nullptr) {
+                imeGuardHookClass = static_cast<jclass>(env->NewGlobalRef(localImeGuardClass));
+                LOGI("IME guard hook runtime prepared for %s", kAbi);
+            }
             jclass localRootDisplayCompatClass = appLoader == nullptr
                     ? nullptr : loadRootVirtualDisplayCompatHookClass(env, appLoader);
             if (localRootDisplayCompatClass != nullptr) {
@@ -728,6 +740,7 @@ public:
             }
             if (hookClass != nullptr || appClassLoaderRef != nullptr
                     || primaryHomeHookClass != nullptr
+                    || imeGuardHookClass != nullptr
                     || rootDisplayCompatHookClass != nullptr
                     || backgroundTaskActivationHookClass != nullptr) {
                 systemClassLoaderRef = env->NewGlobalRef(systemLoader);
@@ -783,6 +796,22 @@ public:
                 if (!clearException(env,
                         "run background task activation hook bootstrap")) {
                     LOGI("Background task activation hook bootstrap completed");
+                }
+            }
+        }
+        if (!imeGuardEnabled) {
+            LOGI("IME guard hook disabled by user");
+        } else if (imeGuardHookClass == nullptr) {
+            LOGE("IME guard hook runtime was not prepared");
+        } else {
+            jmethodID imeBootstrap = env->GetStaticMethodID(
+                    imeGuardHookClass, "bootstrap", "(Ljava/lang/ClassLoader;)V");
+            if (jniResultUnavailable(env, imeBootstrap, "find IME guard hook bootstrap")) {
+                LOGE("IME guard hook bootstrap was unavailable");
+            } else {
+                env->CallStaticVoidMethod(imeGuardHookClass, imeBootstrap, systemClassLoaderRef);
+                if (!clearException(env, "run IME guard hook bootstrap")) {
+                    LOGI("IME guard hook bootstrap started");
                 }
             }
         }
@@ -898,6 +927,7 @@ private:
     JNIEnv *env = nullptr;
     jclass hookClass = nullptr;
     jclass primaryHomeHookClass = nullptr;
+    jclass imeGuardHookClass = nullptr;
     jclass rootDisplayCompatHookClass = nullptr;
     jclass backgroundTaskActivationHookClass = nullptr;
     jclass hyperOsAppHookClass = nullptr;
@@ -910,6 +940,7 @@ private:
     bool secureWindowHookEnabled = true;
     bool statusBarOverlayHookEnabled = true;
     bool primaryHomeEnhancementEnabled = true;
+    bool imeGuardEnabled = true;
     bool lsposedBackendSelected = false;
 };
 

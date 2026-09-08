@@ -21,11 +21,14 @@ import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.FutureTask;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import android.view.Surface;
 
 import com.hyper.onestep.feature.embedding.HostedBackDispatchPolicy;
+import com.hyper.onestep.system.input.ImeGuardLease;
 import com.hyper.onestep.system.root.SystemServiceFailurePolicy;
 
 import java.io.BufferedReader;
@@ -36,10 +39,6 @@ import java.io.OutputStreamWriter;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
-import java.util.ArrayDeque;
-import java.util.Deque;
 import java.util.Locale;
 
 @SuppressLint({"BlockedPrivateApi", "DiscouragedPrivateApi", "PrivateApi"})
@@ -51,7 +50,7 @@ public final class RootInputBridge {
     private static final int ARG_ALLOWED_UID = 0;
     private static final int ARG_BRIDGE_TOKEN = 1;
     private static final String SOCKET_NAME_PREFIX = "onestep_input_bridge_";
-    public static final String HELLO_RESPONSE_PREFIX = "onestep-input-bridge-v26";
+    public static final String HELLO_RESPONSE_PREFIX = "onestep-input-bridge-v27";
     private static final int ROOT_UID = 0;
     private static final int SHELL_UID = 2000;
     private static final int WINDOWING_MODE_PINNED = 2;
@@ -88,30 +87,30 @@ public final class RootInputBridge {
     private Object inputMethodManagerService;
     private Method isImeVisibleMethod;
     private boolean imeReflectionFailedLogged;
-    // focusHostedDisplay is a hot path (one call per touch DOWN), so the
-    // per-call binder probes are cached: displayImePolicy already short-
-    // circuits no-change writes, and once a display is known-LOCAL there is
-    // nothing to do per touch. Same-display focus repeats inside the debounce
-    // window are also pure no-ops. Together a steady-touch DOWN costs zero
-    // system-server binder calls.
     private static final long FOCUS_TOP_TASK_DEBOUNCE_MS = 250L;
     private final Object focusTopTaskLock = new Object();
     private int lastFocusTopTaskDisplayId = -1;
     private long lastFocusTopTaskAtMs;
+    private long latestFocusRequestAt;
+    private long focusRequestGeneration;
+    private long defaultFocusReleasedAt;
+    private final java.util.HashMap<Integer, Long> releasedFocusByDisplay =
+            new java.util.HashMap<>();
+    private int imeGuardDisplayId = -1;
+    private long imeGuardRequestedAt;
     // Cache for getDisplayImePolicy probes; displayImePolicy already short-
     // circuits no-change writes, so stale reads only cost a redundant query.
     private final Object imePolicyLock = new Object();
-    private volatile boolean defaultDisplayImePolicyUnsupported;
     private final java.util.HashMap<Integer, Integer> lastKnownImePolicyByDisplay =
             new java.util.HashMap<>();
     // Short-lived cache so parallel poller clients do not each spawn a
     // dumpsys subprocess; dumpsys input_method blocks the system server's
     // binder thread while running, so unbounded spawn rates wedge IME focus.
     private static final long IME_VISIBILITY_DUMP_CACHE_MS = 250L;
-    private volatile int imeVisibilityDumpCacheDisplayId = -1;
-    private volatile boolean imeVisibilityDumpCacheVisible;
-    private volatile long imeVisibilityDumpCacheAt;
     private final Object pipDockLock = new Object();
+    private final AtomicBoolean imeDumpInFlight = new AtomicBoolean();
+    private volatile String cachedImeDump;
+    private volatile long cachedImeDumpAt;
     private int dockedPipTaskId = -1;
     private Rect dockedPipRestoreBounds;
     private long pipDockLeaseUptime;
@@ -349,8 +348,10 @@ public final class RootInputBridge {
             } else if ("motion".equals(parts[0])
                     && (parts.length == 7 || parts.length == 15 || parts.length == 16)) {
                 injectMotion(parts);
-            } else if ("focusHostedDisplay".equals(parts[0]) && parts.length == 2) {
+            } else if ("focusHostedDisplay".equals(parts[0]) && parts.length == 3) {
                 return focusHostedDisplay(parts);
+            } else if ("releaseImeGuard".equals(parts[0]) && parts.length == 3) {
+                return releaseImeGuard(parts);
             } else if ("shouldShowIme".equals(parts[0]) && parts.length == 3) {
                 return setShouldShowImeCommand(parts);
             } else if ("removeTask".equals(parts[0]) && parts.length == 2) {
@@ -368,7 +369,7 @@ public final class RootInputBridge {
                 return smartPaste(parts);
             } else if ("imePolicy".equals(parts[0]) && parts.length == 3) {
                 return setDisplayImePolicy(parts);
-            } else if ("imeFocusCycle".equals(parts[0]) && parts.length == 2) {
+            } else if ("imeFocusCycle".equals(parts[0]) && parts.length == 3) {
                 return imeFocusCycle(parts);
             } else if ("imeVisible".equals(parts[0]) && parts.length == 2) {
                 return imeVisible(parts);
@@ -510,20 +511,52 @@ public final class RootInputBridge {
         return INJECT_INPUT_EVENT_MODE_ASYNC;
     }
 
-    private void markImeGuard(int displayId) {
+    private boolean writeImeGuard(String value) {
+        Process process = null;
         try {
-            Process process = new ProcessBuilder("resetprop",
-                    "onestep.ime.guard_display", Integer.toString(displayId))
-                    .start();
-            process.waitFor();
-            process = new ProcessBuilder("resetprop",
-                    "onestep.ime.guard_at",
-                    Long.toString(android.os.SystemClock.uptimeMillis()))
-                    .start();
-            process.waitFor();
-        } catch (IOException | InterruptedException | RuntimeException e) {
+            String command = new File("/data/adb/ksu/bin/resetprop").canExecute()
+                    ? "/data/adb/ksu/bin/resetprop" : "resetprop";
+            process = new ProcessBuilder(command, "-n", ImeGuardLease.PROPERTY, value)
+                    .redirectErrorStream(true).redirectOutput(new File("/dev/null")).start();
+            return process.waitFor(200L, TimeUnit.MILLISECONDS) && process.exitValue() == 0;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (IOException | RuntimeException e) {
             Log.w(TAG, "mark IME guard failed: " + e.getClass().getSimpleName());
+        } finally {
+            if (process != null) {
+                process.destroyForcibly();
+            }
         }
+        return false;
+    }
+
+    private String releaseImeGuard(String[] parts) {
+        int displayId = Integer.parseInt(parts[1]);
+        long requestedAt = Long.parseLong(parts[2]);
+        if (displayId < 0 || requestedAt <= 0L || requestedAt > SystemClock.uptimeMillis()) {
+            return "releaseImeGuard " + displayId + " false";
+        }
+        synchronized (focusTopTaskLock) {
+            long oldestRequest = SystemClock.uptimeMillis() - ImeGuardLease.DURATION_MS;
+            releasedFocusByDisplay.entrySet().removeIf(entry -> entry.getValue() < oldestRequest);
+            if (displayId == Display.DEFAULT_DISPLAY) {
+                defaultFocusReleasedAt = Math.max(defaultFocusReleasedAt, requestedAt);
+            } else {
+                releasedFocusByDisplay.merge(displayId, requestedAt, Math::max);
+            }
+            if ((displayId == Display.DEFAULT_DISPLAY || imeGuardDisplayId == displayId)
+                    && imeGuardRequestedAt <= requestedAt) {
+                imeGuardDisplayId = -1;
+                imeGuardRequestedAt = 0L;
+                writeImeGuard("0");
+            }
+            if ((displayId == Display.DEFAULT_DISPLAY || lastFocusTopTaskDisplayId == displayId)
+                    && latestFocusRequestAt <= requestedAt) {
+                lastFocusTopTaskDisplayId = -1;
+            }
+        }
+        return "releaseImeGuard " + displayId + " true";
     }
     private String setShouldShowImeCommand(String[] parts) {
         int displayId;
@@ -549,10 +582,7 @@ public final class RootInputBridge {
             success = currentlyShown == show;
             if (success) {
                 synchronized (imePolicyLock) {
-                    lastKnownImePolicyByDisplay.put(displayId, show ? 0 : 1);
-                    if (displayId == Display.DEFAULT_DISPLAY) {
-                        defaultDisplayImePolicyUnsupported = false;
-                    }
+                    lastKnownImePolicyByDisplay.remove(displayId);
                 }
             }
         } catch (ReflectiveOperationException | RuntimeException e) {
@@ -563,17 +593,33 @@ public final class RootInputBridge {
     }
 
     private void resetDefaultDisplayImeOnBoot() {
+        writeImeGuard("0");
         String[] parts = {"shouldShowIme",
                 Integer.toString(Display.DEFAULT_DISPLAY), "true"};
         setShouldShowImeCommand(parts);
     }
     private String focusHostedDisplay(String[] parts) {
         int displayId = Integer.parseInt(parts[1]);
+        long requestedAt = parts.length > 2 ? Long.parseLong(parts[2]) : SystemClock.uptimeMillis();
         if (displayId <= Display.DEFAULT_DISPLAY) {
             Log.w(TAG, "Refuse hosted focus for non-virtual display=" + displayId);
             return "focusHostedDisplay " + displayId + " false false";
         }
-        maybeRecoverWedgedIme(displayId);
+        synchronized (focusTopTaskLock) {
+            long now = SystemClock.uptimeMillis();
+            if (requestedAt <= defaultFocusReleasedAt
+                    || requestedAt <= releasedFocusByDisplay.getOrDefault(displayId, 0L)
+                    || requestedAt < latestFocusRequestAt || requestedAt > now
+                    || now - requestedAt > ImeGuardLease.DURATION_MS) {
+                return "focusHostedDisplay " + displayId + " false false";
+            }
+            latestFocusRequestAt = requestedAt;
+            focusRequestGeneration++;
+            return focusHostedDisplayLocked(displayId, requestedAt);
+        }
+    }
+
+    private String focusHostedDisplayLocked(int displayId, long requestedAt) {
         boolean localImePolicy;
         synchronized (imePolicyLock) {
             localImePolicy = Integer.valueOf(0)
@@ -595,51 +641,22 @@ public final class RootInputBridge {
                 }
             }
         }
-        // Keep display 0 out of the IME rotation while a hosted display owns
-        // focus: display 0's policy flips to HIDE_IME(1), so when focus later
-        // drops to null there (the transient during every slot switch) IMS no
-        // longer sees display 0 as an IME target and skips the broadcast
-        // HIDE_UNSPECIFIED_WINDOW that was collapsing the keyboard. Cached so
-        // the hot path stays binder-free.
-        boolean defaultDisplayHidesIme;
-        synchronized (imePolicyLock) {
-            defaultDisplayHidesIme = defaultDisplayImePolicyUnsupported
-                    || Integer.valueOf(1).equals(
-                    lastKnownImePolicyByDisplay.get(Display.DEFAULT_DISPLAY));
-        }
-        if (!defaultDisplayHidesIme) {
-            String defaultPolicyResponse = setShouldShowImeCommand(
-                    new String[]{"shouldShowIme",
-                    Integer.toString(Display.DEFAULT_DISPLAY), "false"});
-            String[] defaultPolicyParts = defaultPolicyResponse.trim().split("\\s+");
-            defaultDisplayHidesIme = defaultPolicyParts.length == 4
-                    && Integer.parseInt(defaultPolicyParts[1]) == Display.DEFAULT_DISPLAY
-                    && Boolean.parseBoolean(defaultPolicyParts[3]);
-            if (defaultDisplayHidesIme) {
-                synchronized (imePolicyLock) {
-                    lastKnownImePolicyByDisplay.put(Display.DEFAULT_DISPLAY, 1);
-                }
-            } else {
-                defaultDisplayImePolicyUnsupported = true;
-            }
-        }
         boolean focused = false;
         String failure = "";
         if (localImePolicy) {
             try {
-                if (displayId > Display.DEFAULT_DISPLAY) {
-                    setShouldShowImeCommand(new String[]{"shouldShowIme",
-                            Integer.toString(displayId), "true"});
+                boolean focusIssued = focusTopTaskDebounced(displayId);
+                if (focusIssued && SystemClock.uptimeMillis() - requestedAt
+                        <= ImeGuardLease.DURATION_MS
+                        && writeImeGuard(ImeGuardLease.encode(displayId, requestedAt))) {
+                    imeGuardDisplayId = displayId;
+                    imeGuardRequestedAt = requestedAt;
                 }
-                focusTopTaskDebounced(displayId);
                 focused = true;
             } catch (ReflectiveOperationException | RuntimeException e) {
                 throwIfSystemServiceDead(e);
                 failure = describeThrowable(e);
             }
-        }
-        if (focused && displayId > 0) {
-            markImeGuard(displayId);
         }
         int priority = localImePolicy && focused ? Log.INFO : Log.WARN;
         Log.println(priority, TAG, "Focused hosted display=" + displayId
@@ -1666,26 +1683,6 @@ public final class RootInputBridge {
     
     
     
-    private static final long IME_HEAL_PROBE_INTERVAL_MS = 4000L;
-    private static final long IME_HEAL_COOLDOWN_MS = 30_000L;
-    private static final long IME_HEAL_RECENCY_MS = 45_000L;
-    private static final int IME_HEAL_MIN_RECENT_ATTEMPTS = 2;
-    private static final int IME_HEAL_SCAN_SHOWS = 8;
-    private static final Pattern IME_TRACKER_SHOW_PATTERN = Pattern.compile(
-            "TYPE_SHOW - STATUS_(SUCCESS|FAIL|CANCEL|TIMEOUT)");
-    private static final Pattern IME_TRACKER_TIME_PATTERN = Pattern.compile(
-            "startTime=(\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\.\\d{3})");
-    private volatile long lastImeHealthProbeAt;
-    private volatile long lastImeHealAt;
-
-    /**
-     * Focus the top task of {@code displayId} with burst suppression.
-     * Same-display repeats inside the debounce window are pure no-ops because
-     * focus already lives there; the invoke happens outside the lock so a
-     * stale cross-display requester never serializes behind a newer one.
-     *
-     * @return {@code true} when an actual focusTopTask call was issued.
-     */
     private boolean focusTopTaskDebounced(int displayId)
             throws ReflectiveOperationException {
         synchronized (focusTopTaskLock) {
@@ -1696,31 +1693,63 @@ public final class RootInputBridge {
                         + " within " + FOCUS_TOP_TASK_DEBOUNCE_MS + "ms");
                 return false;
             }
+            getFocusTopTaskMethod().invoke(getActivityTaskManagerService(), displayId);
             lastFocusTopTaskDisplayId = displayId;
-            lastFocusTopTaskAtMs = now;
+            lastFocusTopTaskAtMs = SystemClock.uptimeMillis();
+            return true;
         }
-        getFocusTopTaskMethod().invoke(getActivityTaskManagerService(), displayId);
-        return true;
     }
 
-    private boolean cycleImeFocus(int displayId) {
+    private boolean cycleImeFocus(int displayId, long requestedAt) {
+        final long requestGeneration;
+        synchronized (focusTopTaskLock) {
+            try {
+                long now = SystemClock.uptimeMillis();
+                if (lastFocusTopTaskDisplayId != displayId
+                        || requestedAt < latestFocusRequestAt || requestedAt <= defaultFocusReleasedAt
+                        || requestedAt > now || now - requestedAt > ImeGuardLease.DURATION_MS
+                        || requestedAt <= releasedFocusByDisplay.getOrDefault(displayId, 0L)) {
+                    return false;
+                }
+                latestFocusRequestAt = requestedAt;
+                requestGeneration = ++focusRequestGeneration;
+                imeGuardDisplayId = -1;
+                imeGuardRequestedAt = 0L;
+                writeImeGuard("0");
+                focusTopTaskDebounced(Display.DEFAULT_DISPLAY);
+            } catch (ReflectiveOperationException | RuntimeException e) {
+                logFailure("IME focus cycle display=" + displayId, describeThrowable(e));
+                return false;
+            }
+        }
         try {
-            focusTopTaskDebounced(Display.DEFAULT_DISPLAY);
             Thread.sleep(120L);
-            focusTopTaskDebounced(displayId);
-            return true;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-        } catch (ReflectiveOperationException | RuntimeException e) {
-            logFailure("IME focus cycle display=" + displayId, describeThrowable(e));
+            return false;
         }
-        return false;
+        synchronized (focusTopTaskLock) {
+            if (requestGeneration != focusRequestGeneration
+                    || lastFocusTopTaskDisplayId != Display.DEFAULT_DISPLAY
+                    || requestedAt <= defaultFocusReleasedAt
+                    || requestedAt <= releasedFocusByDisplay.getOrDefault(displayId, 0L)
+                    || SystemClock.uptimeMillis() - requestedAt > ImeGuardLease.DURATION_MS) {
+                return false;
+            }
+            try {
+                return focusTopTaskDebounced(displayId);
+            } catch (ReflectiveOperationException | RuntimeException e) {
+                logFailure("IME focus cycle display=" + displayId, describeThrowable(e));
+                return false;
+            }
+        }
     }
 
     private String imeFocusCycle(String[] parts) {
         int displayId = Integer.parseInt(parts[1]);
+        long requestedAt = parts.length > 2 ? Long.parseLong(parts[2]) : SystemClock.uptimeMillis();
         boolean success = displayId > Display.DEFAULT_DISPLAY
-                && cycleImeFocus(displayId);
+                && requestedAt > 0L && cycleImeFocus(displayId, requestedAt);
         Log.println(success ? Log.INFO : Log.WARN, TAG,
                 "imeFocusCycle display=" + displayId + " success=" + success);
         return "imeFocusCycle " + displayId + " " + success;
@@ -1733,13 +1762,15 @@ public final class RootInputBridge {
         } catch (NumberFormatException e) {
             return "imeVisible -1 false";
         }
-        boolean visible = false;
+        Boolean visible = null;
         boolean reflectionWorked = false;
         try {
             Object result = getIsImeVisibleMethod().invoke(
                     getInputMethodManagerService(), displayId);
-            visible = result instanceof Boolean && (Boolean) result;
-            reflectionWorked = true;
+            if (result instanceof Boolean) {
+                visible = (Boolean) result;
+                reflectionWorked = true;
+            }
         } catch (ReflectiveOperationException | RuntimeException e) {
             throwIfSystemServiceDead(e);
             if (!imeReflectionFailedLogged) {
@@ -1749,47 +1780,14 @@ public final class RootInputBridge {
             }
         }
         if (!reflectionWorked) {
-            long now = SystemClock.uptimeMillis();
-            if (displayId == imeVisibilityDumpCacheDisplayId
-                    && now - imeVisibilityDumpCacheAt < IME_VISIBILITY_DUMP_CACHE_MS) {
-                visible = imeVisibilityDumpCacheVisible;
-            } else {
-                visible = queryImeVisibleViaDumpsys(displayId);
-                imeVisibilityDumpCacheDisplayId = displayId;
-                imeVisibilityDumpCacheVisible = visible;
-                imeVisibilityDumpCacheAt = now;
-            }
+            visible = queryImeVisibleViaDumpsys(displayId);
         }
-        return "imeVisible " + displayId + " " + visible;
+        return "imeVisible " + displayId + " " + (visible == null ? "unknown" : visible);
     }
 
-    private boolean queryImeVisibleViaDumpsys(int targetDisplayId) {
-        Process process = null;
-        try {
-            process = Runtime.getRuntime().exec(new String[]{"sh", "-c",
-                    "dumpsys input_method"});
-            StringBuilder output = new StringBuilder();
-            try (BufferedReader reader = new BufferedReader(
-                    new InputStreamReader(process.getInputStream()))) {
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    output.append(line).append('\n');
-                }
-            }
-            int exitCode = process.waitFor();
-            if (exitCode != 0) {
-                Log.w(TAG, "dumpsys input_method exited with " + exitCode);
-                return false;
-            }
-            return parseImeVisibilityFromDump(output.toString(), targetDisplayId);
-        } catch (IOException | InterruptedException e) {
-            Log.w(TAG, "dumpsys fallback failed: " + describeThrowable(e));
-            return false;
-        } finally {
-            if (process != null) {
-                process.destroy();
-            }
-        }
+    private Boolean queryImeVisibleViaDumpsys(int targetDisplayId) {
+        String dump = readImeDump();
+        return dump == null ? null : parseImeVisibilityFromDump(dump, targetDisplayId);
     }
 
     private boolean parseImeVisibilityFromDump(String dump, int targetDisplayId) {
@@ -1825,104 +1823,69 @@ public final class RootInputBridge {
         return inputShown && windowVisible && displayIdToShowIme == targetDisplayId;
     }
 
-    private void maybeRecoverWedgedIme(int displayId) {
+    private String readImeDump() {
         long now = SystemClock.uptimeMillis();
-        if (now - lastImeHealthProbeAt < IME_HEAL_PROBE_INTERVAL_MS) {
-            return;
+        if (now - cachedImeDumpAt < IME_VISIBILITY_DUMP_CACHE_MS) {
+            return cachedImeDump;
         }
-        lastImeHealthProbeAt = now;
-        if (!isImeShowChainWedged()) {
-            return;
+        if (!imeDumpInFlight.compareAndSet(false, true)) {
+            return null;
         }
-        if (now - lastImeHealAt < IME_HEAL_COOLDOWN_MS
-                || displayId <= Display.DEFAULT_DISPLAY) {
-            return;
-        }
-        lastImeHealAt = now;
-        Log.println(Log.WARN, TAG,
-                "IME wedge detected: recent shows all failed, cycling focus"
-                        + " for display=" + displayId);
-        cycleImeFocus(displayId);
-    }
-
-    private boolean isImeShowChainWedged() {
         Process process = null;
+        FutureTask<String> read = null;
+        String result = null;
         try {
-            process = new ProcessBuilder("dumpsys", "input_method")
+            process = new ProcessBuilder("dumpsys", "-t", "1", "input_method")
                     .redirectErrorStream(true).start();
-            BufferedReader reader = new BufferedReader(
-                    new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8));
-            SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS",
-                    Locale.US);
-            Deque<long[]> recentShows = new ArrayDeque<>();
-            Boolean pendingSuccess = null;
-            String line;
-            while ((line = reader.readLine()) != null) {
-                if (line.contains("TYPE_SHOW")) {
-                    Matcher showMatcher = IME_TRACKER_SHOW_PATTERN.matcher(line);
-                    pendingSuccess = showMatcher.find()
-                            ? "SUCCESS".equals(showMatcher.group(1)) : null;
-                    continue;
+            Process source = process;
+            read = new FutureTask<>(() -> {
+                StringBuilder output = new StringBuilder();
+                try (BufferedReader reader = new BufferedReader(new InputStreamReader(
+                        source.getInputStream(), StandardCharsets.UTF_8))) {
+                    char[] buffer = new char[4096];
+                    int count;
+                    while ((count = reader.read(buffer)) != -1) {
+                        if (output.length() + count > 2 * 1024 * 1024) {
+                            throw new IOException("IME dump exceeds size limit");
+                        }
+                        output.append(buffer, 0, count);
+                    }
                 }
-                if (line.contains("TYPE_HIDE")) {
-                    pendingSuccess = null;
-                    continue;
-                }
-                if (pendingSuccess == null) {
-                    continue;
-                }
-                Matcher timeMatcher = IME_TRACKER_TIME_PATTERN.matcher(line);
-                if (!timeMatcher.find()) {
-                    continue;
-                }
-                Boolean success = pendingSuccess;
-                pendingSuccess = null;
-                long at;
-                try {
-                    at = format.parse(timeMatcher.group(1)).getTime();
-                } catch (ParseException e) {
-                    continue;
-                }
-                if (recentShows.size() == IME_HEAL_SCAN_SHOWS) {
-                    recentShows.pollFirst();
-                }
-                recentShows.addLast(new long[]{at, success ? 1L : 0L});
-            }
-            process.waitFor(1, TimeUnit.SECONDS);
-            long cutoff = System.currentTimeMillis() - IME_HEAL_RECENCY_MS;
-            int attempts = 0;
-            int successes = 0;
-            for (long[] show : recentShows) {
-                if (show[0] >= cutoff) {
-                    attempts++;
-                    successes += (int) show[1];
-                }
-            }
-            return attempts >= IME_HEAL_MIN_RECENT_ATTEMPTS && successes == 0;
+                return source.waitFor() == 0 ? output.toString() : null;
+            });
+            Thread readerThread = new Thread(read, "OneStepImeDump");
+            readerThread.setDaemon(true);
+            readerThread.start();
+            result = read.get(400L, TimeUnit.MILLISECONDS);
+            return result;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } catch (Exception e) {
-            Log.w(TAG, "IME health probe failed: " + describeThrowable(e));
+            logFailure("IME dump", describeThrowable(e));
         } finally {
-            if (process != null) {
-                process.destroy();
+            if (read != null) {
+                read.cancel(true);
             }
+            if (process != null) {
+                process.destroyForcibly();
+            }
+            cachedImeDump = result;
+            cachedImeDumpAt = SystemClock.uptimeMillis();
+            imeDumpInFlight.set(false);
         }
-        return false;
+        return null;
     }
 
     private String findBoundEditorPackage(int displayId) {
-        Process process = null;
+        String dump = readImeDump();
+        if (dump == null) {
+            return null;
+        }
         try {
-            process = new ProcessBuilder("dumpsys", "input_method")
-                    .redirectErrorStream(true).start();
-            BufferedReader reader = new BufferedReader(
-                    new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8));
             int sessionDisplay = -1;
             boolean inEditorBlock = false;
             int editorScanLines = 0;
-            String line;
-            while ((line = reader.readLine()) != null) {
+            for (String line : dump.split("\n")) {
                 Matcher clientMatcher = SMART_PASTE_CLIENT_DISPLAY_PATTERN.matcher(line);
                 if (clientMatcher.find()) {
                     sessionDisplay = Integer.parseInt(clientMatcher.group(1));
@@ -1945,15 +1908,8 @@ public final class RootInputBridge {
                     }
                 }
             }
-            process.waitFor(1, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
         } catch (Exception e) {
             Log.w(TAG, "smartPaste input_method parse failed: " + describeThrowable(e));
-        } finally {
-            if (process != null) {
-                process.destroy();
-            }
         }
         return null;
     }
