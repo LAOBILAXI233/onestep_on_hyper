@@ -39,7 +39,7 @@ Smartisan OS 已经远去，但它最好的创意不应被遗忘。Van Step 在�
 - 可选：[LSPosed](https://github.com/LSPosed/LSPosed)（仅当需要安装 LSPosed 增强包以恢复系统级 Hook 效果时）
 ！！！在使用前请备份数据 硬盘有价 数据无价！！！
 ## 安装
-
+模块挂载是必要的！ 若selinux注入失败可尝试宽容selinux（不推荐）
 1. 安装 Van Step 主 APK（`com.hyper.onestep`），并刷入 KSU/Magisk 模块以拉起 Root 桥守护进程。模块同时把内置锤子桌面（`com.smartisanos.home`）作为系统应用挂载到 `/system/app/SmartisanHome`，工作区的"嵌入桌面"默认选择"内置-锤子桌面"，无需再走数据分区安装。
 2. 在 Root 管理器中授予本应用 **Root 权限**。设置通过 `su` 写入，如果没有 Root 权限，所有开关都会静默回退。
 3.  并在 LSPosed 中启用（作用域：`系统框架` / `系统界面` / `启动器`），重启
