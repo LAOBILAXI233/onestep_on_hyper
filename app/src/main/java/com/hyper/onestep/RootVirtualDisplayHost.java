@@ -4651,12 +4651,14 @@ public final class RootVirtualDisplayHost implements EmbeddedAppHost,
         boolean rootDisplayToRelease = rootManagedVirtualDisplay;
         int displayIdToRelease = displayId;
         if (rootDisplayToRelease) {
+            if (!rootVirtualDisplayBridgeClient.release(getRootInputBridgeToken(), slot)) {
+                Log.w(TAG, "Root virtual display release pending for slot " + slot
+                        + ": displayId=" + displayIdToRelease);
+                return false;
+            }
             rootManagedVirtualDisplay = false;
             virtualDisplay = null;
             resetReleasedDisplayState(displayIdToRelease);
-            rootVirtualDisplayBridgeClient.setSurface(
-                    getRootInputBridgeToken(), slot, null);
-            rootVirtualDisplayBridgeClient.release(getRootInputBridgeToken(), slot);
             Log.i(TAG, "Released root virtual display for slot " + slot
                     + ": displayId=" + displayIdToRelease);
             return true;

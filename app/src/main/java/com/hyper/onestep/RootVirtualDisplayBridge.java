@@ -28,6 +28,9 @@ import java.io.InputStreamReader;
 import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 public final class RootVirtualDisplayBridge extends Binder {
     private static final String TAG = "OneStepDisplayBridge";
@@ -58,6 +61,10 @@ public final class RootVirtualDisplayBridge extends Binder {
     private static final int ROOT_UID = 0;
     private static final long LAUNCH_BYPASS_TIMEOUT_MS = 3000L;
     private static final long ROUTING_INPUT_ARM_TIMEOUT_MS = 5000L;
+    private static final int OWNER_RELEASE_MAX_ATTEMPTS = 4;
+    private static final long OWNER_RELEASE_RETRY_MS = 250L;
+    private static final int ACTIVITY_TYPE_UNDEFINED = 0;
+    private static final int ACTIVITY_TYPE_STANDARD = 1;
     private static volatile RootVirtualDisplayBridge publishedBridge;
 
     private final int allowedUid;
@@ -65,6 +72,12 @@ public final class RootVirtualDisplayBridge extends Binder {
     private final Context context;
     private final DisplayManager displayManager;
     private final Map<Integer, DisplayRecord> displays = new HashMap<>();
+    private final ScheduledExecutorService displayReleaseExecutor =
+            Executors.newSingleThreadScheduledExecutor(runnable -> {
+                Thread thread = new Thread(runnable, "OneStepDisplayRelease");
+                thread.setDaemon(true);
+                return thread;
+            });
     private final Object launchRoutingLock = new Object();
     private final Map<String, LaunchBypass> launchBypasses = new HashMap<>();
     private LaunchCallbackRecord launchCallback;
@@ -227,7 +240,13 @@ public final class RootVirtualDisplayBridge extends Binder {
         String homeSupportFailure = "";
         String failure = "no flag candidates";
         synchronized (displays) {
-            releaseLocked(slot);
+            if (displays.containsKey(slot) && !releaseLocked(slot)) {
+                if (surface != null) {
+                    surface.release();
+                }
+                writeCreateFailure(reply, "previous display release pending for slot=" + slot);
+                return;
+            }
             if (surface != null && surface.isValid() && requestedCandidates != null) {
                 for (int requestedFlags : requestedCandidates) {
                     int displayFlags = RootVirtualDisplayFlags.forRootBridge(requestedFlags);
@@ -270,7 +289,11 @@ public final class RootVirtualDisplayBridge extends Binder {
                                 + " flags=0x" + Integer.toHexString(displayFlags), e);
                         DisplayRecord record = displays.get(slot);
                         if (record != null && record.display == candidate) {
-                            releaseLocked(slot);
+                            if (!releaseLocked(slot)) {
+                                failure += ":display release pending";
+                                surface = null;
+                                break;
+                            }
                             candidate = null;
                         }
                         if (candidate != null) {
@@ -400,8 +423,8 @@ public final class RootVirtualDisplayBridge extends Binder {
         boolean released;
         synchronized (displays) {
             DisplayRecord record = displays.get(slot);
-            released = record != null && record.isOwnedBy(ownerToken)
-                    && releaseLocked(slot);
+            released = record == null
+                    || record.isOwnedBy(ownerToken) && releaseLocked(slot);
         }
         reply.writeNoException();
         reply.writeInt(released ? 1 : 0);
@@ -692,13 +715,37 @@ public final class RootVirtualDisplayBridge extends Binder {
     }
 
     private boolean releaseLocked(int slot) {
-        DisplayRecord record = displays.remove(slot);
+        DisplayRecord record = displays.get(slot);
         if (record == null) {
             return false;
         }
-        record.release();
-        Log.i(TAG, "released slot=" + slot);
-        return true;
+        long identity = Binder.clearCallingIdentity();
+        try {
+            record.release();
+            displays.remove(slot);
+            Log.i(TAG, "released slot=" + slot);
+            return true;
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            Log.e(TAG, "release deferred slot=" + slot + ": "
+                    + SystemServiceFailurePolicy.describeCauseChain(e));
+            return false;
+        } finally {
+            Binder.restoreCallingIdentity(identity);
+        }
+    }
+
+    private void releaseAfterOwnerDeath(DisplayRecord record, int attempt) {
+        synchronized (displays) {
+            if (displays.get(record.slot) != record || releaseLocked(record.slot)) {
+                return;
+            }
+            if (attempt >= OWNER_RELEASE_MAX_ATTEMPTS) {
+                Log.e(TAG, "owner display release exhausted retries slot=" + record.slot);
+                return;
+            }
+        }
+        displayReleaseExecutor.schedule(() -> releaseAfterOwnerDeath(record, attempt + 1),
+                OWNER_RELEASE_RETRY_MS, TimeUnit.MILLISECONDS);
     }
 
     private static Surface readSurface(Parcel data) {
@@ -817,6 +864,7 @@ public final class RootVirtualDisplayBridge extends Binder {
         final VirtualDisplay display;
         final IBinder ownerToken;
         Surface surface;
+        Object pendingVisibilityToken;
 
         DisplayRecord(int slot, VirtualDisplay display, Surface surface, IBinder ownerToken) {
             this.slot = slot;
@@ -849,28 +897,77 @@ public final class RootVirtualDisplayBridge extends Binder {
             }
         }
 
-        void release() {
-            ownerToken.unlinkToDeath(this, 0);
+        void release() throws ReflectiveOperationException {
             try {
-                display.setSurface(null);
-            } catch (RuntimeException ignored) {
-                
+                setSurface(null);
+            } catch (RuntimeException e) {
+                Log.w(TAG, "display surface detach failed slot=" + slot, e);
             }
+            moveTasksToBackground();
             display.release();
+            ownerToken.unlinkToDeath(this, 0);
             if (surface != null) {
                 surface.release();
                 surface = null;
             }
         }
 
-        @Override
-        public void binderDied() {
-            synchronized (displays) {
-                DisplayRecord current = displays.get(slot);
-                if (current == this) {
-                    releaseLocked(slot);
+        private void moveTasksToBackground() throws ReflectiveOperationException {
+            restoreTaskVisibility();
+            Display sourceDisplay = display.getDisplay();
+            if (sourceDisplay == null) {
+                return;
+            }
+            int sourceDisplayId = sourceDisplay.getDisplayId();
+            if (sourceDisplayId <= Display.DEFAULT_DISPLAY) {
+                throw new IllegalStateException("invalid release display=" + sourceDisplayId);
+            }
+            Object service = RootActivityManagerCompat.getTaskService();
+            for (Object task : RootActivityManagerCompat.getRootTasksOnDisplay(
+                    service, sourceDisplayId)) {
+                if (!isApplicationTask(task)) {
+                    continue;
+                }
+                int taskId = RootActivityManagerCompat.getRootTaskId(task);
+                pendingVisibilityToken = task.getClass().getField("token").get(task);
+                try {
+                    RootActivityManagerCompat.applyTaskVisibility(
+                            pendingVisibilityToken, true, null);
+                    RootActivityManagerCompat.moveRootTaskToDisplay(
+                            service, taskId, Display.DEFAULT_DISPLAY);
+                } finally {
+                    restoreTaskVisibility();
+                }
+                Log.i(TAG, "background task before release slot=" + slot
+                        + " task=" + taskId + " source=" + sourceDisplayId);
+            }
+            for (Object task : RootActivityManagerCompat.getRootTasksOnDisplay(
+                    service, sourceDisplayId)) {
+                if (isApplicationTask(task)) {
+                    throw new IllegalStateException("application tasks remain on display="
+                            + sourceDisplayId);
                 }
             }
+        }
+
+        private void restoreTaskVisibility() throws ReflectiveOperationException {
+            if (pendingVisibilityToken != null) {
+                RootActivityManagerCompat.applyTaskVisibility(
+                        pendingVisibilityToken, false, Boolean.FALSE);
+                pendingVisibilityToken = null;
+            }
+        }
+
+        private boolean isApplicationTask(Object task) throws ReflectiveOperationException {
+            int activityType = (Integer) task.getClass().getMethod("getActivityType")
+                    .invoke(task);
+            return activityType == ACTIVITY_TYPE_UNDEFINED
+                    || activityType == ACTIVITY_TYPE_STANDARD;
+        }
+
+        @Override
+        public void binderDied() {
+            displayReleaseExecutor.execute(() -> releaseAfterOwnerDeath(this, 1));
         }
     }
 }

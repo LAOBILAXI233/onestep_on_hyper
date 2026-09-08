@@ -750,7 +750,8 @@ public final class RootInputBridge {
             if (taskToken == null) {
                 throw new IllegalStateException("task token unavailable: " + taskId);
             }
-            applyTaskVisibility(taskToken, hidden, hidden ? null : Boolean.TRUE);
+            RootActivityManagerCompat.applyTaskVisibility(
+                    taskToken, hidden, hidden ? null : Boolean.TRUE);
             success = true;
         } catch (ReflectiveOperationException | RuntimeException e) {
             throwIfSystemServiceDead(e);
@@ -836,11 +837,12 @@ public final class RootInputBridge {
                 throw new IllegalStateException("task identity or display changed");
             }
             taskToken = readOptionalField(matched, "token");
-            applyTaskVisibility(taskToken, true, null);
+            RootActivityManagerCompat.applyTaskVisibility(taskToken, true, null);
             getMoveRootTaskToDisplayMethod().invoke(
                     getActivityTaskManagerService(), taskId, targetDisplay);
             moved = true;
-            applyTaskVisibility(taskToken, leaveHidden, leaveHidden ? null : onTop);
+            RootActivityManagerCompat.applyTaskVisibility(
+                    taskToken, leaveHidden, leaveHidden ? null : onTop);
             result = 1;
         } catch (ReflectiveOperationException | RuntimeException e) {
             throwIfSystemServiceDead(e);
@@ -853,7 +855,7 @@ public final class RootInputBridge {
                         getMoveRootTaskToDisplayMethod().invoke(
                                 getActivityTaskManagerService(), taskId, actualSource);
                     }
-                    applyTaskVisibility(taskToken, false, !onTop);
+                    RootActivityManagerCompat.applyTaskVisibility(taskToken, false, !onTop);
                 } catch (ReflectiveOperationException | RuntimeException e) {
                     Log.e(TAG, "Restore task after failed transfer: " + taskId, e);
                 }
@@ -872,26 +874,6 @@ public final class RootInputBridge {
             }
         }
         return false;
-    }
-
-    private static void applyTaskVisibility(Object token, boolean hidden, Boolean onTop)
-            throws ReflectiveOperationException {
-        if (token == null) {
-            throw new IllegalStateException("task token unavailable");
-        }
-        Class<?> tokenClass = Class.forName("android.window.WindowContainerToken");
-        Class<?> transactionClass = Class.forName("android.window.WindowContainerTransaction");
-        Object transaction = transactionClass.getConstructor().newInstance();
-        transactionClass.getMethod("setHidden", tokenClass, boolean.class)
-                .invoke(transaction, token, hidden);
-        if (onTop != null) {
-            transactionClass.getMethod("reorder", tokenClass, boolean.class)
-                    .invoke(transaction, token, onTop);
-        }
-        Class<?> organizerClass = Class.forName("android.window.WindowOrganizer");
-        Object organizer = organizerClass.getConstructor().newInstance();
-        organizerClass.getMethod("applyTransaction", transactionClass)
-                .invoke(organizer, transaction);
     }
 
     private Object getActivityTaskManagerService() throws ReflectiveOperationException {
