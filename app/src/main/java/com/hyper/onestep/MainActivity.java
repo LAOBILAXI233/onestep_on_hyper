@@ -447,6 +447,7 @@ public class MainActivity extends Activity {
     private final Runnable refreshAllEmbeddedSlotLayoutsRunnable =
             this::runScheduledEmbeddedSlotRefresh;
     private boolean forceEmbeddedLayoutRefresh;
+    private boolean embeddedLayoutRefreshPending;
     private ViewTreeObserver embeddedLayoutRefreshObserver;
     private ViewTreeObserver.OnPreDrawListener embeddedLayoutRefreshPreDrawListener;
     private final Runnable syncSideInputProtectionRunnable =
@@ -2775,8 +2776,7 @@ public class MainActivity extends Activity {
             windowViews[slot].setVisibility(visible ? View.VISIBLE : View.INVISIBLE);
             EmbeddedAppHost host = embeddedHosts[slot];
             if (host != null) {
-                host.setRenderingEnabled(requestedVisible
-                        ? shouldRenderWindowSlot(slot) : visible && host.isRenderingEnabled());
+                host.setRenderingEnabled(shouldRenderWindowSlot(slot));
             }
             windowViews[slot].setMainWindowMode(isMainPaneSlot(slot));
         }
@@ -2796,9 +2796,8 @@ public class MainActivity extends Activity {
             if (onAnimationFinished != null) {
                 onAnimationFinished.run();
             } else {
-                refreshAllEmbeddedSlotLayouts();
+                scheduleEmbeddedSlotRefresh();
             }
-            scheduleEmbeddedSlotRefresh();
             sideSlotResumeController.resume();
             scheduleBottomGestureLayoutUpdate();
         };
@@ -2818,6 +2817,9 @@ public class MainActivity extends Activity {
     }
 
     private boolean shouldRenderWindowSlot(int slot) {
+        if (exitOneStepPending && slot != activeMainSlot) {
+            return false;
+        }
         return shouldShowWindowSlot(slot)
                 && (isMainPaneSlot(slot) || !sideSlotResumeController.isPending(slot));
     }
@@ -3088,6 +3090,11 @@ public class MainActivity extends Activity {
         if (windowAnimationController != null) {
             windowAnimationController.cancelAndReset();
         }
+        if (workspace != null) {
+            workspace.removeCallbacks(refreshAllEmbeddedSlotLayoutsRunnable);
+        }
+        embeddedLayoutRefreshPending = false;
+        removeEmbeddedLayoutRefreshPreDrawListener();
     }
 
     private boolean isWindowAnimationRunning() {
@@ -3481,6 +3488,7 @@ public class MainActivity extends Activity {
         requestPipUndock();
         applyStatusBarForCurrentMode();
         suspendEmbeddedStartsForFullscreen();
+        updateEmbeddedRenderingForMode();
         workspace.postDelayed(this::completeExitOneStepMode,
                 EXIT_FULLSCREEN_LAYOUT_DELAY_MS);
     }
@@ -3507,6 +3515,15 @@ public class MainActivity extends Activity {
                 refreshMainSizeAfterLayout();
             }
         });
+    }
+
+    private void updateEmbeddedRenderingForMode() {
+        for (int slot = 0; slot < MAX_WINDOWS; slot++) {
+            EmbeddedAppHost host = embeddedHosts[slot];
+            if (host != null) {
+                host.setRenderingEnabled(shouldRenderWindowSlot(slot));
+            }
+        }
     }
 
     private boolean needsMainSizeRefreshForCurrentLayout(String targetMode) {
@@ -9954,8 +9971,18 @@ public class MainActivity extends Activity {
             scheduleEmbeddedSlotRefresh(forceVirtualDisplayResize);
             return;
         }
+        forceVirtualDisplayResize |= forceEmbeddedLayoutRefresh;
+        forceEmbeddedLayoutRefresh = false;
+        embeddedLayoutRefreshPending = false;
+        if (workspace != null) {
+            workspace.removeCallbacks(refreshAllEmbeddedSlotLayoutsRunnable);
+        }
+        removeEmbeddedLayoutRefreshPreDrawListener();
         for (int slot = 0; slot < MAX_WINDOWS; slot++) {
             if (windowViews[slot] == null || embeddedSlotClosing[slot]) {
+                continue;
+            }
+            if (!multiWindowMode && slot != activeMainSlot) {
                 continue;
             }
             EmbeddedAppHost host = embeddedHosts[slot];
@@ -9988,9 +10015,20 @@ public class MainActivity extends Activity {
             return;
         }
         forceEmbeddedLayoutRefresh |= forceVirtualDisplayResize;
+        if (embeddedLayoutRefreshPending) {
+            return;
+        }
+        embeddedLayoutRefreshPending = true;
         workspace.removeCallbacks(refreshAllEmbeddedSlotLayoutsRunnable);
         removeEmbeddedLayoutRefreshPreDrawListener();
-        workspace.requestLayout();
+        if (isWindowAnimationRunning()) {
+            workspace.postDelayed(refreshAllEmbeddedSlotLayoutsRunnable,
+                    EMBEDDED_LAYOUT_REFRESH_DELAY_MS);
+            return;
+        }
+        if (!workspace.isLayoutRequested()) {
+            workspace.requestLayout();
+        }
         ViewTreeObserver observer = workspace.getViewTreeObserver();
         if (observer.isAlive()) {
             embeddedLayoutRefreshObserver = observer;
@@ -10012,6 +10050,7 @@ public class MainActivity extends Activity {
     }
 
     private void runScheduledEmbeddedSlotRefresh() {
+        embeddedLayoutRefreshPending = false;
         removeEmbeddedLayoutRefreshPreDrawListener();
         boolean forceVirtualDisplayResize = forceEmbeddedLayoutRefresh;
         forceEmbeddedLayoutRefresh = false;
@@ -10022,6 +10061,7 @@ public class MainActivity extends Activity {
         if (workspace != null) {
             workspace.removeCallbacks(refreshAllEmbeddedSlotLayoutsRunnable);
         }
+        embeddedLayoutRefreshPending = false;
         forceEmbeddedLayoutRefresh = false;
         removeEmbeddedLayoutRefreshPreDrawListener();
     }

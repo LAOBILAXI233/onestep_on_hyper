@@ -377,9 +377,10 @@ public final class RootVirtualDisplayHost implements EmbeddedAppHost,
     private long touchTraceSequence;
     private long activeTouchTraceId;
     private boolean touchMoved;
-    private boolean touchStartedOnMain;
+    private volatile boolean touchStartedOnMain;
     private boolean touchSequenceSuppressed;
-    private int touchFocusRequestGeneration;
+    private volatile boolean focusAfterTouchPending;
+    private volatile Runnable focusAfterTouchCallback;
     private volatile boolean imeGestureShieldActive;
     private volatile boolean imeGestureShieldQueryInFlight;
     private int imeGestureShieldStreak;
@@ -2243,15 +2244,12 @@ public final class RootVirtualDisplayHost implements EmbeddedAppHost,
         final int actionMasked;
         final MotionEvent event;
         final long traceId;
-        final int focusRequestGeneration;
 
-        PendingMotionEvent(int displayId, MotionEvent event, long traceId,
-                           int focusRequestGeneration) {
+        PendingMotionEvent(int displayId, MotionEvent event, long traceId) {
             this.displayId = displayId;
             this.event = event;
             actionMasked = event.getActionMasked();
             this.traceId = traceId;
-            this.focusRequestGeneration = focusRequestGeneration;
         }
 
         void recycle() {
@@ -2295,7 +2293,6 @@ public final class RootVirtualDisplayHost implements EmbeddedAppHost,
                 touchStartedOnMain = callbacks.isMainPaneSlot(slot)
                         && callbacks.activateMainSlot(slot);
                 touchSequenceSuppressed = false;
-                touchFocusRequestGeneration = 0;
                 activeTouchTraceId = 0L;
                 if (touchStartedOnMain) {
                     touchTargetDisplayId = displayId;
@@ -2308,7 +2305,6 @@ public final class RootVirtualDisplayHost implements EmbeddedAppHost,
                     touchSequenceSuppressed = startsInHiddenVirtualNavigationRegion(event);
                     if (!touchSequenceSuppressed) {
                         activeTouchTraceId = ++touchTraceSequence;
-                        touchFocusRequestGeneration = ++focusRequestGeneration;
                         syncLaunchRoutingSource();
                     }
                 } else {
@@ -2378,7 +2374,6 @@ public final class RootVirtualDisplayHost implements EmbeddedAppHost,
     private void clearTouchState() {
         touchStartedOnMain = false;
         touchSequenceSuppressed = false;
-        touchFocusRequestGeneration = 0;
         activeTouchTraceId = 0L;
         touchTargetDisplayId = -1;
         touchTargetDisplayWidth = 0;
@@ -2386,6 +2381,30 @@ public final class RootVirtualDisplayHost implements EmbeddedAppHost,
         touchTargetViewWidth = 0;
         touchTargetViewHeight = 0;
         touchTargetDisplayRotation = Surface.ROTATION_0;
+        runDeferredFocusIfInputIdle();
+    }
+
+    private void runDeferredFocusIfInputIdle() {
+        Runnable callback = null;
+        boolean runFocus = false;
+        synchronized (inputDispatchLock) {
+            if (focusAfterTouchPending && pendingMotionEvents.isEmpty()
+                    && !inputDispatchRunning && !touchStartedOnMain) {
+                focusAfterTouchPending = false;
+                runFocus = true;
+                callback = focusAfterTouchCallback;
+                focusAfterTouchCallback = null;
+            }
+        }
+        if (runFocus) {
+            focusHostedDisplayAsync("deferred after touch", callback);
+        }
+    }
+
+    private boolean isTouchInputBusy() {
+        synchronized (inputDispatchLock) {
+            return touchStartedOnMain || inputDispatchRunning || !pendingMotionEvents.isEmpty();
+        }
     }
 
     boolean launchImageShareActivity(LauncherApp app, Intent shareIntent) {
@@ -2550,9 +2569,7 @@ public final class RootVirtualDisplayHost implements EmbeddedAppHost,
         logTouchTraceHost(traceId, targetDisplayId, actionMasked, downTime,
                 eventTime, x, y, transformedEvent.getPointerCount());
         boolean sent = sendMotionThroughRootBridge(
-                targetDisplayId, transformedEvent, traceId,
-                actionMasked == MotionEvent.ACTION_DOWN
-                        ? touchFocusRequestGeneration : 0);
+                targetDisplayId, transformedEvent, traceId);
         if (!sent) {
             if (actionMasked == MotionEvent.ACTION_DOWN) {
                 touchSequenceSuppressed = true;
@@ -2600,10 +2617,9 @@ public final class RootVirtualDisplayHost implements EmbeddedAppHost,
 
     private boolean sendMotionThroughRootBridge(int targetDisplayId,
                                                  MotionEvent transformedEvent,
-                                                 long traceId,
-                                                 int focusGeneration) {
+                                                 long traceId) {
         PendingMotionEvent motion = new PendingMotionEvent(
-                targetDisplayId, transformedEvent, traceId, focusGeneration);
+                targetDisplayId, transformedEvent, traceId);
         synchronized (inputDispatchLock) {
             if (inputDispatchClosed) {
                 motion.recycle();
@@ -2637,6 +2653,7 @@ public final class RootVirtualDisplayHost implements EmbeddedAppHost,
     private void drainPendingMotionEvents() {
         while (true) {
             PendingMotionEvent motion;
+            boolean inputIdle = false;
             synchronized (inputDispatchLock) {
                 if (inputDispatchClosed) {
                     recyclePendingMotionEventsLocked();
@@ -2646,27 +2663,15 @@ public final class RootVirtualDisplayHost implements EmbeddedAppHost,
                 motion = pendingMotionEvents.pollFirst();
                 if (motion == null) {
                     inputDispatchRunning = false;
-                    return;
+                    inputIdle = true;
                 }
+            }
+            if (inputIdle) {
+                runDeferredFocusIfInputIdle();
+                return;
             }
             boolean sent;
             try {
-                if (motion.focusRequestGeneration > 0) {
-                    
-                    
-                    boolean currentRequest = motion.focusRequestGeneration
-                            == focusRequestGeneration
-                            && motion.displayId == displayId
-                            && slot == callbacks.activeMainSlot()
-                            && callbacks.isActivityResumed()
-                            && !callbacks.isActivityDestroyed();
-                    boolean focused = currentRequest && rootInputBridgeClient.focusHostedDisplay(
-                            getRootInputBridgeToken(), motion.displayId, motion.event.getEventTime());
-                    if (currentRequest && !focused) {
-                        Log.w(TAG, "Focus hosted display before touch failed: slot=" + slot
-                                + ", display=" + motion.displayId);
-                    }
-                }
                 sent = rootInputBridgeClient.sendMotion(
                         getRootInputBridgeToken(), motion.displayId,
                         motion.event, motion.traceId);
@@ -2713,12 +2718,13 @@ public final class RootVirtualDisplayHost implements EmbeddedAppHost,
         final int targetDisplayId = displayId;
         final int requestGeneration = focusRequestGeneration;
         final long requestedAt = SystemClock.uptimeMillis();
-        if (targetDisplayId <= DEFAULT_DISPLAY_ID) {
+        if (targetDisplayId <= DEFAULT_DISPLAY_ID || touchStartedOnMain) {
             return;
         }
         try {
             displayImePolicyExecutor.execute(() -> {
-                if (targetDisplayId == displayId && requestGeneration == focusRequestGeneration
+                if (!touchStartedOnMain && targetDisplayId == displayId
+                        && requestGeneration == focusRequestGeneration
                         && slot == callbacks.activeMainSlot() && callbacks.isActivityResumed()
                         && !callbacks.isActivityDestroyed()) {
                     rootInputBridgeClient.imeFocusCycle(
@@ -2790,9 +2796,23 @@ public final class RootVirtualDisplayHost implements EmbeddedAppHost,
         final int targetDisplayId = displayId;
         final int requestGeneration = ++focusRequestGeneration;
         final long requestedAt = SystemClock.uptimeMillis();
+        if (isTouchInputBusy()) {
+            if (onFinished != null) {
+                focusAfterTouchCallback = onFinished;
+            }
+            focusAfterTouchPending = true;
+            return;
+        }
         syncLaunchRoutingSource();
         try {
             displayImePolicyExecutor.execute(() -> {
+                if (isTouchInputBusy()) {
+                    if (onFinished != null) {
+                        focusAfterTouchCallback = onFinished;
+                    }
+                    focusAfterTouchPending = true;
+                    return;
+                }
                 boolean currentRequest = requestGeneration == focusRequestGeneration
                         && targetDisplayId == displayId
                         && slot == callbacks.activeMainSlot()
